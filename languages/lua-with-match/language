@@ -1,6 +1,6 @@
 syntax top:File = body:Block {
   #scope (body)
-  BExpression` #callcc (fun return.
+  File` #callcc (fun return.
     `t(body) return (fun __. #crash))
 }
 
@@ -26,6 +26,8 @@ syntax funcCall:Expression =
   #scope (f)
   BExpression` `t(args) `t(f) #unit
 }
+
+syntax type ArgList = BExpression
 
 // This is included to enable the Expressions to go to the top level Expression non-terminal, ideally it would be defined inline in funcCall, but then it would recurse into a lower precedence
 syntax argList:ArgList =
@@ -75,6 +77,8 @@ syntax divide:Expression = a:Expression "/" b:Expression {
 syntax parens:Expression = "(" e:Expression ")" {
   e
 }
+
+syntax type Statement = BExpression
 
 syntax funcCallStmnt:Statement =
   f:Expression "(" args:ArgList ")"
@@ -197,6 +201,8 @@ syntax function:Statement =
             `t(body) return (fun __. #crash)))))))
 }
 
+syntax type Block = BExpression
+
 syntax blockContent:Block =
   (stmnts:Statement ";"?)* ret:Return?
 {
@@ -208,6 +214,8 @@ syntax blockContent:Block =
       (BExpression` `t(ret) return break)
     (BExpression` #unit))
 }
+
+syntax type Return = BExpression
 
 syntax return:Return = "return" e:Expression? {
   BExpression` efun return. efun break. `t(
@@ -282,6 +290,8 @@ syntax luaMatch:Statement =
 
 
 // These are copied without any change from ocaml to simulate importing, except Expression switched for OcamlExpression, since the types would almost certainly be different in a real world situation
+
+syntax type OcamlExpression = BExpression
 
 syntax match:OcamlExpression =
   "match" e:OcamlExpression "with"

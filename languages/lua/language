@@ -1,8 +1,10 @@
 syntax top:File = body:Block {
   #scope (body)
-  BExpression` #callcc (fun return.
+  File` #callcc (fun return.
     `t(body) return (fun _. #crash))
 }
+
+syntax type Expression = BExpression
 
 syntax var:Expression = id:Identifier {
   BExpression` `id(id)
@@ -24,6 +26,8 @@ syntax funcCall:Expression =
   #scope (f)
   BExpression` `t(args) `t(f) #unit
 }
+
+syntax type ArgList = BExpression
 
 syntax argList:ArgList =
   (e:Expression ("," es:Expression)*)?
@@ -112,6 +116,8 @@ syntax divide:Expression =
 
 syntax parens:Expression = "(" e:Expression ")"
 { e }
+
+syntax type Statement = BExpression
 
 syntax funcCallStmnt:Statement =
   f:Expression "(" args:ArgList ")"
@@ -245,6 +251,8 @@ syntax function:Statement =
                        (fun _. #crash)))))))
 }
 
+syntax type Block = BExpression
+
 syntax blockContent:Block =
   (stmnts:Statement ";"?)* ret:Return?
 {
@@ -258,6 +266,8 @@ syntax blockContent:Block =
         `t(ret) return break)
     (BExpression` #unit))
 }
+
+syntax type Return = BExpression
 
 syntax return:Return = "return" e:Expression? {
   BExpression` efun return. efun break. `t(

@@ -1,6 +1,8 @@
+syntax type Top = BExpression
 
 syntax top:File = ts:Top+ {
-  foldl1 ts prev (BExpression` `t(prev); `t(ts))
+  File` #unit; `t(
+    foldl1 ts prev (BExpression` `t(prev); `t(ts)))
 }
 
 // ERROR: if args[1] has #bind before and args[0]
@@ -47,6 +49,8 @@ syntax topLetRec:Top =
              e2)))
      (BExpression` #unit))
 }
+
+syntax type Expression = BExpression
 
 syntax debugPrint:Expression = "#" "debug" {
   BExpression` #print
@@ -207,6 +211,8 @@ syntax funLit:Expression =
        `t(next)))
   body
 }
+
+syntax type Pattern = BExpression
 
 syntax intPat:Pattern = i:Integer {
   BExpression` efun fail. efun val.

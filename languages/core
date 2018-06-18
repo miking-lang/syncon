@@ -1,3 +1,6 @@
+syntax type File = builtin
+syntax type BExpression = builtin
+
 syntax top:File = e:BExpression {
   builtin
 }
@@ -75,6 +78,8 @@ syntax var:BExpression = id:Identifier { builtin }
 syntax int:BExpression = i:Integer { builtin }
 syntax float:BExpression = f:Float { builtin }
 syntax string:BExpression = s:String { builtin }
+
+syntax type Builtin = builtin
 
 syntax builtin:BExpression = "#" b:Builtin {
   builtin

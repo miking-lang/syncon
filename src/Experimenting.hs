@@ -67,13 +67,13 @@ normalOperations = do
   let Just (grammars, source) = unsnoc rest
   ignoreExpansionCheckingFailure <- hasOption "--ignore-expansion-check"
   putStrLn "\nParsing coreGrammar"
-  coreConstructions <- getConstructions noImpl coreGrammar
+  (coreTys, coreConstructions) <- getConstructions noImpl coreGrammar
   putStrLn "\nResolving core Constructions"
   resolvedCoreConstructions <- resolveConstructions coreConstructions
-  (allConstructions, (langConstructions, allResolvedConstructions))
-    <- foldM grammar (coreConstructions, (coreConstructions, resolvedCoreConstructions)) grammars
+  ((allTys, allConstructions), (langConstructions, allResolvedConstructions))
+    <- foldM grammar ((coreTys, coreConstructions), (coreConstructions, resolvedCoreConstructions)) grammars
   putStrLn "\nChecking Implementations"
-  implCheck ignoreExpansionCheckingFailure allConstructions allResolvedConstructions
+  implCheck ignoreExpansionCheckingFailure allTys allConstructions allResolvedConstructions
   putStrLn "\nParsing source"
   node <- ambiguityParse langConstructions startSym source
   putStrLn "\nResolving source"
@@ -99,13 +99,13 @@ benchOperations = do
   let testPrograms = iterate (fragment ++) fragment
   benchmark startSym coreGrammar grammar testPrograms
 
-grammar :: (_, (_, _)) -> FilePath -> IO (_, (_, _))
-grammar (constrs, (_, resConstrs)) path = do
+grammar :: ((_, _), (_, _)) -> FilePath -> IO ((_, _), (_, _))
+grammar ((tys, constrs), (_, resConstrs)) path = do
   putStrLn $ "Parsing " ++ path
-  constructions <- getConstructions (implementationGrammar constrs) path
+  (types, constructions) <- getConstructions (implementationGrammar constrs) path
   putStrLn $ "Resolving " ++ path
   resolvedConstructions <- resolveConstructions constructions
-  return (M.union constrs constructions, (constructions, M.union resConstrs resolvedConstructions))
+  return ((tys ++ types, M.union constrs constructions), (constructions, M.union resConstrs resolvedConstructions))
 
 resolveSource :: Gen pre => M.Map String ResolvedConstruction -> FixNode NoSplice pre -> IO (FixNode NoSplice GenSym)
 resolveSource resolvedConstructions node = case resolveNames resolvedConstructions node of
@@ -147,23 +147,23 @@ resolveConstructions constructions =
       mapM_ (putStrLn . show) es
       error $ "Cannot continue"
 
-getConstructions :: (forall r. Production r (Splice (FixNode _ String)) -> Grammar r (Production r (FixNode _ String))) -> FilePath -> IO (M.Map String (Constr _))
+getConstructions :: (forall r. Production r (Splice (FixNode _ String)) -> Grammar r (Production r (FixNode _ String))) -> FilePath -> IO ([(String, Maybe String)], M.Map String (Constr _))
 getConstructions impl path = withFile path ReadMode $ \f -> do
   (parses, rep@Report{expected, unconsumed}) <- parseConstructions impl . tokenize . force <$> hGetContents f
   case parses of
-    [p] -> return . M.fromList $ (Types.Construction.name &&& id) . addPrefix <$> p
+    [(tys, p)] -> return . (tys,) . M.fromList $ (Types.Construction.name &&& id) . addPrefix <$> p
     [] -> do
       putStrLn $ "Got no parses of grammar file \"" ++ path ++ "\""
       putStrLn $ "Expected: " ++ (show . S.toList $ S.fromList expected)
       putStrLn $ "Unconsumed range: " ++ show (range unconsumed)
       putStrLn $ "Unconsumed: " ++ show unconsumed
       error $ "Cannot continue"
-    _ -> error $ "Got too many parses of grammar file \"" ++ path ++ "\""
+    ps -> error $ "Got too many parses of grammar file \"" ++ path ++ "\"\n" ++ show ps
   where
     addPrefix c@Construction{name} = c { Types.Construction.name = path ++ "#" ++ name }
 
-implCheck :: Bool -> M.Map String (Constr _) -> M.Map String ResolvedConstruction -> IO ()
-implCheck ignoreFailure constructions resolvedConstructions = if S.null errors
+implCheck :: Bool -> [(String, Maybe String)] -> M.Map String (Constr _) -> M.Map String ResolvedConstruction -> IO ()
+implCheck ignoreFailure tys constructions resolvedConstructions = if S.null errors
   then return ()
   else do
     forM_ errors $ putStrLn . show
@@ -171,12 +171,13 @@ implCheck ignoreFailure constructions resolvedConstructions = if S.null errors
       then putStrLn $ "WARNING: continuing despite expansion check failure"
       else error $ "Could continue, but will not (use -iec or --ignore-expansion-check)"
   where
-    errors = check constructions resolvedConstructions
+    errors = check tys constructions resolvedConstructions
 
 fullParse :: IO ()
 fullParse = do
   [startSym, grammar] <- getArgs
-  parser <- parseWithGrammar startSym <$> getConstructions noImpl grammar
+  (_, constrs) <- getConstructions noImpl grammar
+  let parser = parseWithGrammar startSym constrs
   interact $ prettier . parser . tokenize
   where
     prettier (results, report) = unlines $ show report : (show <$> results)
@@ -189,9 +190,9 @@ checkCategory = interact $ unlines . map (show . generalCategory)
 
 benchmark :: String -> FilePath -> FilePath -> [String] -> IO ()
 benchmark startSym corePath langPath sources = do
-  coreConstructions <- getConstructions noImpl corePath
+  (_, coreConstructions) <- getConstructions noImpl corePath
   resolvedCoreConstructions <- resolveConstructions coreConstructions
-  constructions <- getConstructions (implementationGrammar coreConstructions) langPath
+  (_, constructions) <- getConstructions (implementationGrammar coreConstructions) langPath
   resolvedConstructions <- resolveConstructions constructions
   let allResolvedConstructions = M.union resolvedConstructions resolvedCoreConstructions
   forM_ (zip [1..] sources) $ \(idx, source) -> do

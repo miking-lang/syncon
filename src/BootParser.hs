@@ -2,6 +2,7 @@
 
 module BootParser (parseConstructions) where
 
+import Data.Function ((&))
 import Data.Either (partitionEithers)
 import Control.Applicative ((<|>), some, many, optional)
 
@@ -12,11 +13,17 @@ import Types.Lexer (sameContent, Token(..))
 import Types.Construction
 
 type Production r a = Prod r String Token a
+type SynTy = (String, Maybe String)
 
-parseConstructions :: (forall r. Production r (Splice n) -> Grammar r (Production r n)) -> [Token] -> ([[Construction n]], Report String [Token])
-parseConstructions impl = fullParses $ parser constructions
+parseConstructions :: (forall r. Production r (Splice n) -> Grammar r (Production r n)) -> [Token] -> ([([SynTy], [Construction n])], Report String [Token])
+parseConstructions impl = fullParses $ parser items
   where
-    constructions = BootParser.implementation impl >>= fmap many . construction
+    items = do
+      impl' <- BootParser.implementation impl
+      constr <- construction impl'
+      many (Left <$> synTy <|> Right <$> constr)
+        & fmap partitionEithers
+        & return
 
 implementation :: (Production r (Splice n) -> Grammar r (Production r n)) -> Grammar r (Production r (Maybe (Splice n)))
 implementation impl = mdo
@@ -43,6 +50,13 @@ implementation impl = mdo
     simpleOrBuiltin "builtin" = Nothing
     simpleOrBuiltin i = Just $ Simple i
 
+synTy :: Production r (String, Maybe String)
+synTy = lit "syntax" *> lit "type" *> pure (,) <*>
+  identifier <* lit "=" <*> fmap idOrBuiltin identifier
+  where
+    idOrBuiltin "builtin" = Nothing
+    idOrBuiltin t = Just t
+
 construction :: Production r (Maybe (Splice n)) -> Grammar r (Production r (Construction n))
 construction impl = mdo
   syntaxPs <- syntaxPatterns
@@ -68,6 +82,8 @@ construction impl = mdo
     before bs = mempty { beforeBindings = bs }
     after bs = mempty { afterBindings = bs }
     prec i = mempty { precData = Just i }
+    idOrBuiltin "builtin" = Nothing
+    idOrBuiltin t = Just t
     assoc (IdentifierTok _ "left") = Just $ mempty { assocData = Just AssocLeft }
     assoc (IdentifierTok _ "right") = Just $ mempty { assocData = Just AssocRight }
     assoc _ = Nothing
