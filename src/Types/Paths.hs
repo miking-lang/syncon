@@ -5,6 +5,7 @@ module Types.Paths
 , MultiPath -- Path to a single element in construction, multiple in ast
 , TreeEndPath -- Merge of multiple child-disjoint MultiPaths
 , TreePath -- Merge of any two paths
+, asTreePath
 , singlePath
 , multiPath
 , fromMultiPath
@@ -12,6 +13,7 @@ module Types.Paths
 , limitPathInstance
 , prepend
 , prependMulti
+, step
 , here
 , nowhere
 , oneOf
@@ -23,18 +25,27 @@ module Types.Paths
 , mergePaths
 ) where
 
+import Data.Semigroup (Semigroup, (<>))
 import Data.Function ((&))
 import Data.List (foldl')
 import Data.Maybe (isJust, isNothing, catMaybes, maybeToList, fromMaybe, fromJust)
+import Data.Foldable (fold)
 
 import Control.Arrow (second)
 
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 newtype SinglePath = SinglePath TreePath deriving (Path, Eq, Ord)
 newtype MultiPath = MultiPath TreePath deriving (Path, Eq, Ord)
 newtype TreeEndPath = TreeEndPath TreePath deriving (Path, Eq, Show, Ord)
 data TreePath = TreePath (M.Map (Maybe Int) TreePath) Bool deriving (Eq, Show, Ord)
+
+instance Semigroup TreePath where
+  (<>) = mergePaths
+instance Monoid TreePath where
+  mempty = nowhere
+  mappend = (<>)
 
 instance Show SinglePath where
   show (SinglePath tp) = show $ fromJust <$> toListUnsafe tp
@@ -84,6 +95,10 @@ here = unview $ TreePath M.empty True
 
 nowhere :: Path p => p
 nowhere = unview $ TreePath M.empty False
+
+step :: TreePath -> Int -> TreePath
+step (TreePath m _) s = m `M.restrictKeys` S.fromList [Just s, Nothing]
+  & fold
 
 mergePaths :: (Path p, Path p') => p -> p' -> TreePath
 mergePaths (view -> TreePath m1 b1) (view -> TreePath m2 b2) =
@@ -140,6 +155,9 @@ childrenOverlapping (view -> p1) (view -> p2) = recur p1 p2
 
 childrenDisjoint :: (Path p, Path p') => p -> p' -> Bool
 childrenDisjoint p1 p2 = not $ childrenOverlapping p1 p2
+
+asTreePath :: Path p => p -> TreePath
+asTreePath = view
 
 class Path p where
   view :: p -> TreePath
