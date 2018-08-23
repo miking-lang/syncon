@@ -1,11 +1,12 @@
 module FullExpander (fullExpansion) where
 
 import qualified Unsafe.Coerce
+import Debug.Trace
 
-import Control.Arrow (second, (>>>))
+import Control.Arrow (second, (>>>), (***))
+import Control.Monad (zipWithM)
+import Control.Monad.State.Strict (State, evalState, get, modify')
 
-import Data.Maybe (fromMaybe)
-import Data.Foldable (fold)
 import Data.Function ((&))
 import Data.Semigroup (Semigroup, (<>))
 import qualified Data.Map as M
@@ -14,7 +15,7 @@ import qualified Data.Set as S
 import Binding
 
 import Types.Result
-import Types.Paths (TreePath, here, mergePaths, step, oneOf, asTreePath)
+import Types.Paths (TreePath, here, mergePaths, step, oneOf)
 import Types.Construction(NoSplice)
 import Types.ResolvedConstruction
 import Types.GenSym
@@ -31,75 +32,82 @@ type MidNodeS = MidNodeI Splice GenSym
 data Progress d n = Done d
                   | NeedsResolution n
 
-data ContainsDuplicates = ContainsSingles (S.Set GenSym)
-                        | ContainsDuplicates
+data Duplicates = Duplicates Bool (S.Set GenSym)
 
-instance Semigroup ContainsDuplicates where
-  ContainsDuplicates <> _ = ContainsDuplicates
-  _ <> ContainsDuplicates = ContainsDuplicates
-  ContainsSingles a <> ContainsSingles b
-    | S.null (S.intersection a b) = ContainsSingles $ a <> b
-    | otherwise = ContainsDuplicates
+instance Semigroup Duplicates where
+  Duplicates d1 s1 <> Duplicates d2 s2 =
+    Duplicates (d1 || d2 || not disjoint) (s1 <> s2)
+    where
+      disjoint = S.null $ S.intersection s1 s2
+instance Monoid Duplicates where
+  mempty = Duplicates False S.empty
+  mappend = (<>)
 
 pmap :: (d -> d') -> (n -> n') -> Progress d n -> Progress d' n'
 pmap f _ (Done d) = Done $ f d
 pmap _ f (NeedsResolution n) = NeedsResolution $ f n
 
+type Expander a = State Int a
+
 fullExpansion :: M.Map String ResolvedConstruction -> FNode -> FNode
 fullExpansion constructions = unSplice >>> typeChange >>> recur >>> FixNode
   where
     recur :: NodeS -> Node
-    recur = expandNode >>> \case
-      Done (_, n) -> removeSet n
+    recur n = case evalState (expandNode n) (-1) of
+      Done (_, n) -> trace "done" $ removeSet n
       NeedsResolution n -> case resolveNames constructions (FixNode n) of
-        Data n -> unSplice n & typeChange & recur
+        Data n -> trace "recur" $ unSplice n & typeChange & recur
         Error es -> error $ "Name resolution error(s) during expansion, tree: " ++ prettyShow (FixNode n) ++ "\nerrors:\n" ++ show es
-    expandNode :: NodeS -> Progress (S.Set GenSym, NodeS) Node
-    expandNode s@(SyntaxSplice (binders, _)) = Done (binders, s)
-    expandNode n@Node{name, children} = bindingPaths rc
-      & expandMids children
-      & \case
-        Done (binders, cs) -> expand rc <*> pure (FixNode $ n { children = cs })
-          & fmap (\case MidNode n -> n; _ -> error "Compiler error: expanded to non-node")
-          & fmap expandNode
-          & fromMaybe (Done (binders, n { children = cs }))
-        NeedsResolution cs -> NeedsResolution $ n { children = cs }
-      where
-        rc = M.lookup name constructions & err ("Compiler error: unknown syntax construction \"" ++ name ++ "\"")
-    expandMids :: [MidNodeS] -> TreePath -> Progress (S.Set GenSym, [MidNodeS]) [MidNode]
-    expandMids cs p = cs
-      & zipWith expandMid (step p <$> [0..])
-      & listProgress
-    expandMid :: TreePath -> MidNodeS -> Progress (S.Set GenSym, MidNodeS) MidNode
-    expandMid _ (MidNode n) = expandNode n & pmap (second MidNode) MidNode
-    expandMid p m@(MidIdentifier _ i)
-      | (here :: TreePath) `oneOf` p = Done (S.singleton i, m)
-      | otherwise = Done (S.empty, m)
-    expandMid _ s@(MidSplice (binders, _)) = Done (binders, s)
-    expandMid _ (Basic t) = Done $ (S.empty, Basic t)
-    expandMid p (Repeated rep cs) = expandMids cs p & pmap (second $ Repeated rep) (Repeated rep)
-    expandMid p (Sequenced r cs) = expandMids cs p & pmap (second $ Sequenced r) (Sequenced r)
-    listProgress :: [Progress (S.Set GenSym, MidNodeS) MidNode] -> Progress (S.Set GenSym, [MidNodeS]) [MidNode]
-    listProgress = foldr func (Done (S.empty, []))
-      where
-        func (NeedsResolution l) (NeedsResolution r) = NeedsResolution $ l : r
-        func (NeedsResolution l) (Done (_, r)) = NeedsResolution $ l : (mRemoveSet <$> r)
-        func (Done (_, l)) (NeedsResolution r) = NeedsResolution $ mRemoveSet l : r
-        func (Done (lb, l)) (Done (rb, r))
-          | S.null (S.intersection lb rb) = Done (lb <> rb, l : r)
-          | otherwise = NeedsResolution $ mRemoveSet l : (mRemoveSet <$> r)
-    bindingPaths :: ResolvedConstruction -> TreePath
-    bindingPaths ResolvedConstruction{beforeBindings, afterBindings, inBindings} = inBindings
-      & fmap (asTreePath . fst)
-      & fold
-      & mergePaths beforeBindings
-      & mergePaths afterBindings
     err :: String -> Maybe a -> a
     err _ (Just a) = a
     err mess Nothing = error mess
     -- Since NoSplice is empty the input node has no splices, which makes this ok
     typeChange :: Node -> NodeS
     typeChange = Unsafe.Coerce.unsafeCoerce
+
+    expandNode :: NodeS -> Expander (Progress (S.Set GenSym, NodeS) Node)
+    expandNode s@(SyntaxSplice (binders, _)) = return $ Done (binders, s)
+    expandNode n@Node{name, children} = do
+      expandId <- get <* modify' (subtract 1)
+      expandMids children (bindingPaths rc) >>= \case
+        NeedsResolution cs -> return $ NeedsResolution $ n { children = cs }
+        Done (Duplicates duped binders, cs) -> case expand rc of
+          Nothing -> return $ Done (binders, n { children = cs })
+          Just expand -> if duped
+            then return $ NeedsResolution $ n { children = mRemoveSet <$> cs }
+            else case expand expandId (FixNode $ n { children = cs }) of
+              MidNode n -> expandNode n
+              _ -> error $ "Compiler error: " ++ name ++ " expanded to non-node"
+      where
+        rc = M.lookup name constructions & err ("Compiler error: unknown syntax construction \"" ++ name ++ "\"")
+
+    expandMids :: [MidNodeS] -> TreePath -> Expander (Progress (Duplicates, [MidNodeS]) [MidNode])
+    expandMids cs p = cs
+      & zipWithM expandMid (step p <$> [0..])
+      & fmap listProgress
+
+    expandMid :: TreePath -> MidNodeS -> Expander (Progress (Duplicates, MidNodeS) MidNode)
+    expandMid _ (MidNode n) = pmap (Duplicates False *** MidNode) MidNode <$> expandNode n
+    expandMid p m@(MidIdentifier _ i)
+      | (here :: TreePath) `oneOf` p = return $ Done (Duplicates False $ S.singleton i, m)
+      | otherwise = return $ Done (Duplicates False S.empty, m)
+    expandMid _ s@(MidSplice (binders, _)) = return $ Done (Duplicates False binders, s)
+    expandMid _ (Basic t) = return $ Done $ (Duplicates False S.empty, Basic t)
+    expandMid p (Repeated rep cs) = pmap (second $ Repeated rep) (Repeated rep) <$> expandMids cs p
+    expandMid p (Sequenced r cs) = pmap (second $ Sequenced r) (Sequenced r) <$> expandMids cs p
+
+listProgress :: [Progress (Duplicates, MidNodeS) MidNode] -> Progress (Duplicates, [MidNodeS]) [MidNode]
+listProgress = foldr func (Done (mempty, []))
+  where
+    func (NeedsResolution l) (NeedsResolution r) = NeedsResolution $ l : r
+    func (NeedsResolution l) (Done (_, r)) = NeedsResolution $ l : (mRemoveSet <$> r)
+    func (Done (_, l)) (NeedsResolution r) = NeedsResolution $ mRemoveSet l : r
+    func (Done (ld, l)) (Done (rd, r)) = Done (ld <> rd, l : r)
+
+-- NOTE: inBindings can never be exposed outside of a node, making it unnecessary to track them here
+bindingPaths :: ResolvedConstruction -> TreePath
+bindingPaths ResolvedConstruction{beforeBindings, afterBindings} = mergePaths beforeBindings afterBindings
+
 
 removeSet :: NodeS -> Node
 removeSet (SyntaxSplice (_, n)) = removeSet $ unSplice n

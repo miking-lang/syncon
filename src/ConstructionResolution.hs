@@ -100,7 +100,8 @@ type SplicedMidNode = MidNodeI (Splice SplicedNode) String
 data ExpanderState s = ExpanderState
   { node :: Node s
   , accs :: [MidNode s]
-  , inst :: [Int] }
+  , inst :: [Int]
+  , expandId :: Int }
 type Expander s a = Reader (ExpanderState s) a
 
 {-
@@ -120,10 +121,10 @@ be boxed and lazy.
 mkExpand :: Helpers -> Splice SplicedNode -> Result ExpansionFunction
 mkExpand h n = do
   expander <- recurS [] here h n
-  return $ ExpansionFunction $ Unsafe.Coerce.unsafeCoerce $ \node ->
-    runReader expander $ mkExpanderState node
+  return $ ExpansionFunction $ Unsafe.Coerce.unsafeCoerce $ \i node ->
+    runReader expander $ mkExpanderState i node
   where
-    mkExpanderState node = ExpanderState { node = node, accs = [], inst = [] }
+    mkExpanderState i node = ExpanderState { node = node, accs = [], inst = [], expandId = i }
 
 recurS :: forall s. [String] -> MultiPath -> Helpers -> Splice SplicedNode -> Result (Expander s (MidNode s))
 recurS accNames instPath h@Helpers{..} = \case
@@ -162,7 +163,7 @@ recurS accNames instPath h@Helpers{..} = \case
 
     recurM :: SplicedMidNode -> Result (Expander s (MidNode s))
     recurM (MidNode n) = recurN $ FixNode n
-    recurM (MidIdentifier r symbol) = pure . return . MidIdentifier r $ expandGenSym symbol
+    recurM (MidIdentifier r symbol) = pure . fmap (MidIdentifier r . GenSym symbol) $ reader expandId
     recurM (MidSplice s) = recurS accNames instPath h s
     recurM (Basic t) = pure . return $ Basic t
     recurM (Repeated rep ms) = fmap (Repeated rep) . sequence <$> mapM recurM ms

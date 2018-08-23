@@ -63,7 +63,7 @@ instance Show FakeKind where
   show (SyntaxKind ty) = "syn[" ++ ty ++ "]"
   show OtherKind = "other"
 
-doCheck :: M.Map String String -> M.Map String (Construction n) -> M.Map String (ResolvedConstruction) -> String -> (Node FakeNodeS -> MidNode FakeNodeS) -> [SyntaxPattern] -> S.Set Error
+doCheck :: M.Map String String -> M.Map String (Construction n) -> M.Map String (ResolvedConstruction) -> String -> (Int -> Node FakeNodeS -> MidNode FakeNodeS) -> [SyntaxPattern] -> S.Set Error
 doCheck typeMap constrs resConstrs constrName _expand pats = S.unions $ inner <$> pairs
   where
     inner (start, expansion) =
@@ -80,7 +80,7 @@ doCheck typeMap constrs resConstrs constrName _expand pats = S.unions $ inner <$
             then S.singleton $ SelfDependentError constrName n
             else S.empty
       in unsatisfied `S.union` selfDependent
-    expand n = case _expand n of
+    expand n = case _expand (-1) n of
       MidNode n' -> FixNode n'
       MidSplice s' -> FixNode $ SyntaxSplice s'
       m' -> error $ "Compiler error: expansion returned non-node: " ++ show m' ++ " in constrName: " ++ show constrName

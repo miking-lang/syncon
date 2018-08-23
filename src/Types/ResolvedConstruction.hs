@@ -16,7 +16,7 @@ data Scope = FarScope | CloseScope | Scope MultiPath TreeEndPath Scope deriving 
 type Node s = FixNode s GenSym
 type MidNode s = MidNodeI (s (Node s)) GenSym
 
-newtype ExpansionFunction = ExpansionFunction { unExpFun :: forall s. Node s -> MidNode s }
+newtype ExpansionFunction = ExpansionFunction { unExpFun :: forall s. Int -> Node s -> MidNode s }
 
 data ResolvedConstruction = ResolvedConstruction
   { beforeBindings :: TreeEndPath
@@ -25,7 +25,7 @@ data ResolvedConstruction = ResolvedConstruction
   , scopes :: [Scope]
   , _expand :: Maybe ExpansionFunction }
 
-expand :: ResolvedConstruction -> Maybe (Node s -> MidNode s)
+expand :: ResolvedConstruction -> Maybe (Int -> Node s -> MidNode s)
 expand ResolvedConstruction{_expand} = unExpFun <$> _expand
 
 instance Show ResolvedConstruction where

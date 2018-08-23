@@ -8,6 +8,3 @@ instance NFData GenSym
 
 instance Show GenSym where
   show (GenSym s i) = s ++ "#" ++ show i
-
-expandGenSym :: String -> GenSym
-expandGenSym symbol = GenSym symbol (-1)
