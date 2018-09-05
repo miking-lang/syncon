@@ -23,11 +23,11 @@ sameContent (StringTok _ t1) (StringTok _ t2) = t1 == t2
 sameContent _ _ = False
 
 instance Show Token where
-  show (IdentifierTok _ s) = "identifier(" ++ s ++ ")"
-  show (IntegerTok _ i) = "integer(" ++ show i ++ ")"
-  show (FloatTok _ d) = "float(" ++ show d ++ ")"
-  show (SymbolTok _ s) = "symbol(" ++ s ++ ")"
-  show (StringTok _ s) = "string(" ++ s ++ ")"
+  show (IdentifierTok _ s) = "identifier(\"" ++ s ++ "\")"
+  show (IntegerTok _ i) = "integer(\"" ++ show i ++ "\")"
+  show (FloatTok _ d) = "float(\"" ++ show d ++ "\")"
+  show (SymbolTok _ s) = "symbol(\"" ++ s ++ "\")"
+  show (StringTok _ s) = "string(\"" ++ s ++ "\")"
 
 instance Ranged Token where
   range (IdentifierTok r _) = r
@@ -53,8 +53,8 @@ data Range = Range { start :: !Position, end :: !Position }
 instance NFData Range
 
 instance Show Range where
-  show Range{start, end} = show (line start) ++ ":" ++ show (column start) ++ "-" ++ show (line end) ++ ":" ++ show (column end)
-  show NoRange = "(nowhere)"
+  show Range{start, end} = "\"" ++ show (line start) ++ ":" ++ show (column start) ++ "-" ++ show (line end) ++ ":" ++ show (column end) ++ "\""
+  show NoRange = "\"(nowhere)\""
 
 instance Ord Range where
   compare (Range s1 e1) (Range s2 e2) = compare s1 s2 `mappend` compare e1 e2

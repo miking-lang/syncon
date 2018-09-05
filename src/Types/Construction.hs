@@ -30,7 +30,7 @@ data SyntaxPattern = IdentifierPat
                    | NamedPat String SyntaxPattern
                    deriving (Show, Eq, Data, Typeable)
 
-data Repeat = StarRep | PlusRep | QuestionRep deriving (Show, Eq, Data, Typeable, Generic)
+data Repeat = StarRep | PlusRep | QuestionRep deriving (Show, Eq, Ord, Data, Typeable, Generic)
 instance NFData Repeat
 
 data ExtraData = ExtraData

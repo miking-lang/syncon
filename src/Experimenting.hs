@@ -16,6 +16,8 @@ import System.IO (hGetContents, withFile, IOMode(ReadMode), hFlush, stdout)
 import qualified Data.Map as M
 import qualified Data.Set as S
 
+import Text.Groom (groom)
+
 import Text.Earley (Grammar, Prod, Report(Report, unconsumed, expected))
 
 import Lexer
@@ -78,16 +80,16 @@ normalOperations = do
   node <- ambiguityParse langConstructions startSym source
   putStrLn "\nResolving source"
   node <- resolveSource allResolvedConstructions node
-  putStrLn . prettyShow $ node
+  -- putStrLn . prettyShow $ node
   putStrLn "\nExpanding source"
   let coreEProgram = fullExpansion allResolvedConstructions node
-  putStrLn $ showCoreProgram coreEProgram
+  -- putStrLn $ showCoreProgram coreEProgram
   putStrLn "\nRemoving efuns"
   let coreUnresProgram = removeEFuns coreEProgram
-  putStrLn $ showCoreProgram coreUnresProgram
+  -- putStrLn $ showCoreProgram coreUnresProgram
   putStrLn "\nResolving again"
   coreProgram <- resolveSource allResolvedConstructions coreUnresProgram
-  putStrLn $ showCoreProgram coreProgram
+  -- putStrLn $ showCoreProgram coreProgram
   putStrLn "\nInterpreting program"
   finalResult <- interpret coreProgram
   putStrLn $ "=> " ++ finalResult
@@ -130,7 +132,7 @@ ambiguityParse constructions startSym source = do
     _ -> do
       forM_ (ambiguities results) $ \(r, reprs) -> do
         putStrLn $ "Ambiguity: " ++ show r
-        putStrLn . unlines $ show <$> reprs
+        putStrLn . unlines $ groom <$> S.toList reprs
       error "Cannot continue"
   where
     parser = parseWithGrammar startSym constructions

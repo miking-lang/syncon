@@ -1,112 +1,64 @@
+{-# LANGUAGE DeriveFunctor, DeriveFoldable, ViewPatterns #-}
+
 module Ambiguity (ambiguities, Repr) where
 
-import Data.List (transpose, nub)
-import Data.Char (isAlphaNum)
-import Control.Arrow ((&&&))
+import Data.List (transpose)
+import Data.Foldable (toList)
+import qualified Data.Set as S
+import Data.Function ((&))
+import Control.Arrow ((>>>), (&&&))
+import Control.Monad (void)
 
-import Types.Lexer (Ranged(..), Range)
+import Types.Lexer (Ranged(..), Range, Token)
 import Types.Construction (Repeat(..))
-import Types.Ast (NodeI(Node, name, SyntaxSplice), MidNodeI(..), FixNode(..))
+import Types.Ast (NodeI(..), MidNodeI(..), FixNode(..))
 
 type Node s = FixNode s String
-type MidNode s = MidNodeI s String
+type Unwrapped s = NodeI (s (Node s)) String
 
-ambiguities :: [Node s] -> [(Range, [Repr])]
-ambiguities nodes = ambig $ wrap <$> nodes
-  where
-    r = range nodes
-    wrap (FixNode n) = midWrap $ MidNode n
-    midWrap m = MidNode $ Node "*wrap*" [m] (range m)
+type Repr = (String, [String])
 
--- invariant: all items in the argument list share a SimpleRepr
-ambig :: [MidNode s] -> [(Range, [Repr])]
-ambig [] = []
-ambig nodes@(node:_) =
-  let cs = children <$> nodes
-      childLengthsEqual = allEq $ length <$> cs
-      simpleCs = fmap toSimple <$> cs
-      similarColumns = allEq <$> transpose simpleCs
-      nonSimilar = keepOnly (not <$> similarColumns) <$> simpleCs
-      similar = keepOnly similarColumns <$> cs
-      conflictingReprs = case filter not similarColumns of
-        [] -> []
-        [_] -> toRepr . head . keepOnly (not <$> similarColumns) <$> cs
-        _ -> toRepr <$> nodes
-  in case node of
-       Repeated{} | not childLengthsEqual -> return . singleton $ toRepr <$> nodes
-       _ | and similarColumns -> concat $ ambig <$> transpose similar
-       _ -> singleton conflictingReprs : concat (ambig <$> transpose similar)
-  where
-    singleton = range &&& nub
+ambiguities :: [Node s] -> [(Range, S.Set Repr)]
+ambiguities = fmap unSplice >>> ambiguities'
 
-toSimple :: MidNode s -> SimpleRepr
-toSimple m = SimpleRepr (toTag m) (range m)
-
-toRepr :: MidNode s -> Repr
-toRepr m =
-  Repr (toTag m)
-       (filter (isInteresting . fst) $ (toTag &&& range) <$> children m)
-       (range m)
-  where
-    isInteresting = (/= BasicTag)
-
-toTag :: MidNode s -> Tag
-toTag (MidNode Node{name}) = NodeTag name
-toTag (MidNode SyntaxSplice{}) = SpliceTag
-toTag MidIdentifier{} = IdentifierTag
-toTag (MidSplice _) = SpliceTag
-toTag Basic{} = BasicTag
-toTag (Repeated rep _) = (RepeatTag rep)
-toTag Sequenced{} = SequencedTag
-
-allEq :: Eq a => [a] -> Bool
-allEq [] = True
-allEq (a:as) = all (a ==) as
-
-keepOnly :: [Bool] -> [a] -> [a]
-keepOnly (True:bs) (a:as) = a : keepOnly bs as
-keepOnly (False:bs) (_:as) = keepOnly bs as
-keepOnly _ _ = []
-
-children :: MidNode s -> [MidNode s]
-children (MidNode (Node _ children _)) = children
-children (MidNode (SyntaxSplice _)) = []
-children MidIdentifier{} = []
-children MidSplice{} = []
-children Basic{} = []
-children (Repeated _ cs) = cs
-children (Sequenced _ cs) = cs
-
-data Repr = Repr Tag [(Tag, Range)] Range deriving (Show, Eq)
-
-data SimpleRepr = SimpleRepr Tag Range deriving (Show, Eq)
-data Tag = NodeTag String
-         | IdentifierTag
-         | SpliceTag
-         | BasicTag
-         | RepeatTag Repeat
-         | SequencedTag
-         deriving (Eq)
-
-instance Ranged Repr where
-  range (Repr _ _ r) = r
-instance Ranged SimpleRepr where
-  range (SimpleRepr _ r) = r
-
-instance Show Tag where
-  show (NodeTag name) = case break (== '#') name of
-    (name, []) -> name
-    ([], name) -> name
-    (p : prefix, name) -> p : formatPrefix prefix ++ name
+ambiguities' :: [Unwrapped s] -> [(Range, S.Set Repr)]
+ambiguities' forest
+  | equalBy (project >>> void) forest
+  , all (equalBy range) subforests
+    = subforests >>= ambiguities'
+  | otherwise = [(range forest, S.fromList $ toRepr <$> forest)]
     where
-      formatPrefix [] = ""
-      formatPrefix (s : n : rest)
-        | not $ isAlphaNum s = s : n : formatPrefix rest
-      formatPrefix (_ : rest) = formatPrefix rest
-  show IdentifierTag{} = "identifier"
-  show SpliceTag{} = "splice"
-  show BasicTag{} = "token"
-  show (RepeatTag StarRep) = "rep*"
-  show (RepeatTag PlusRep) = "rep+"
-  show (RepeatTag QuestionRep) = "rep?"
-  show SequencedTag{} = "sequence"
+      subforests = (project >>> toList) <$> forest & transpose
+      toRepr = project >>> fmap (project >>> getTag) >>> getTag &&& toList
+      getTag NodeF{name} = name
+      getTag SyntaxSpliceF = "_splice_"
+
+data NodeF r = NodeF
+  { name :: String
+  , children :: [MidNodeF r]
+  , nodeRange :: Range }
+  | SyntaxSpliceF
+  deriving (Eq, Ord, Functor, Foldable, Show)
+data MidNodeF r = MidNodeF Range r
+                | MidIdentifierF Range String
+                | MidSpliceF
+                | BasicF Token
+                | RepeatedF Range Repeat [MidNodeF r]
+                | SequencedF Range [MidNodeF r]
+                deriving (Eq, Ord, Functor, Foldable, Show)
+
+project :: Unwrapped s -> NodeF (Unwrapped s)
+project Node{name,children,nodeRange} =
+  NodeF {name, children = projectMid <$> children, nodeRange}
+  where
+    projectMid (MidNode n) = MidNodeF (range n) n
+    projectMid (MidIdentifier r i) = MidIdentifierF r i
+    projectMid (MidSplice _) = MidSpliceF
+    projectMid (Basic t) = BasicF t
+    projectMid (Repeated rep cs) = RepeatedF (range cs) rep $ projectMid <$> cs
+    projectMid (Sequenced r cs) = SequencedF r $ projectMid <$> cs
+project SyntaxSplice{} = SyntaxSpliceF
+
+equalBy :: Eq b => (a -> b) -> [a] -> Bool
+equalBy f [] = True
+equalBy f (a : as) = all (f >>> (== (f a))) as
