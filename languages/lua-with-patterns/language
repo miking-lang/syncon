@@ -1,8 +1,14 @@
 syntax top:File = body:Block {
   #scope (body)
-  BExpression` #callcc (fun return.
+  File` #callcc (fun return.
     `t(body) return (fun _. #crash))
 }
+
+syntax type Expression = BExpression
+syntax type Statement = BExpression
+syntax type Block = BExpression
+syntax type Return = BExpression
+syntax type Pattern = BExpression
 
 syntax var:Expression = id:Identifier {
   BExpression` `id(id)
@@ -26,6 +32,8 @@ syntax funcCall:Expression =
   #scope (f)
   BExpression` `t(args) `t(f) #unit
 }
+
+syntax type ArgList = BExpression
 
 // This is included to enable the Expressions to go to the top level Expression non-terminal, ideally it would be defined inline in funcCall, but then it would recurse into a lower precedence
 syntax argList:ArgList =
@@ -100,9 +108,7 @@ syntax local:Statement =
 {
   #scope (e)
   BExpression` efun _. efun _.
-    (fun expr. #callcc (fun done.
-      (#callcc (fun fail. (`t(x) fail expr; done #unit));
-       `t(x) (fun _. #crash) (#deref expr))))
+    `t(x) (fun _. #crash)
     (#ref (#deref `t(foldr e _ (e) (BExpression` #unit))))
 }
 

@@ -42,6 +42,7 @@ library
                      , deepseq
                      , time
                      , uniplate
+                     , groom
 -- deepseq is experimenting only
   build-tools:         alex
   default-language:    Haskell2010

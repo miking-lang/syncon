@@ -5,6 +5,14 @@ function testlua -a file
   diff -y (cat lua/real-prelude $file | lua - | psub) (cat lua/fake-prelude $file | stack exec implementation-exe File core lua/language - | psub)
 end
 
+function timelua -a file
+  if not stack build
+    return
+  end
+  cat lua/real-prelude $file | time lua - > /dev/null
+  cat lua/fake-prelude $file | time stack exec implementation-exe File core lua/language - > /dev/null
+end
+
 function testocaml -a file
   if not stack build
     return

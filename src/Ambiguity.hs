@@ -16,7 +16,7 @@ import Types.Ast (NodeI(..), MidNodeI(..), FixNode(..))
 type Node s = FixNode s String
 type Unwrapped s = NodeI (s (Node s)) String
 
-type Repr = (String, [String])
+type Repr = ((String, Range), [(String, Range)])
 
 ambiguities :: [Node s] -> [(Range, S.Set Repr)]
 ambiguities = fmap unSplice >>> ambiguities'
@@ -30,8 +30,9 @@ ambiguities' forest
     where
       subforests = (project >>> toList) <$> forest & transpose
       toRepr = project >>> fmap (project >>> getTag) >>> getTag &&& toList
-      getTag NodeF{name} = name
-      getTag SyntaxSpliceF = "_splice_"
+      getTag :: NodeF a -> (String, Range)
+      getTag NodeF{name,nodeRange} = (name, nodeRange)
+      getTag SyntaxSpliceF = ("_splice_", mempty)
 
 data NodeF r = NodeF
   { name :: String

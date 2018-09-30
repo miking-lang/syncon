@@ -1,0 +1,23 @@
+fizzbuzz.ml
+top, topLetRec, match, wildcardPat, intPat, plus, minus, var, bindPat, funApp, letRecExpr, IntLit, seqComp, topLet, (debugPrint), leq, parens, unitLit, truePat, falsePat, cons, "listLit" (i.e. only []), listPat, equal, StringLit
+25
+
+fib.ml
+top, topLetRec, match, wildcardPat, intPat, plus, minus, var, bindPat, funApp, letRecExpr, IntLit, seqComp, topLet, (debugPrint), leq, parens, unitLit, truePat, falsePat
+20
+
+missing:
+letExpr, times, funLit, stringPat, trueLit, falseLit, consPat
+7
+
+fib.lua
+top, var, intLit, strLit, funcCall, argList, (debugPrint), equal, plus, minus, funcCallStmnt, assignment, local, if, numFor, function, blockContent, return
+18
+
+fizbuzz.lua
+top, var, intLit, strLit, funcCall, argList, (debugPrint), equal, plus, minus, funcCallStmnt, assignment, local, if, numFor, function, blockContent, return, true, false, leq, and, while, repeat
+24
+
+missing
+times, divide, parens, block, break
+5

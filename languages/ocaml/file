@@ -1,3 +1,9 @@
+let result = match 1 with
+  | 2 -> match "two" with
+         | str -> str
+  | 4 -> "four"
+let list = [a; b]
+
 let print thing = #debug thing; thing
 let blub = 1 + 2 * 3
 let f a b c = a + b + c
@@ -11,7 +17,13 @@ let appliTest = f a b c
 let ariTest = a + b * c + d
 
 let funcTest a b = a + b
-let blub = [a; b; c]
+
+let mt = match 1 with
+  | 2 -> 3
+  | 4 -> match 5 with
+    | 6 -> 7
+    | 8 -> 9
+//  | 10 -> 11
 
 //let matchTest = match [4; a; "blub"] with
 //let matchTest = match 4 with

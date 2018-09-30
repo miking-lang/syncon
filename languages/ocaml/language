@@ -116,7 +116,7 @@ syntax match:Expression =
     `t(e))
 }
 
-syntax plus:Expression =
+syntax sum:Expression =
   a:Expression "+" b:Expression
 {
   #prec 11
@@ -132,7 +132,7 @@ syntax minus:Expression =
   BExpression` #minus `t(a) `t(b)
 }
 
-syntax times:Expression =
+syntax product:Expression =
   a:Expression "*" b:Expression
 {
   #assoc left
@@ -176,7 +176,7 @@ syntax seqComp:Expression =
   BExpression` `t(a); `t(b)
 }
 
-syntax var:Expression = v:Identifier
+syntax variable:Expression = v:Identifier
 { BExpression``id(v) }
 syntax unitLit:Expression = "(" ")"
 { BExpression` #unit }
@@ -184,13 +184,11 @@ syntax trueLit:Expression = "true"
 { BExpression` #true }
 syntax falseLit:Expression = "false"
 { BExpression` #false }
-syntax IntLit:Expression = n:Integer
+syntax intLit:Expression = n:Integer
 { BExpression``int(n) }
-syntax FloatLit:Expression = f:Float
-{ BExpression``float(f) }
-syntax StringLit:Expression = s:String
+syntax stringLit:Expression = s:String
 { BExpression``str(s) }
-syntax listLit:Expression =
+syntax list:Expression =
   "[" (e:Expression (";" es:Expression)*)? "]"
 {
   foldr e next
@@ -217,12 +215,6 @@ syntax type Pattern = BExpression
 syntax intPat:Pattern = i:Integer {
   BExpression` efun fail. efun val.
     #if (#equal `int(i) val)
-      (fun _. #unit)
-      (fun _. fail #unit)
-}
-syntax floatPat:Pattern = f:Float {
-  BExpression` efun fail. efun val.
-    #if (#equal `float(f) val)
       (fun _. #unit)
       (fun _. fail #unit)
 }

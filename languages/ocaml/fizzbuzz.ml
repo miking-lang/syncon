@@ -22,14 +22,6 @@ let fizzbuzz_alt upTo =
       | _ -> p_int n; recur (n+1) (till3-1) (till5-1))
   in recur 1 2 4
 
-let rec foo n = match n with
-  | 0 -> ()
-  | _ -> print_endline "foo"; p_int n; bar (n-1)
-and bar n = match n with
-  | 0 -> ()
-  | _ -> print_endline "bar"; p_int n; foo (n-1)
-
 let main =
   do_between fizzbuzz 1 100;
-  fizzbuzz_alt 101;
-  foo 10
+  fizzbuzz_alt 101
