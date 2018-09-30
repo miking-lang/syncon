@@ -230,7 +230,7 @@ syntax break:Return = "break" {
 
 syntax luaMatch:Statement =
   "match" e:Expression "with"
-  arms:(p:Pattern ":" b:Block)+
+  arms:("case" p:Pattern ":" b:Block)+
   "end"
 {
   #scope (e)
@@ -289,28 +289,7 @@ syntax luaMatch:Statement =
 // error is [Statement(FuncCall)] vs [Statement(Var), Statement(Paren(IntLit))]
 
 
-// These are copied without any change from ocaml to simulate importing, except Expression switched for OcamlExpression, since the types would almost certainly be different in a real world situation
-
-syntax type OcamlExpression = BExpression
-
-syntax match:OcamlExpression =
-  "match" e:OcamlExpression "with"
-  arm:("|" p:Pattern "->" body:OcamlExpression)+
-{
-  #scope arm:(p body)
-  #scope (e)
-  #prec 1
-  BExpression` #callcc (fun end. (fun val.
-    `t(foldr arm prev
-         (BExpression`
-           #callcc (fun next.
-             (`t(p) next val;
-              end `t(body)));
-           `t(prev))
-       (BExpression` #crash)))
-    `t(e))
-}
-
+// These are copied without any change from ocaml to simulate importing
 
 syntax intPat:Pattern = i:Integer {
   BExpression` efun fail. efun val.
