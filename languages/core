@@ -84,6 +84,9 @@ syntax type Builtin = builtin
 syntax builtin:BExpression = "#" b:Builtin {
   builtin
 }
+syntax builtin2:BExpression = "@" b:Builtin {
+  builtin
+}
 syntax callcc:Builtin = "callcc" { builtin }
 syntax fix:Builtin = "fix" { builtin }
 syntax ref:Builtin = "ref" { builtin }

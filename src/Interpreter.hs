@@ -134,6 +134,7 @@ eval n = seqIdM $ case n of
     . M.lookup i <$> (ask >>= liftIO . readIORef)
 
   N "builtin" [_, N builtinName _] -> return $ builtin builtinName
+  N "builtin2" [_, N builtinName _] -> return $ builtin builtinName
 
   N "int" [I i] -> return . IntV $ toInteger i
   N "float" [F f] -> return $ FloatV f
@@ -207,6 +208,7 @@ getUnscopedNodes n = (n :) $ case n of
   N "float" _ -> []
   N "string" _ -> []
   N "builtin" _ -> []
+  N "builtin2" _ -> []
   _ -> error $ "getUnscopedNodes got unknown / unsupported syntax construction: " ++ show n
 
 builtin :: (Ord sym, Show sym) => String -> Value sym r
@@ -306,6 +308,7 @@ appliView n = [n]
 
 builtinView :: NodeView sym -> String
 builtinView (N "builtin" [_, N name _]) = name
+builtinView (N "builtin2" [_, N name _]) = name
 builtinView _ = ""
 
 data NodeView sym = N String [NodeView sym] | Id sym | S String | I Int | F Double | O deriving (Show)
@@ -347,6 +350,7 @@ showCoreProgramInner = P.render . fst . recur
       N "string" [S s] -> (P.text $ show s, AtomicShow)
 
       N "builtin" [_, N name _] -> (P.text "#" <> P.text name, AtomicShow)
+      N "builtin2" [_, N name _] -> (P.text "~" <> P.text name, AtomicShow)
 
       n -> error $ "showCoreProgram encountered malformed / unsupported node: " ++ show n
     appliSurround (s, AtomicShow) = s

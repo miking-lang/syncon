@@ -52,7 +52,7 @@ syntax topLetRec:Top =
 
 syntax type Expression = BExpression
 
-syntax debugPrint:Expression = "#" "debug" {
+syntax debugPrint:Expression = "@" "debug" {
   BExpression` #print
 }
 

@@ -12,7 +12,7 @@ import Types.Lexer
 $digit = [0-9]
 $alpha = [a-zA-Z]
 $single_symbol = [\;\,\{\}\(\)\[\]`]
-$other_symbol = [:\.\*\+\?\#\~\-\$\|\^\/\<\>=]
+$other_symbol = [:\.\*\+\?\#\~\-\$\|\^\/\<\>=@]
 
 tokens :-
   $white+                              ;
