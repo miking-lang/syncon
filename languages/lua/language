@@ -39,10 +39,14 @@ syntax argList:ArgList =
     foldl e prev
       (BExpression`
         (#deref `t(prev)) (#deref `t(e)))
-    (BExpression` f))
+    (BExpression` #deref f))
 }
 
 syntax debugPrint:Expression = "#" "debug" {
+  BExpression` fun x. fun _. #print x
+}
+
+syntax debugPrint:Expression = "@" "debug" {
   BExpression` fun x. fun _. #print x
 }
 
@@ -94,6 +98,14 @@ syntax minus:Expression =
   #assoc left
   BExpression`
     #minus (#deref `t(a)) (#deref `t(b))
+}
+
+syntax unaryMinus:Expression =
+  "-" a:Expression
+{
+  #prec 12
+  BExpression`
+    #minus 0 (#deref `t(a))
 }
 
 syntax times:Expression =
@@ -223,6 +235,53 @@ syntax numFor:Statement =
                    rep (#plus x step)))
           (fun _. #unit)))
        `t(s)))
+}
+
+syntax anonFunction:Expression =
+  "function"
+  "(" (a:Identifier ("," as:Identifier)*)? ")"
+  body:Block "end"
+{
+  #bind a, as in body
+  #scope (body)
+  BExpression`
+    `t(foldr a next
+         (BExpression` fun arg.
+           (defAfter `id(a) = (#ref arg);
+            `t(next)))
+       foldr as next
+         (BExpression` fun arg.
+           (defAfter `id(as) = (#ref arg);
+            `t(next)))
+       (BExpression`
+         fun _. #callcc (fun return.
+           `t(body) return
+                    (fun _. #crash))))
+}
+
+syntax localFunction:Statement =
+  "local" "function" f:Identifier
+  "(" (a:Identifier ("," as:Identifier)*)? ")"
+  body:Block "end"
+{
+  #bind f after
+  #bind f, a, as in body
+  #scope (body)
+  BExpression` efun _. efun _.
+    (defAfter `id(f) = #fix (fun recur.
+      (defAfter `id(f) = recur;
+       `t(foldr a next
+            (BExpression` fun arg.
+              (defAfter `id(a) = (#ref arg);
+               `t(next)))
+          foldr as next
+            (BExpression` fun arg.
+              (defAfter `id(as) = (#ref arg);
+               `t(next)))
+          (BExpression`
+            fun _. #callcc (fun return.
+              `t(body) return
+                       (fun _. #crash)))))))
 }
 
 syntax function:Statement =
