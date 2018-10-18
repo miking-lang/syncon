@@ -46,7 +46,7 @@ syntax debugPrint:Expression = "#" "debug" {
   BExpression` fun x. fun _. #print x
 }
 
-syntax debugPrint:Expression = "@" "debug" {
+syntax debugPrint2:Expression = "@" "debug" {
   BExpression` fun x. fun _. #print x
 }
 
