@@ -154,7 +154,7 @@ syntax local:Statement =
   #scope (e)
   BExpression` efun _. efun _.
     defAfter `id(x) = #ref
-      (#deref `t(foldr e _ (e)
+      (#deref `t(foldl e _ (e)
                  (BExpression` #unit)))
 }
 
