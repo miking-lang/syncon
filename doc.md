@@ -126,7 +126,7 @@ Expr -> 'a'
 Expr -> 'b'
 ```
 
-This language puts parentheses around every node present in a parse tree of the original grammar. They thus also represent the ranges of those nodes, giving us a rangeset embedded in the string^[Technically, we get a range*bag*, duplicate ranges are allowed.]. This language is clearly VPL according to the definition in the previous section. If this new language is ambiguous, that means that we have two distinct parse trees in the original grammar that both produce the same word and the same rangeset. We can thus check for *equality* between rangesets. The subset relation corresponds to seeing if we can take one string in the language, remove a bunch of (paired) parentheses, and then get a new string that is also in the language. Detecting this is now our new goal.
+This language puts parentheses around every node present in a parse tree of the original grammar. They thus also represent the ranges of those nodes, giving us a rangeset embedded in the string^[Technically, we get a range*bag*, duplicate ranges are allowed. This happens if a production accepts a single non-terminal on the righthand side (e.g. $N$, or a?$N$?)]. This language is clearly VPL according to the definition in the previous section. If this new language is ambiguous, that means that we have two distinct parse trees in the original grammar that both produce the same word and the same rangeset. We can thus check for *equality* between rangesets. The subset relation corresponds to seeing if we can take one string in the language, remove a bunch of (paired) parentheses, and then get a new string that is also in the language. Detecting this is now our new goal.
 
 Slightly more formally; given:
 
@@ -365,6 +365,11 @@ graph {
 ```
 
 This (partial tree) is identical to the 2 element list one. This inlining operation is exactly equivalent with $\Rightarrow$ from the previous section, we are thus looking for two trees, potentially partial, where one can be obtained by inlining some number of times in the latter.
+
+Thoughts in progress:
+
+- might be worth properly formulating the property in the form of these trees
+- The trees themselves can be described by a regular tree language, might be possible to formulate the search in terms of tree automata in some way.
 
 # References
 Brabrand, Claus, and Jakob G. Thomsen. "Typed and Unambiguous Pattern Matching on Strings Using Regular Expressions." In Proceedings of the 12th International ACM SIGPLAN Symposium on Principles and Practice of Declarative Programming, 243–254. PPDP ’10. New York, NY, USA: ACM, 2010. https://doi.org/10.1145/1836089.1836120.
