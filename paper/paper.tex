@@ -1,0 +1,328 @@
+%% For double-blind review submission, w/o CCS and ACM Reference (max submission space)
+\documentclass[sigplan,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+%% For double-blind review submission, w/ CCS and ACM Reference
+%\documentclass[sigplan,review,anonymous]{acmart}\settopmatter{printfolios=true}
+%% For single-blind review submission, w/o CCS and ACM Reference (max submission space)
+%\documentclass[sigplan,review]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+%% For single-blind review submission, w/ CCS and ACM Reference
+%\documentclass[sigplan,review]{acmart}\settopmatter{printfolios=true}
+%% For final camera-ready submission, w/ required CCS and ACM Reference
+%\documentclass[sigplan]{acmart}\settopmatter{}
+
+
+%% Conference information
+%% Supplied to authors by publisher for camera-ready submission;
+%% use defaults for review submission.
+\acmConference[PL'18]{ACM SIGPLAN Conference on Programming Languages}{January 01--03, 2018}{New York, NY, USA}
+\acmYear{2018}
+\acmISBN{} % \acmISBN{978-x-xxxx-xxxx-x/YY/MM}
+\acmDOI{} % \acmDOI{10.1145/nnnnnnn.nnnnnnn}
+\startPage{1}
+
+%% Copyright information
+%% Supplied to authors (based on authors' rights management selection;
+%% see authors.acm.org) by publisher for camera-ready submission;
+%% use 'none' for review submission.
+\setcopyright{none}
+%\setcopyright{acmcopyright}
+%\setcopyright{acmlicensed}
+%\setcopyright{rightsretained}
+%\copyrightyear{2018}           %% If different from \acmYear
+
+%% Bibliography style
+\bibliographystyle{ACM-Reference-Format}
+%% Citation style
+%\citestyle{acmauthoryear}  %% For author/year citations
+%\citestyle{acmnumeric}     %% For numeric citations
+%\setcitestyle{nosort}      %% With 'acmnumeric', to disable automatic
+                            %% sorting of references within a single citation;
+                            %% e.g., \cite{Smith99,Carpenter05,Baker12}
+                            %% rendered as [14,5,2] rather than [2,5,14].
+%\setcitesyle{nocompress}   %% With 'acmnumeric', to disable automatic
+                            %% compression of sequential references within a
+                            %% single citation;
+                            %% e.g., \cite{Baker12,Baker14,Baker16}
+                            %% rendered as [2,3,4] rather than [2-4].
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Note: Authors migrating a paper from traditional SIGPLAN
+%% proceedings format to PACMPL format must update the
+%% '\documentclass' and topmatter commands above; see
+%% 'acmart-pacmpl-template.tex'.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%% Some recommended packages.
+\usepackage{booktabs}   %% For formal tables:
+                        %% http://ctan.org/pkg/booktabs
+\usepackage{subcaption} %% For complex figures with subfigures/subcaptions
+                        %% http://ctan.org/pkg/subcaption
+
+\usepackage{syntax}
+
+\usepackage{semantic}
+
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily,
+  basewidth={.5em,.5em},
+}
+\newcommand{\ocaml}{\lstinline[language={[objective]caml}]}
+
+%% symbols used throughout the paper
+
+\newcommand{\NT}{\mathbb{N}} % Set of nonterminals
+\newcommand{\T}{\mathbb{T}} % Set of terminals
+
+\begin{document}
+
+%% Title information
+\title{Resolvable Ambiguity}         %% [Short Title] is optional;
+                                        %% when present, will be used in
+                                        %% header instead of Full Title.
+
+
+%% Author information
+%% Contents and number of authors suppressed with 'anonymous'.
+%% Each author should be introduced by \author, followed by
+%% \authornote (optional), \orcid (optional), \affiliation, and
+%% \email.
+%% An author may have multiple affiliations and/or emails; repeat the
+%% appropriate command.
+%% Many elements are not rendered, but should be provided for metadata
+%% extraction tools.
+
+%% Author with single affiliation.
+\author{Viktor Palmkvist}
+\authornote{with author1 note}          %% \authornote is optional;
+                                        %% can be repeated if necessary
+\orcid{nnnn-nnnn-nnnn-nnnn}             %% \orcid is optional
+\affiliation{
+  \position{Position1}
+  \department{Department1}              %% \department is recommended
+  \institution{KTH Royal Institute of Technology}            %% \institution is required
+  \streetaddress{Street1 Address1}
+  \city{Stockholm}
+  \state{State1}
+  \postcode{Post-Code1}
+  \country{Sweden}                    %% \country is recommended
+}
+\email{vipa@kth.se}          %% \email is recommended
+
+%% Author with two affiliations and emails.
+\author{First2 Last2}
+\authornote{with author2 note}          %% \authornote is optional;
+                                        %% can be repeated if necessary
+\orcid{nnnn-nnnn-nnnn-nnnn}             %% \orcid is optional
+\affiliation{
+  \position{Position2a}
+  \department{Department2a}             %% \department is recommended
+  \institution{Institution2a}           %% \institution is required
+  \streetaddress{Street2a Address2a}
+  \city{City2a}
+  \state{State2a}
+  \postcode{Post-Code2a}
+  \country{Country2a}                   %% \country is recommended
+}
+\email{first2.last2@inst2a.com}         %% \email is recommended
+\affiliation{
+  \position{Position2b}
+  \department{Department2b}             %% \department is recommended
+  \institution{Institution2b}           %% \institution is required
+  \streetaddress{Street3b Address2b}
+  \city{City2b}
+  \state{State2b}
+  \postcode{Post-Code2b}
+  \country{Country2b}                   %% \country is recommended
+}
+\email{first2.last2@inst2b.org}         %% \email is recommended
+
+
+%% Abstract
+%% Note: \begin{abstract}...\end{abstract} environment must come
+%% before \maketitle command
+\begin{abstract}
+Text of abstract \ldots.
+\end{abstract}
+
+
+%% 2012 ACM Computing Classification System (CSS) concepts
+%% Generate at 'http://dl.acm.org/ccs/ccs.cfm'.
+\begin{CCSXML}
+<ccs2012>
+<concept>
+<concept_id>10011007.10011006.10011008</concept_id>
+<concept_desc>Software and its engineering~General programming languages</concept_desc>
+<concept_significance>500</concept_significance>
+</concept>
+<concept>
+<concept_id>10003456.10003457.10003521.10003525</concept_id>
+<concept_desc>Social and professional topics~History of programming languages</concept_desc>
+<concept_significance>300</concept_significance>
+</concept>
+</ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Software and its engineering~General programming languages}
+\ccsdesc[300]{Social and professional topics~History of programming languages}
+%% End of generated code
+
+
+%% Keywords
+%% comma separated list
+\keywords{keyword1, keyword2, keyword3}  %% \keywords are mandatory in final camera-ready submission
+
+
+%% \maketitle
+%% Note: \maketitle command must come after title commands, author
+%% commands, abstract environment, Computing Classification System
+%% environment and commands, and keywords command.
+\maketitle
+
+
+\section{Introduction}
+
+Text of paper \ldots
+
+\subsection{Motivating Ambiguity in Programming Languages}
+
+% TODO: reference PADL paper for this example
+Consider the following nested match expression in OCaml:
+
+\begin{lstlisting}[language={[objective]caml}]
+match 1 with
+  | 1 -> match "one" with
+         | str -> str
+  | 2 -> "two"
+\end{lstlisting}
+
+\noindent The OCaml compiler, when presented with this code, will give a type error for the last line:
+
+\begin{lstlisting}
+Error: This pattern matches values of type int
+       but a pattern was expected which matches
+       values of type string
+\end{lstlisting}
+
+\noindent The compiler sees the last line as belonging to the inner \ocaml{match} rather than the outer, as was intended. The fix is simple; put parentheses around the inner match:
+
+\begin{lstlisting}[language={[objective]caml}]
+match 1 with
+  | 1 -> (match "one" with
+          | str -> str)
+  | 2 -> "two"
+\end{lstlisting}
+
+\noindent The connection between the error message and the fix is not a clear one however; adding parentheses around an expression does not change the type of anything.
+
+To come up with an alternative error to present in this case we look to the OCaml manual for inspiration. It contains an informal description of the syntax of the language\footnote{\url{https://caml.inria.fr/pub/docs/manual-ocaml/language.html}}, in the form of an EBNF-like grammar. Below is an excerpt of the productions for expressions, written in a more standard variant of EBNF:
+
+\setlength{\grammarindent}{5em}
+\begin{grammar}
+<expr> ::= 'match' <expr> 'with' <pattern-matching>
+
+<pattern-matching> ::= ('|' <pattern> '->' <expr>)+
+\end{grammar}
+
+Note that \synt{pattern-matching} is slightly simplified, the original grammar supports \ocaml{when} guards and makes the first \lit{|} optional. If we use this grammar to parse the nested match we find an ambiguity: the last match arm can belong to either the inner match or the outer match. The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may or may not be the alternative the user intended.
+
+We instead argue that the grammar should be left ambiguous for this sort of corner cases that are likely to trip a user, allowing the compiler to present an ambiguity error, which lets the user select the intended alternative.
+
+\subsection{Unresolvable Ambiguity}
+
+Unfortunately, not all ambiguities can be resolved by adding parentheses. Again, looking to the informal OCaml grammar:
+
+\setlength{\grammarindent}{5em}
+\begin{grammar}
+<expr> ::= <expr> ';' <expr>
+  \alt '[' <expr> (';' <expr>)* ';'? ']'
+  \alt <constant>
+\end{grammar}
+
+\noindent The first production is sequential composition, the second is lists (the empty list is under \synt{constant}). Now consider the following expression: ''\ocaml{[1; 2]}''.
+
+We find that it is ambiguous with two alternatives:
+\begin{enumerate}
+  \item A list with two elements.
+  \item A list with one element, namely a sequential composition.
+\end{enumerate}
+
+We can select the second option by putting parentheses around ''\ocaml{1; 2}'', but there is no way to select the first. If the user intended the first option we have a problem: we can present an accurate error message, but there is no way for an end-user to solve it; it requires changes to the grammar itself.
+
+% TODO: ref for undecidable ambiguity checking
+To prevent the possibility of an end-user encountering such an error we must ensure that the grammar cannot give rise to an unresolvable ambiguity. It is worth mentioning here that statically checking if a context-free grammar is ambiguous has long been known to be undecidable. Unresolvable ambiguity, however, turns out to be decidable\footnote{cross your fingers}.
+
+Note that, as for ambiguity, the shape of the grammar is important, since the property considers parse trees rather than merely words. For this paper, we consider context-free grammars with EBNF operators.
+
+\subsection{Contributions}
+
+\begin{itemize}
+  % TODO: reference
+  \item Building on PADL-PAPER, which merely isolates ambiguities, an algorithm that suggests solutions to ambiguity errors.
+  \item A formalization of the unresolvable ambiguity property for context-free EBNF grammars.
+  \item An algorithm for deciding if a grammar is unresolvably ambiguous or not.
+\end{itemize}
+
+\section{Preliminaries}
+
+% TODO: the last line feels a bit odd, notationally
+\begin{figure}
+  \begin{tabular}{@{}ll@{}}
+      Terminals & $t \in \T$ \\
+      Non-terminals & $N \in \NT$ \\
+      Regular expressions & $r ::= t \mid N \mid r \cdot r \mid r + r \mid \epsilon \mid r^{*}$ \\
+      Productions & $N -> r$ \\
+  \end{tabular}
+  \caption{Context-free EBNF grammars}
+  \label{fig:grammar-definition}
+\end{figure}
+
+A context-free EBNF grammar is a tuple $(S, P, \NT, \T)$. $S \in \NT$ is the starting symbol, $P$ is a set of productions, as given in Figure~\ref{fig:grammar-definition}, $\NT$ and $\T$ are disjoint sets of non-terminals and terminals, respectively.
+
+The (word) language of a given non-terminal $N$ in a grammar $G = (S, P, \NT, \T)$ is given by $L_G(N)$:
+
+$$
+\begin{array}{r@{\;=\;}l}
+  L_G(t) & \{t\} \\
+  L_G(N) & \bigcup \{L_G(r) \mid (N -> r) \in P\} \\
+  L_G(r_1 \cdot r_2) & \{w_1 \cdot w_2 \mid w_1 \in L_G(r_1), w_2 \in L_g(r_2)\} \\
+  L_G(r_1 + r_2) & L_G(r_1) \cup L_G(r_2) \\
+  L_G(\epsilon) & \{\epsilon\} \\
+  L_G(r^{*}) & \{\epsilon\} \cup L_G(r) \cup L_G(r \cdot r) \cup \ldots \\
+\end{array}
+$$
+
+The word language of a grammar $G$, written $L(G)$, is thus $L_G(S)$. We will omit the subscript whenever the intended grammar is clear from the context.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Acknowledgments
+\begin{acks}                            %% acks environment is optional
+                                        %% contents suppressed with 'anonymous'
+  %% Commands \grantsponsor{<sponsorID>}{<name>}{<url>} and
+  %% \grantnum[<url>]{<sponsorID>}{<number>} should be used to
+  %% acknowledge financial support and will be used by metadata
+  %% extraction tools.
+  This material is based upon work supported by the
+  \grantsponsor{GS100000001}{National Science
+    Foundation}{http://dx.doi.org/10.13039/100000001} under Grant
+  No.~\grantnum{GS100000001}{nnnnnnn} and Grant
+  No.~\grantnum{GS100000001}{mmmmmmm}.  Any opinions, findings, and
+  conclusions or recommendations expressed in this material are those
+  of the author and do not necessarily reflect the views of the
+  National Science Foundation.
+\end{acks}
+
+
+%% Bibliography
+%\bibliography{bibfile}
+
+
+%% Appendix
+\appendix
+\section{Appendix}
+
+Text of appendix \ldots
+
+\end{document}
