@@ -1,0 +1,60 @@
+name: vpl-ambiguity
+version: 0.1.0.0
+author: Viktor Palmkvist
+maintainer: vipa@kth.se
+copyright: 2019 Viktor Palmkvist
+build-type: Simple
+cabal-version: >=2
+
+executable vpl-ambiguity
+  hs-source-dirs: src
+  main-is: Main.hs
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
+  build-depends: base
+               , protolude
+               , hashable
+               , unordered-containers
+               , recursion-schemes
+  other-modules: Prelude
+               , Automaton.NFA
+               , Automaton.DFA
+               , Regex
+               , Util
+  default-language: Haskell2010
+  default-extensions: NoImplicitPrelude
+                    , EmptyCase
+                    , FlexibleContexts
+                    , FlexibleInstances
+                    , InstanceSigs
+                    , MultiParamTypeClasses
+                    , LambdaCase
+                    , MultiWayIf
+                    , NamedFieldPuns
+                    , TupleSections
+                    , DeriveFoldable
+                    , DeriveFunctor
+                    , DeriveGeneric
+                    , DeriveLift
+                    , DeriveTraversable
+                    , DeriveDataTypeable
+                    , GeneralizedNewtypeDeriving
+                    , DerivingVia
+                    , StandaloneDeriving
+                    , BangPatterns
+                    , KindSignatures
+                    , TypeOperators
+                    , OverloadedStrings
+                    , ScopedTypeVariables
+                    , TypeApplications
+                    , ConstraintKinds
+                    , PolyKinds
+                    , RankNTypes
+                    , ApplicativeDo
+                    , DefaultSignatures
+                    , ExistentialQuantification
+                    , FunctionalDependencies
+                    , GADTs
+                    , DataKinds
+                    , TypeFamilies
+                    , TypeFamilyDependencies
+                    , PatternSynonyms
