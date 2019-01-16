@@ -1,9 +1,10 @@
 module Automaton.EpsilonNFA
-( EpsNFA(..)
-, edge
+( edge
 , addEdge
 , mergeTransitions
 , determinize
+, states
+, renumber
 ) where
 
 import Pre
@@ -13,13 +14,9 @@ import qualified Data.HashSet as S
 
 import Util (iterateInductivelyOptM, iterateInductively)
 
+import Automaton (EpsNFA(..))
 import Automaton.DFA (DFA(DFA))
 import qualified Automaton.DFA as D
-
-data EpsNFA state alphabet = EpsNFA
-  { initial :: state
-  , transitions :: HashMap state (HashMap (Maybe alphabet) (HashSet state))
-  , final :: state }
 
 edge :: (Hashable s, Hashable a) => s -> Maybe a -> s -> HashMap s (HashMap (Maybe a) (HashSet s))
 edge s a e = M.singleton s $ M.singleton a (S.singleton e)
@@ -31,17 +28,23 @@ addEdge start t end a@EpsNFA{transitions} = a
 mergeTransitions :: (Eq s, Hashable s, Eq a, Hashable a) => HashMap s (HashMap (Maybe a) (HashSet s)) -> HashMap s (HashMap (Maybe a) (HashSet s)) -> HashMap s (HashMap (Maybe a) (HashSet s))
 mergeTransitions = M.unionWith (M.unionWith S.union)
 
+states :: forall s a. (Eq s, Hashable s) => EpsNFA s a -> HashSet s
+states EpsNFA{initial, transitions, final} = S.insert initial $
+  final `S.union` (M.toList transitions & foldMap getStates)
+  where
+    getStates (s, tr) = S.insert s $ fold tr
+
 determinize :: forall s a. (Eq s, Hashable s, Eq a, Hashable a) => EpsNFA s a -> DFA (HashSet s) a
 determinize EpsNFA{initial, transitions, final} = DFA
   { D.initial = startState
   , D.transitions = transitions'
-  , D.final = S.filter (S.member final) states }
+  , D.final = S.filter (S.intersection final >>> S.null >>> not) newStates }
   where
     startState = epsClose $ S.singleton initial
     epsClose = iterateInductively (transition Nothing)
     transition tr s = M.lookup s transitions >>= M.lookup tr & fold
 
-    (states, transitions') = runState
+    (newStates, transitions') = runState
       (iterateInductivelyOptM findTransitions $ S.singleton startState)
       mempty
 
@@ -61,3 +64,14 @@ determinize EpsNFA{initial, transitions, final} = DFA
     addTransitions origin tr = do
       modify (M.insert origin tr)
       return $ S.fromList $ M.elems tr
+
+renumber :: (Eq s, Hashable s) => EpsNFA s a -> (EpsNFA Int a, HashMap s Int)
+renumber nfa@EpsNFA{initial, transitions, final} = (, mapping) $ EpsNFA
+  { initial = convert initial
+  , transitions = M.toList transitions
+    & fmap (convert *** fmap (S.map convert))
+    & M.fromList
+  , final = S.map convert final }
+  where
+    mapping = S.toList (states nfa) `zip` [1..] & M.fromList
+    convert s = M.lookup s mapping & compFromJust "Automaton.EpsNFA.renumber.convert" "missing state"

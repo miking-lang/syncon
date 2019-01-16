@@ -2,12 +2,16 @@ module Automaton.DFA
 ( DFA(..)
 , renumber
 , minimize
+, asNFA
 ) where
 
 import Pre
 
 import qualified Data.HashMap.Lazy as M
 import qualified Data.HashSet as S
+
+import Automaton (FiniteAutomaton(..), EpsNFA(EpsNFA))
+import qualified Automaton.NFA as N
 
 import Util (flipMap)
 
@@ -81,3 +85,17 @@ repeatWhile :: Monad m => m [a] -> (a -> m b) -> m ()
 repeatWhile mlist action = mlist >>= \case
   a : _ -> action a >> repeatWhile mlist action
   [] -> return ()
+
+instance FiniteAutomaton DFA where
+  asEpsNFA DFA{initial, transitions, final} = EpsNFA initial (convert <$> transitions) final
+    where
+      convert = M.toList >>> fmap (Just *** S.singleton) >>> M.fromList
+  mapState convert DFA{initial, transitions, final} = DFA
+    { initial = convert initial
+    , transitions = M.toList transitions
+      & fmap (convert *** fmap convert)
+      & M.fromList
+    , final = S.map convert final }
+
+asNFA :: (Hashable s) => DFA s a -> N.NFA s a
+asNFA DFA{initial, transitions, final} = N.NFA initial (fmap S.singleton <$> transitions) final

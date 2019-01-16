@@ -15,13 +15,12 @@ import Pre hiding (concat)
 import Data.String (fromString)
 
 import qualified Data.HashMap.Lazy as M
+import qualified Data.HashSet as S
 
 import Data.Functor.Foldable (cata)
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 
-import Automaton.DFA (DFA)
-import qualified Automaton.DFA as D
-import Automaton.EpsilonNFA (EpsNFA(..))
+import qualified Automaton as FA
 import qualified Automaton.EpsilonNFA as E
 
 data Regex alphabet = Terminal alphabet
@@ -49,37 +48,46 @@ opt :: Regex a -> Regex a
 opt r = Choice Eps r
 
 type AutomataM a = State Int a
+data Automaton s a = Automaton
+  { initial :: s
+  , transitions :: HashMap s (HashMap (Maybe a) (HashSet s))
+  , final :: s }
+
+addEdge :: (Eq s, Hashable s, Eq a, Hashable a) => s -> Maybe a -> s -> Automaton s a -> Automaton s a
+addEdge start t end a@Automaton{transitions} = a
+  { transitions = transitions & M.insertWith (M.unionWith S.union) start (M.singleton t (S.singleton end)) }
 
 newState :: AutomataM Int
 newState = get <* modify (+1)
 
-toAutomaton :: (Eq a, Hashable a) => Regex a -> DFA Int a
-toAutomaton regex = evalState (cata alg regex) 1 & E.determinize & D.renumber & fst
+toAutomaton :: (Eq a, Hashable a) => Regex a -> FA.EpsNFA Int a
+toAutomaton regex = evalState (cata alg regex) 1 & toEpsNFA
   where
+    toEpsNFA Automaton{initial, transitions, final} = FA.EpsNFA initial transitions $ S.singleton final
     alg (TerminalF a) = do
       s <- newState
       e <- newState
-      return $ EpsNFA s (E.edge s (Just a) e) e
+      return $ Automaton s (E.edge s (Just a) e) e
     alg (ConcatF a b) = do
-      EpsNFA{initial = as, transitions = at, final = ae} <- a
-      EpsNFA{initial = bs, transitions = bt, final = be} <- b
+      Automaton{initial = as, transitions = at, final = ae} <- a
+      Automaton{initial = bs, transitions = bt, final = be} <- b
       let transitions = E.mergeTransitions at bt
-      return $ EpsNFA as transitions be
-        & E.addEdge ae Nothing bs
+      return $ Automaton as transitions be
+        & addEdge ae Nothing bs
     alg (ChoiceF a b) = do
-      EpsNFA{initial = as, transitions = at, final = ae} <- a
-      EpsNFA{initial = bs, transitions = bt, final = be} <- b
+      Automaton{initial = as, transitions = at, final = ae} <- a
+      Automaton{initial = bs, transitions = bt, final = be} <- b
       s <- newState
       e <- newState
       let transitions = E.mergeTransitions at bt
-      return $ EpsNFA s transitions e
-        & E.addEdge s Nothing as
-        & E.addEdge s Nothing bs
-        & E.addEdge ae Nothing e
-        & E.addEdge be Nothing e
+      return $ Automaton s transitions e
+        & addEdge s Nothing as
+        & addEdge s Nothing bs
+        & addEdge ae Nothing e
+        & addEdge be Nothing e
     alg EpsF = do
       s <- newState
-      return $ EpsNFA s M.empty s
+      return $ Automaton s M.empty s
     alg (KleeneF r) = do
-      a@EpsNFA{initial, final} <- r
-      return $ E.addEdge final Nothing initial a
+      a@Automaton{initial, final} <- r
+      return $ addEdge final Nothing initial a

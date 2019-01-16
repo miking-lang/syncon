@@ -12,14 +12,18 @@ executable vpl-ambiguity
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
   build-depends: base
                , protolude
+               , text
                , hashable
                , unordered-containers
                , recursion-schemes
-  other-modules: Prelude
+  other-modules: Pre
+               , Automaton
                , Automaton.NFA
+               , Automaton.EpsilonNFA
                , Automaton.DFA
                , Regex
                , Util
+               , GraphViz
   default-language: Haskell2010
   default-extensions: NoImplicitPrelude
                     , EmptyCase
