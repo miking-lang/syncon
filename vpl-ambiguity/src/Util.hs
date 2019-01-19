@@ -6,7 +6,8 @@ import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
 
 -- Only run the action for new elements of the set
-iterateInductivelyOptM :: forall s m. (Eq s, Hashable s, Monad m) => (s -> m (HashSet s)) -> HashSet s -> m (HashSet s)
+iterateInductivelyOptM :: forall s m. (Eq s, Hashable s, Monad m)
+                       => (s -> m (HashSet s)) -> HashSet s -> m (HashSet s)
 iterateInductivelyOptM f s = recur S.empty s
   where
     recur :: HashSet s -> HashSet s -> m (HashSet s)
@@ -18,7 +19,8 @@ iterateInductivelyOptM f s = recur S.empty s
           recur (new <> prev) newStates
 
 -- Run the action for every element in every iteration
-iterateInductivelyM :: forall s m. (Eq s, Hashable s, Monad m) => (s -> m (HashSet s)) -> HashSet s -> m (HashSet s)
+iterateInductivelyM :: forall s m. (Eq s, Hashable s, Monad m)
+                    => (s -> m (HashSet s)) -> HashSet s -> m (HashSet s)
 iterateInductivelyM f s = recur S.empty s
   where
     recur :: HashSet s -> HashSet s -> m (HashSet s)
