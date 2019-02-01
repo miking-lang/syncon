@@ -1,6 +1,6 @@
 module Util where
 
-import Pre
+import Pre hiding (all)
 
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
@@ -44,3 +44,10 @@ flipMap = M.toList
   where
     toTriples (a, bc) = repeat a `zip` M.toList bc
     rearrange (a, (b, c)) = (c, M.singleton b $ S.singleton a)
+
+mapBy :: (Eq k, Hashable k, Foldable f, Eq a, Hashable a)
+      => (a -> k) -> f a -> HashMap k (HashSet a)
+mapBy f = toList >>> fmap (f &&& S.singleton) >>> M.fromListWith S.union
+
+-- TODO: something nice to index into maps and sets, essentially variadrically (this is lenses, isn't it)
+-- TODO: make a monad for more specializable inductive iteration

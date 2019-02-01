@@ -7,21 +7,25 @@ module ParenAutomaton
 , Language
 , addDyck
 , product
+, reverse
+, reduce
+, trivialCoReduce
 , asNFA
 , FakeEdge(..)
 , ppFakeEdge
 , mapSta
 , size
+, isUnresolvablyAmbiguous
 ) where
 
-import Pre hiding (product)
+import Pre hiding (product, reverse, reduce, all, from, to, sym, check)
 
 import Data.String (fromString)
 
 import qualified Data.HashMap.Lazy as M
 import qualified Data.HashSet as S
 
-import Util (iterateInductivelyOptM)
+import Util (iterateInductivelyOptM, iterateInductively)
 
 import qualified Automaton as FA
 import qualified Automaton.NFA as N
@@ -100,11 +104,6 @@ fromLanguage startNT language = renumber complete
           & compFromJust "ParenAutomaton.fromLanguage.renumber.convert" "missing state"
         translationMap = M.fromList $ S.toList (states nfa) `zip` [1..]
 
-    fromTriples :: forall a b. (Eq a, Hashable a, Eq b, Hashable b)
-                => [(a, b, a)] -> HashMap a (HashMap b (HashSet a))
-    fromTriples = fmap (\(a, b, c) -> M.singleton a $ M.singleton b $ S.singleton c)
-      >>> foldl N.mergeTransitions M.empty
-
 states :: (Eq s, Hashable s) => ParenNFA s sta a -> HashSet s
 states ParenNFA{..} = S.fromList (initial : final : inners ++ opens ++ closes)
   where
@@ -121,6 +120,22 @@ toTriples trs = do
   (b, cs) <- M.toList bs
   c <- S.toList cs
   return $ (a, b, c)
+
+fromTriples :: forall a b c. (Eq a, Hashable a, Eq b, Hashable b, Eq c, Hashable c)
+            => [(a, b, c)] -> HashMap a (HashMap b (HashSet c))
+fromTriples = fmap (\(a, b, c) -> M.singleton a $ M.singleton b $ S.singleton c)
+  >>> foldl (M.unionWith $ M.unionWith S.union) M.empty
+
+toTriples' :: HashMap a (HashSet (b, c)) -> [(a, b, c)]
+toTriples' m = do
+  (s1, stas) <- M.toList m
+  (sta, s2) <- S.toList stas
+  return (s1, sta, s2)
+
+fromTriples' :: (Eq a, Hashable a, Eq b, Hashable b, Eq c, Hashable c)
+             => [(a, b, c)] -> HashMap a (HashSet (b, c))
+fromTriples' = fmap (\(s1, sta, s2) -> (s1, S.singleton (sta, s2)))
+  >>> M.fromListWith S.union
 
 addDyck :: (Eq s, Hashable s, Eq sta, Hashable sta) => ParenNFA s sta a -> ParenNFA s (Maybe sta) a
 addDyck nfa@ParenNFA{initial, openTransitions, closeTransitions, final} = nfa
@@ -202,6 +217,169 @@ product nfa1 nfa2 = ParenNFA
 
     addTransitions transitions = modify (mappend transitions)
 
+reverse :: (Eq s, Hashable s, Eq sta, Hashable sta, Eq a, Hashable a)
+        => ParenNFA s sta a -> ParenNFA s sta a
+reverse ParenNFA{..} = ParenNFA
+  { initial = final
+  , final = initial
+  , innerTransitions = toTriples innerTransitions
+    & fmap (\(a, b, c) -> (c, b, a))
+    & fromTriples
+  , openTransitions = toTriples' closeTransitions
+    & fmap (\(a, b, c) -> (c, b, a))
+    & fromTriples'
+  , closeTransitions = toTriples' openTransitions
+    & fmap (\(a, b, c) -> (c, b, a))
+    & fromTriples' }
+
+-- This removes a few obviously not co-reachable states, namely those that don't have a path to the
+-- final state even when we ignore the stack
+trivialCoReduce :: forall s sta a. (Eq s, Hashable s, Eq sta, Hashable sta, Eq a, Hashable a)
+                => ParenNFA s sta a -> ParenNFA s sta a
+trivialCoReduce nfa@ParenNFA{..} = nfa
+  { innerTransitions = toTriples innerTransitions
+    & filter isCoReachable
+    & fromTriples
+  , openTransitions = toTriples' openTransitions
+    & filter isCoReachable
+    & fromTriples'
+  , closeTransitions = toTriples' closeTransitions
+    & filter isCoReachable
+    & fromTriples' }
+  where
+    revInner = toTriples innerTransitions
+      & fmap (\(s1, _, s2) -> (s2, S.singleton s1))
+    revOpen = toTriples' openTransitions
+      & fmap (\(s1, _, s2) -> (s2, S.singleton s1))
+    revClose = toTriples' closeTransitions
+      & fmap (\(s1, _, s2) -> (s2, S.singleton s1))
+    revMap = M.fromListWith S.union $ revInner ++ revOpen ++ revClose
+    coReachable = iterateInductively (\s -> M.lookupDefault S.empty s revMap) $ S.singleton final
+    isCoReachable :: forall x. (s, x, s) -> Bool
+    isCoReachable (s1, _, s2) = S.member s1 coReachable && S.member s2 coReachable
+
+data ReduceState s = ReduceState
+  { _all :: HashSet (s, s)
+  , _lToR :: HashMap s (HashSet s)
+  , _rToL :: HashMap s (HashSet s) }
+
+instance (Eq s, Hashable s) => Semigroup (ReduceState s) where
+  ReduceState a1 l1 r1 <> ReduceState a2 l2 r2 = ReduceState
+    (a1 <> a2)
+    (M.unionWith S.union l1 l2)
+    (M.unionWith S.union r1 r2)
+instance (Eq s, Hashable s) => Monoid (ReduceState s) where
+  mempty = ReduceState mempty mempty mempty
+  mappend = (<>)
+
+type ReduceM s a = Reader (ReduceState s) a
+
+data TransitionState s sta a = TransitionState
+  { _states :: HashSet s
+  , _open :: HashMap s (HashSet (sta, s))
+  , _close :: HashMap s (HashSet (sta, s))
+  , _inner :: HashMap s (HashMap a (HashSet s)) }
+
+-- TODO: I suspect this function could be written much nicer with something relational
+-- TODO: should maybe openTransitions and closeTransitions have the form (a -> b -> c) instead of (a -> (b, c))? Seems to be the way that it is used
+reduce :: forall s sta a. (Eq s, Hashable s, Eq sta, Hashable sta, Eq a, Hashable a)
+       => ParenNFA s sta a -> ParenNFA (s, s) (sta, s) a
+reduce nfa@ParenNFA{..} = ParenNFA
+  { initial = initialState
+  , openTransitions = _open transitions
+  , closeTransitions = _close transitions
+  , innerTransitions = _inner transitions
+  , final = finalState }
+  where
+    initialState = (initial, final)
+    finalState = (final, final)
+
+    innerMap = fold <$> innerTransitions
+    innerAfter s = M.lookupDefault S.empty s innerMap & S.toList
+
+    openMap = toTriples' openTransitions
+      & fmap (\(a, b, c) -> (c, M.singleton b $ S.singleton a))
+      & M.fromListWith (M.unionWith S.union)
+    openBefore s = M.lookupDefault M.empty s openMap
+
+    closeMap = toTriples' closeTransitions
+      & fmap (\(a, b, c) -> (a, M.singleton b $ S.singleton c))
+      & M.fromListWith (M.unionWith S.union)
+    closeAfter s = M.lookupDefault M.empty s closeMap
+
+    findNewWellMatched :: (s, s) -> ReduceM s [(s, s)]
+    findNewWellMatched (s1, s2) = do
+      after <- fmap (s1,) <$> lToR s2
+      before <- fmap (,s2) <$> rToL s1
+      let inner = (s1,) <$> innerAfter s2
+          wm = M.intersectionWith
+                 (\a b -> (,) <$> S.toList a <*> S.toList b)
+                 (openBefore s1)
+                 (closeAfter s2)
+             & fold
+      return $ after <> before <> inner <> wm
+
+    wellMatched = states nfa
+      & S.map (identity &&& identity)
+      & iterateInductivelyR findNewWellMatched
+
+    qFromP = toList wellMatched & fmap (second S.singleton) & M.fromListWith S.union
+    findTransitions (p, q) = do
+      forM_ (M.lookupDefault S.empty p openTransitions) $ \(gamma, p') -> do
+        forM_ (M.lookupDefault S.empty p' qFromP) $ \q' -> do
+          let existsS = M.lookupDefault S.empty q' closeTransitions
+                & any (\(gamma', s) -> gamma == gamma' && S.member (s, q) wellMatched)
+          when existsS $ do
+            addOpen ((p, q), (gamma, q), (p', q'))
+      when (p == q) $ do
+        forM_ (M.lookupDefault S.empty p closeTransitions) $ \(gamma, p') -> do
+          forM_ (M.lookupDefault S.empty p' qFromP) $ \q' -> do
+            addClose ((p, p), (gamma, q'), (p', q'))
+      forM_ (M.lookupDefault M.empty p innerTransitions & M.toList) $ \(a, ps') -> do
+        forM_ (S.map (,q) ps' & S.intersection wellMatched) $ \to -> do
+          addInner ((p, q), a, to)
+      gets _states
+
+    transitions = execState
+      (iterateInductivelyOptM findTransitions (S.singleton initialState))
+      (TransitionState mempty mempty mempty mempty)
+
+    addOpen :: ((s, s), (sta, s), (s, s)) -> State (TransitionState (s, s) (sta, s) a) ()
+    addOpen (from, sta, to) = modify $ \ts@TransitionState{_open, _states} -> ts
+      { _open = M.insertWith S.union from (S.singleton (sta, to)) _open
+      , _states = S.insert to _states }
+    addClose :: ((s, s), (sta, s), (s, s)) -> State (TransitionState (s, s) (sta, s) a) ()
+    addClose (from, sta, to) = modify $ \ts@TransitionState{_close, _states} -> ts
+      { _close = M.insertWith S.union from (S.singleton (sta, to)) _close
+      , _states = S.insert to _states }
+    addInner :: ((s, s), a, (s, s)) -> State (TransitionState (s, s) (sta, s) a) ()
+    addInner (from, a, to) = modify $ \ts@TransitionState{_inner, _states} -> ts
+      { _inner = M.insertWith (M.unionWith S.union) from (M.singleton a $ S.singleton to) _inner
+      , _states = S.insert to _states }
+
+    iterateInductivelyR :: forall x. (Eq x, Hashable x)
+                        => ((x, x) -> ReduceM x [(x, x)]) -> HashSet (x, x) -> HashSet (x, x)
+    iterateInductivelyR f init = recur mempty init
+      where
+        recur :: ReduceState x -> HashSet (x, x) -> HashSet (x, x)
+        recur prev new
+          | S.null new = _all prev
+          | otherwise =
+            let all = prev <> mkReduceState new
+                next = S.toList new & traverse f & (`runReader` all) & concat & S.fromList
+                newNext = next `S.difference` _all all
+            in recur all newNext
+
+    mkReduceState ss = ReduceState
+      { _all = ss
+      , _lToR = S.toList ss & fmap (second S.singleton) & M.fromListWith S.union
+      , _rToL = S.toList ss & fmap (swap >>> second S.singleton) & M.fromListWith S.union }
+
+    lToR :: s -> ReduceM s [s]
+    lToR s = asks (_lToR >>> M.lookupDefault S.empty s >>> S.toList)
+    rToL :: s -> ReduceM s [s]
+    rToL s = asks (_rToL >>> M.lookupDefault S.empty s >>> S.toList)
+
 asNFA :: (Eq s, Hashable s, Eq sta, Hashable sta, Eq a, Hashable a) => ParenNFA s sta a -> N.NFA s (FakeEdge sta a)
 asNFA ParenNFA{..} = N.NFA
   { N.initial = initial
@@ -228,3 +406,17 @@ size nfa@ParenNFA{..} = Size
   , numInner = foldMap (foldMap $ S.size >>> Sum) innerTransitions & getSum
   , numOpen = foldMap (S.size >>> Sum) openTransitions & getSum
   , numClose = foldMap (S.size >>> Sum) closeTransitions & getSum }
+
+isUnresolvablyAmbiguous :: (Eq s, Hashable s, Eq sta, Hashable sta, Eq a, Hashable a)
+                        => ParenNFA s sta a -> Bool
+isUnresolvablyAmbiguous original =
+  product (mapSta Just original) (addDyck original)
+  & reverse & reduce & reverse
+  & reduce
+  & trivialCoReduce -- TODO: something is not working the way I think it should if this makes changes, which it does
+  & check
+  where
+    -- NOTE: I believe I should not need to check both open and close transitions, since they must have been pushed to be popped, and we have a trimmed automaton
+    check nfa@ParenNFA{openTransitions} = -- TODO: for my test case it was enough to check states, maybe it always will be?
+      any (fst >>> fst >>> uncurry (/=)) (states nfa)
+      || any (\(_, sym, _) -> uncurry (/=) . fst $ fst sym) (toTriples' openTransitions)
