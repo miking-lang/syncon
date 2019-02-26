@@ -467,7 +467,7 @@ We are looking for a counterexample to the resolvable property, i.e., a $t \in L
 
 We begin by noting that parentheses cannot be added just anywhere; they must correspond to a node in the parse tree. For example, for the tree in Figure~\ref{fig:example-grammar:sem-tree} (which could be parsed from ''$1 + 2 * 3$'') it would be valid to add parentheses around ''$1 + 2$'' but not ''$2 * 3$''. As a consequence, adding parentheses restricts the possible parse trees, i.e., given two words $w'_1$ and $w'_2$ where the latter has added some parentheses we have $\parse(w'_1) \supseteq \parse(w'_2)$. We also note that adding double parentheses imposes no additional restriction, e.g., $\parse(\text{''}((1 + 2)) * 3\text{''})$ = $\parse(\text{''}(1 + 2) * 3\text{''})$.
 
-There is thus a ''most restrictive word'' for every tree. If this word is ambiguous, then we have our counterexample\footnote{There is one more thing to note here to motivate the pushdown automata: the only form of ambiguity we have is one where there is another tree $t_2$ such that if $t \in \parse(w')$ then $t_2 \in \parse(w')$. I am convinced this is true for the basic case, and I believe it is still true for the remaining cases, but it needs to be proved. As such, I'm unsure how to motivate it here, because I think it'll require more complicated reasoning in later cases, and it'd be nice if there could be some commonality between the explanations.}.
+There is thus a ''most restrictive word'' for every tree. If this word is ambiguous, then we have our counterexample. % TODO: motivate the other tree ''dominating'' or ''shadowing'' this one, to be able to use that term later
 
 We will now construct a pushdown automaton that recognizes these most restrictive words in such a way that there is a bijection between successful runs and trees in $L(T)$. As a running example, we will use the following (very simple) grammar $G$:
 
@@ -496,12 +496,14 @@ We will now construct a pushdown automaton that recognizes these most restrictiv
 \end{tikzpicture}
 \end{center}
 
-We then combine them into a single pushdown automata by replacing each edge with a non-terminal label $p \xrightarrow{N} q$ with ($+\gamma$ means ''push $\gamma$'', while $-\gamma$ means ''pop $\gamma$''):
+We then combine them into a single pushdown automata by replacing each edge with a non-terminal label $p \xrightarrow{N} q$ with:
 
 \begin{itemize}
-  \item An edge $p \xrightarrow{'(', +(p, q)} p'$ for every initial state $p'$ in some DFA belonging to non-terminal $N$.
-  \item An edge $q' \xrightarrow{')', -(p, q)} q$ for every final state $q'$ in some DFA belonging to non-terminal $N$.
+  \item an edge $p \xrightarrow{'(', +(p, q)} p'$ for every initial state $p'$ in some DFA belonging to non-terminal $N$, and
+  \item an edge $q' \xrightarrow{')', -(p, q)} q$ for every final state $q'$ in some DFA belonging to non-terminal $N$,
 \end{itemize}
+
+were $+\gamma$ means ''push $\gamma$'', while $-\gamma$ means ''pop $\gamma$''. Intuitively, parse a child node, but put parentheses around it.
 
 \begin{center}
 \begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
@@ -554,6 +556,54 @@ We then combine them into a single pushdown automata by replacing each edge with
 \end{center}
 
 \noindent The resulting pushdown automaton has only a single source of non-determinism: the edges labelled \verb|'('|. Each one corresponds to one of the allowable child productions at that point in the parse tree.
+
+We now have a pushdown automaton that recognizes the ''most restrictive word'' for each tree in $L(T)$, which we will call $A_($. Next we need to determine if it is a valid word for some other tree as well. To do this we create a copy of $A_($ with one modification: for every state $s$ in $A_($ (except the initial and final states), add two transitions $s \xrightarrow{'(', +p} s$ and $s \xrightarrow{')', -p}$. To avoid cluttering the graph too much, these transitions are shown unlabeled below:
+
+\begin{center}
+\begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
+    scale = 1,transform shape]
+
+  \node[state] (1) {$1$};
+  \node[state] (2) [right of=1] {$2$};
+  \node[state] (3) [right of=2] {$3$};
+  \node[state] (4) [below of=1, xshift=1cm] {$4$};
+  \node[state] (5) [right of=4] {$5$};
+  \node[state,initial] (s) [left of=4] {};
+  \node[state,accepting] (e) [right of=5] {};
+
+  \draw
+  (1) edge[loop, in=80, out=100, looseness=7] node{} (1)
+  (1) edge[loop, in=70, out=110, looseness=6] node{} (1)
+  (2) edge[loop, in=80, out=100, looseness=7] node{} (2)
+  (2) edge[loop, in=70, out=110, looseness=6] node{} (2)
+  (3) edge[loop, in=-10, out=10, looseness=7] node{} (3)
+  (3) edge[loop, in=-20, out=20, looseness=6] node{} (3)
+  (4) edge[loop, in=-80, out=-100, looseness=7] node{} (4)
+  (4) edge[loop, in=-70, out=-110, looseness=6] node{} (4)
+  (5) edge[loop, in=-80, out=-100, looseness=7] node{} (5)
+  (5) edge[loop, in=-70, out=-110, looseness=6] node{} (5)
+  (s) edge[left] node{$'(', +s$} (1)
+  (s) edge[above] node{$'(', +s$} (4)
+  (3) edge[right] node{$')', -s$} (e)
+  (5) edge[above] node{$')', -s$} (e)
+  (1) edge[above] node{$s$} (2)
+  (4) edge[above] node{$z$} (5)
+  (2) edge[bend left, below] node{$'(', +(2, 3)$} (1)
+  (2) edge[bend left, left] node{$'(', +(2, 3)$} (4)
+  (3) edge[loop above] node{$')', -(2, 3)$} (3)
+  (5) edge[left, bend right] node{$')', -(2, 3)$} (3);
+
+\end{tikzpicture}
+\end{center}
+
+We will call this automaton $A'_($. Intuitively, this automaton recognizes a most restrictive word, but allows the addition of arbitrary well-nested parentheses. Successful runs in this automaton have a surjection to runs in $A_($ (ignore transitions along the newly added edges), and thus also have a surjection to parse trees in $L(T)$. We can also note that every sucessful run in $A_($ is also a successful run in $A'_($, since the latter has all states and transitions of the former. Furthermore, two distinct runs, one in $A_($ (call it $p$) and one in $A'_($ (call it $p'$), that both recognize the same word must represent different parse trees in $L(T)$. To see why, we consider two cases:
+
+\begin{enumerate}
+  \item $p'$ only uses transitions present in $A_($. This is a successful run in $A_($, and distinct from $p$. But there is a bijection between runs in $A_($ and parse trees in $L(T)$, thus $p'$ represents a different parse tree.
+  \item $p'$ uses at least one transition added in $A'_($. Using the surjection between runs in $A'_($ and $A_($ we find a new successful run that produces a different word (at least one fewer pair of parentheses). Since this run produces a different word, it must be distinct from $p$, and thus represent a different parse tree.
+\end{enumerate}
+
+% TODO: use ''dominating'' or ''shadowing'' here
 
 %% \noindent Generalizing this to a complete grammar, we get the following property: a grammar $G$ is resolvable iff:
 
