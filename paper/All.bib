@@ -134,7 +134,7 @@
   isbn = {978-1-4503-5587-2},
   url = {http://doi.acm.org/10.1145/3162068},
   doi = {10.1145/3162068},
-  abstract = {Embedding a domain-specific language (DSL) in a general purpose host language is an efficient way to develop a new DSL. Various kinds of languages and paradigms can be used as host languages, including object-oriented, functional, statically typed, and dynamically typed variants, all having their pros and cons. For deep embedding, statically typed languages enable early checking and potentially good DSL error messages, instead of reporting runtime errors. Dynamically typed languages, on the other hand, enable flexible transformations, thus avoiding extensive boilerplate code. In this paper, we introduce the concept of gradually typed symbolic expressions that mix static and dynamic typing for symbolic data. The key idea is to combine the strengths of dynamic and static typing in the context of deep embedding of DSLs. We define a gradually typed calculus λ$<$⋆$>$, formalize its type system and dynamic semantics, and prove type safety. We introduce a host language called Modelyze that is based on λ$<$⋆$>$, and evaluate the approach by embedding a series of equation-based domain-specific modeling languages, all within the domain of physical modeling and simulation.},
+  abstract = {Embedding a domain-specific language (DSL) in a general purpose host language is an efficient way to develop a new DSL. Various kinds of languages and paradigms can be used as host languages, including object-oriented, functional, statically typed, and dynamically typed variants, all having their pros and cons. For deep embedding, statically typed languages enable early checking and potentially good DSL error messages, instead of reporting runtime errors. Dynamically typed languages, on the other hand, enable flexible transformations, thus avoiding extensive boilerplate code. In this paper, we introduce the concept of gradually typed symbolic expressions that mix static and dynamic typing for symbolic data. The key idea is to combine the strengths of dynamic and static typing in the context of deep embedding of DSLs. We define a gradually typed calculus λ{$<$}⋆{$>$}, formalize its type system and dynamic semantics, and prove type safety. We introduce a host language called Modelyze that is based on λ{$<$}⋆{$>$}, and evaluate the approach by embedding a series of equation-based domain-specific modeling languages, all within the domain of physical modeling and simulation.},
   booktitle = {Proceedings of the {{ACM SIGPLAN Workshop}} on {{Partial Evaluation}} and {{Program Manipulation}}},
   series = {{{PEPM}} '18},
   publisher = {{ACM}},
@@ -538,7 +538,7 @@ Rust also offers a clear performance model, making it easier to predict and reas
   url = {http://doi.acm.org/10.1145/1993498.1993548},
   doi = {10.1145/1993498.1993548},
   shorttitle = {{{LL}}(*)},
-  abstract = {Despite the power of Parser Expression Grammars (PEGs) and GLR, parsing is not a solved problem. Adding nondeterminism (parser speculation) to traditional LL and LR parsers can lead to unexpected parse-time behavior and introduces practical issues with error handling, single-step debugging, and side-effecting embedded grammar actions. This paper introduces the LL(*) parsing strategy and an associated grammar analysis algorithm that constructs LL(*) parsing decisions from ANTLR grammars. At parse-time, decisions gracefully throttle up from conventional fixed k$>$=1 lookahead to arbitrary lookahead and, finally, fail over to backtracking depending on the complexity of the parsing decision and the input symbols. LL(*) parsing strength reaches into the context-sensitive languages, in some cases beyond what GLR and PEGs can express. By statically removing as much speculation as possible, LL(*) provides the expressivity of PEGs while retaining LL's good error handling and unrestricted grammar actions. Widespread use of ANTLR (over 70,000 downloads/year) shows that it is effective for a wide variety of applications.},
+  abstract = {Despite the power of Parser Expression Grammars (PEGs) and GLR, parsing is not a solved problem. Adding nondeterminism (parser speculation) to traditional LL and LR parsers can lead to unexpected parse-time behavior and introduces practical issues with error handling, single-step debugging, and side-effecting embedded grammar actions. This paper introduces the LL(*) parsing strategy and an associated grammar analysis algorithm that constructs LL(*) parsing decisions from ANTLR grammars. At parse-time, decisions gracefully throttle up from conventional fixed k{$>$}=1 lookahead to arbitrary lookahead and, finally, fail over to backtracking depending on the complexity of the parsing decision and the input symbols. LL(*) parsing strength reaches into the context-sensitive languages, in some cases beyond what GLR and PEGs can express. By statically removing as much speculation as possible, LL(*) provides the expressivity of PEGs while retaining LL's good error handling and unrestricted grammar actions. Widespread use of ANTLR (over 70,000 downloads/year) shows that it is effective for a wide variety of applications.},
   booktitle = {Proceedings of the {{32Nd ACM SIGPLAN Conference}} on {{Programming Language Design}} and {{Implementation}}},
   series = {{{PLDI}} '11},
   publisher = {{ACM}},
@@ -909,6 +909,25 @@ After introducing CAGs by way of an example, we provide a formal definition of C
   author = {Palmkvist, Viktor and Broman, David},
   editor = {Alferes, José Júlio and Johansson, Moa},
   file = {/home/vipa/Zotero/storage/T5FH2I62/Palmkvist and Broman - 2019 - Creating Domain-Specific Languages by Composing Sy.pdf}
+}
+
+@inproceedings{alurVisiblyPushdownLanguages2004,
+  location = {{New York, NY, USA}},
+  title = {Visibly {{Pushdown Languages}}},
+  isbn = {978-1-58113-852-8},
+  url = {http://doi.acm.org/10.1145/1007352.1007390},
+  doi = {10.1145/1007352.1007390},
+  abstract = {We propose the class of visibly pushdown languages as embeddings of context-free languages that is rich enough to model program analysis questions and yet is tractable and robust like the class of regular languages. In our definition, the input symbol determines when the pushdown automaton can push or pop, and thus the stack depth at every position. We show that the resulting class Vpl of languages is closed under union, intersection, complementation, renaming, concatenation, and Kleene-*, and problems such as inclusion that are undecidable for context-free languages are Exptime-complete for visibly pushdown automata. Our framework explains, unifies, and generalizes many of the decision procedures in the program analysis literature, and allows algorithmic verification of recursive programs with respect to many context-free properties including access control properties via stack inspection and correctness of procedures with respect to pre and post conditions. We demonstrate that the class Vpl is robust by giving two alternative characterizations: a logical characterization using the monadic second order (MSO) theory over words augmented with a binary matching predicate, and a correspondence to regular tree languages. We also consider visibly pushdown languages of infinite words and show that the closure properties, MSO-characterization and the characterization in terms of regular trees carry over. The main difference with respect to the case of finite words turns out to be determinizability: nondeterministic Büchi visibly pushdown automata are strictly more expressive than deterministic Muller visibly pushdown automata.},
+  booktitle = {Proceedings of the {{Thirty}}-Sixth {{Annual ACM Symposium}} on {{Theory}} of {{Computing}}},
+  series = {{{STOC}} '04},
+  publisher = {{ACM}},
+  urldate = {2019-02-28},
+  date = {2004},
+  pages = {202--211},
+  keywords = {$ømega$-languages,context-free languages,logic,pushdown automata,regular tree languages,verification},
+  author = {Alur, Rajeev and Madhusudan, P.},
+  file = {/home/vipa/Zotero/storage/8DLIPGMN/Alur and Madhusudan - 2004 - Visibly Pushdown Languages.pdf},
+  venue = {Chicago, IL, USA}
 }
 
 

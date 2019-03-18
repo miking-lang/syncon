@@ -85,6 +85,8 @@
 \newcommand{\yield}{\mathit{yield}} % yield of a parse tree
 \newcommand{\semantic}{\mathit{semantic}} % remove semantically unimportant productions from a w' \in L(G')
 \newcommand{\parse}{\mathit{parse}} % go from a w' \in L(G') to a subset of L(T)
+\newcommand{\words}{\mathit{words}} % go from a t \in L(T) to a subset of L(G')
+\newcommand{\range}[2]{#1\!-\!#2}
 
 \begin{document}
 
@@ -277,8 +279,10 @@ Note that, as for ambiguity, the shape of the grammar is important, since the pr
 \section{Preliminaries}
 
 \begin{quote} % TODO: remove
-  \textbf{NOTE:} The text hereafter is written a bit later than the text before, and is ever so slightly inconsistent with it.
+  \textbf{NOTE:} The text before this section is largely out of date.
 \end{quote}
+
+\subsection{Context-Free Grammars}
 
 % TODO: the last line feels a bit odd, notationally
 \begin{figure}
@@ -287,13 +291,13 @@ Note that, as for ambiguity, the shape of the grammar is important, since the pr
       Non-terminals & $N \in \NT$ \\
       Identifiers & $i \in \I$ \\
       Regular expressions & $r ::= t \mid N \mid r \cdot r \mid r + r \mid \epsilon \mid r^{*}$ \\
-      Productions & $i : N -> r$ \\
+      Productions & $N -> i : r$ \\
   \end{tabular}
   \caption{Context-free EBNF grammars}
   \label{fig:grammar-definition}
 \end{figure}
 
-A context-free EBNF grammar is a tuple $(S, P, \NT, \T, \I)$. $S \in \NT$ is the starting symbol, $P$ is a set of productions, as given in Figure~\ref{fig:grammar-definition}, $\NT$, $\T$, and $\I$ are sets of non-terminals, terminals, and identifiers, respectively. Additionally, we require that $\NT \cap \T = \emptyset$, and that the identifiers uniquely identify each production, i.e., there are no two distinct productions in $P$ with the same identifier.
+A context-free EBNF grammar is a tuple $(S, P, \NT, \T, \I)$. $S \in \NT$ is the starting symbol, $P$ is a set of productions, as given in Figure~\ref{fig:grammar-definition}, $\NT$, $\T$, and $\I$ are sets of non-terminals, terminals, and identifiers, respectively. Additionally, we require that $\NT \cap \T = \emptyset$. Most (though not all) grammars we will consider will have unique identifiers, i.e., there are no two distinct productions in $P$ with the same identifier. As an example, Figure~\ref{fig:example-grammar:ambig-grammar} contains a small grammar. The first production listed has the identifier ''Sum'' and consists of an expression, then a literal ''+'', then another expression.
 
 The (word) language of a given non-terminal $N$ in a grammar $G = (S, P, \NT, \T, \I)$ is given by $L_G(N)$:
 
@@ -331,16 +335,80 @@ $$\exists t_1, t_2 \in L(T).\ \yield(t_1) = w \land \yield(t_2) = w \land t_1 \n
 
 \noindent A grammar is ambiguous iff it contains at least one ambiguous word.
 
+\subsection{Automata}
+
+A nondeterministic finite automaton (NFA) is a tuple $(Q, \Sigma, \Delta, q_0, F)$:
+
+\begin{itemize}
+\item A finite set of states $Q$.
+\item A finite set of input symbols $\Sigma$, i.e., an input alphabet.
+\item A transition function $\delta: Q \times \Sigma -> 2^Q$.
+\item An initial state $q_0 \in Q$.
+\item A set of final states $F \subseteq Q$.
+\end{itemize}
+
+\noindent A successful run is a sequence of states $r_0, r_1, \ldots, r_n$ and a word $a_0a_1\ldots a_n$ such that:
+
+\begin{itemize}
+\item $r_0 = q_0$.
+\item $\forall_{i = 0}^{n-1} r_{i+1} \in \delta(r_i, a_i)$.
+\item $r_n \in F$.
+\end{itemize}
+
+\noindent We say that the automaton accepts the word $a_0a_1\ldots a_n$ iff there is such a succesful run. A particular state $q \in Q$ is \emph{reachable} if there is a (not necessarily successful) run starting in $q_0$ and ending in $q$. $q$ is \emph{coreachable} if there is a run starting in $q$ and ending in some $f \in F$.
+
+A deterministic finite automaton (DFA) has the same definition, except $\delta : Q \times \Sigma -> Q$.
+
+A pushdown automaton extends a finite automaton with a stack, and lets each transition push or pop symbols from it. Formally, a pushdown automaton is a tuple $(Q, \Sigma, \Gamma, \delta, q_0, F)$:
+
+\begin{itemize}
+\item A finite set of states $Q$.
+\item A finite set of input symbols $\Sigma$, i.e., an input alphabet.
+\item A finite set of stack symbols $\Gamma$, i.e., a stack alphabet.
+\item A transition function $\delta: Q \times \Sigma \times \Gamma -> 2^{Q \times \Gamma*}$.
+\item An initial state $q_0 \in Q$.
+\item A set of final states $F \subseteq Q$.
+\end{itemize}
+
+\noindent A successful run is now a sequence of \emph{configurations}, elements of $Q \times \Gamma*$, starting with $(q_0, \epsilon)$, ending with $(f, \gamma)$ for some $f \in F$ and $\gamma \in \Gamma*$. Reachable and coreachable are now defined on configurations, rather than states.
+
+However, in this paper we will only consider pushdown automata with relatively limited stack manipulation, and will thus use some convenient shorthand:
+
+\begin{itemize}
+\item $p \xrightarrow{a} q$, a transition that recognizes the terminal $a$ and does not interact with the stack at all.
+\item $p \xrightarrow{a, +g} q$, a transition that recognizes the terminal $a$ and pushes the symbol $g$ on the stack.
+\item $p \xrightarrow{a, -g} q$, a transition that recognizes the terminal $a$ and pops the symbol $g$ from the stack (i.e., this transition cannot be taken if $g$ is not on top of the stack).
+\end{itemize}
+
+\subsection{Visibly Pushdown Languages}
+
+A visibly pushdown language \cite{alurVisiblyPushdownLanguages2004} is a language that can be recognized by a visibly pushdown automaton. A visibly pushdown automaton is a pushdown automaton where the input alphabet $\Sigma$ can be partitioned into three disjoint sets $\Sigma_c$, $\Sigma_i$, and $\Sigma_r$, such that all transitions in the automaton has one of the following three forms:
+
+\begin{itemize}
+\item $p \xrightarrow{c, +s} q$, where $c \in \Sigma_c$.
+\item $p \xrightarrow{i} q$, where $i \in \Sigma_i$.
+\item $p \xrightarrow{r, -s} q$, where $r \in \Sigma_r$.
+\end{itemize}
+
+\noindent i.e., the terminal recognized by a transition fully determines the change to the stack height.
+
+This gives us some nice properties. Of particular relevance to this paper are the following two points:
+
+\begin{itemize}
+\item If two visibly pushdown automata have the same partitions $\Sigma_c$, $\Sigma_i$, and $\Sigma_r$, then we can construct a product automaton that simulates two simultaneous runs through both automata. This product automaton has the same input alphabet partitions, each state is a pair of states (one from each automaton), and each stack symbol is a pair of stack symbols (one from each automaton).
+\item A visibly pushdown automaton can be trimmed \cite{caralpTrimmingVisiblyPushdown2013}, i.e., modified such that all reachable configurations are also coreachable.
+\end{itemize}
+
 \section{Parse-time Disambiguation}
 
-We begin this section with some motivation, and then list our definition of \emph{resolvable ambiguity}.
+We begin this section with some motivation, then list our definition of \emph{resolvable ambiguity} and what disambiguation we will consider, and finally an alternative definition of a word, which will be useful in later sections.
 
 We can divide the productions present in a programming language grammar in two groups: those that are semantically important, and those that are semantically \emph{un}important. The former group covers most productions, while the latter contains, e.g., parentheses used for explicit grouping. If programs were written directly as syntax trees then the latter would be unnecessary; two syntax trees that differ only by parentheses are semantically the same.
 
 Thus we wish the output of parsing to be a syntax tree consisting entirely of semantically important productions. This distinction is useful to make, because it allows us to decouple \emph{what} we want to be expressible and \emph{how} it is to be expressed. As an example, in Figure~\ref{fig:example-grammar}, \ref{fig:example-grammar:ambig-grammar} is the \emph{what} and \ref{fig:example-grammar:unambig-grammar} is the \emph{how}. The latter grammar is a modification of the former that adds precedence, associativity, and parentheses, yielding an unambiguous grammar with at least one way to express each semantically distinct tree.
 
-\begin{figure}
-  \begin{subfigure}{\linewidth}
+\begin{figure*}
+  \begin{subfigure}{.45\linewidth}
     \setlength{\grammarindent}{5em}
     \begin{grammar}
       <expr> ::= Sum: <expr> '+' <expr>
@@ -350,8 +418,7 @@ Thus we wish the output of parsing to be a syntax tree consisting entirely of se
     \caption{The (ambiguous) intuitive grammar without parentheses.}
     \label{fig:example-grammar:ambig-grammar}
   \end{subfigure}
-
-  \begin{subfigure}{\linewidth}
+  \begin{subfigure}{0.45\linewidth}
     \setlength{\grammarindent}{5em}
     \begin{grammar}
       <expr> ::= Sum: <product> '+' <expr>
@@ -367,7 +434,7 @@ Thus we wish the output of parsing to be a syntax tree consisting entirely of se
     \label{fig:example-grammar:unambig-grammar}
   \end{subfigure}
 
-  \begin{subfigure}{\linewidth}
+  \begin{subfigure}{.55\linewidth}
     \begin{center}
     \Tree [.PassthroughE
       [.\underline{Product}
@@ -384,8 +451,7 @@ Thus we wish the output of parsing to be a syntax tree consisting entirely of se
     \caption{Parse tree for $(1 + 2) * 3$. The underlined nodes are semantically important.}
     \label{fig:example-grammar:tree}
   \end{subfigure}
-
-  \begin{subfigure}{\linewidth}
+  \begin{subfigure}{.35\linewidth}
     \begin{center}
     \Tree [.\underline{Product}
       [.\underline{Sum} [.\underline{Number} 1 ] '+' [.\underline{Number} 2 ] ]
@@ -398,22 +464,27 @@ Thus we wish the output of parsing to be a syntax tree consisting entirely of se
 
   \caption{A basic expression grammar in two variations, and two example syntax trees.}
   \label{fig:example-grammar}
-\end{figure}
+\end{figure*}
 
 Our definition thus refers to four grammars in total:
 
 \begin{itemize}
   \item The semantic grammar $G$, containing only the semantically important productions (e.g., Figure~\ref{fig:example-grammar:ambig-grammar}).
   \item $T_G$ (generally abbreviated as $T$), the parse trees of $G$, representing the trees that must be expressible (Figure~\ref{fig:example-grammar:sem-tree} is in this language).
-  \item The parse grammar $G'$, a modification of $G$ meant to actually be used for parsing (e.g., Figure~\ref{fig:example-grammar:unambig-grammar}). The details of these modifications will be covered later. % TODO: likely put a forward reference here
+  \item The parse grammar $G'$, a modification of $G$ meant to actually be used for parsing (e.g., Figure~\ref{fig:example-grammar:unambig-grammar}). The identifiers in this grammar need not be unique, but should be a superset of the identifiers in $G$. The modifications we will consider in this paper are introduced in Section~\ref{sec:modifications}.
   \item $T_{G'}$ (generally abbreviated as $T'$), the parse trees of $G'$ (Figure~\ref{fig:example-grammar:tree} is in this language).
 \end{itemize}
 
-\noindent We also require a function $\semantic : L(T') -> L(T)$ that removes the semantically unimportant productions from a parse tree. The relation between the four grammars can be seen in Figure~\ref{fig:grammar-square}. Finally, we define the function $\parse : L(G') -> 2^{L(T)}$:
+\noindent We also require a function $\semantic : L(T') -> L(T)$ that removes the semantically unimportant productions from a parse tree. The relation between the four grammars can be seen in Figure~\ref{fig:grammar-square}. Finally, we define the function $\parse : L(G') -> 2^{L(T)}$, and its inverse $\words : L(T) -> 2^{L(G')}$:
 
 $$
-\parse(w') = \{ \semantic(t') \mid t' \in L(T') \land \yield(t') = w' \}
+\begin{array}{rcl}
+\parse(w') & = & \{ \semantic(t') \mid t' \in L(T') \land \yield(t') = w' \} \\
+\words(t) & = & \{ w' \mid t \in \parse(w') \} \\
+\end{array}
 $$
+
+\noindent The latter will be useful later, while $\parse$ is used directly in the definition of resolvable ambiguity:
 
 \begin{figure}
   \begin{tikzcd}
@@ -424,22 +495,11 @@ $$
   \label{fig:grammar-square}
 \end{figure}
 
-%% \begin{definition}
-%%   A language defined by the semantic grammar $G$ and the parse grammar $G'$ is resolvable if:
-%%   $$
-%%   \begin{array}{l}
-%%   \forall t \in L(T).\\
-%%   \quad \exists w' \in L(G').\\
-%%   \qquad \forall t' \in L(T'). \yield(t') = w' -> \semantic(t') = t
-%%   \end{array}
-%%   $$
-%% \end{definition}
-
 \begin{definition}
   A language defined by the semantic grammar $G$ and the parse grammar $G'$ is resolvable if:
   $$
   \begin{array}{l}
-  \forall t \in L(T).\\
+  \forall t \in L(T_G).\\
   \quad \exists w' \in L(G').\ \parse(w') = \{t\}
   \end{array}
   $$
@@ -447,29 +507,147 @@ $$
 
 \noindent Intuitively, a language is resolvably ambiguous if there is at least one (unambiguous\footnote{For a slightly different meaning of unambiguous, it's here relating $G'$ to $T$, instead of $G'$ to $T'$.}) word for each semantically distinct tree. Note that neither $G$ nor $G'$ necessarily need to be unambiguous for this to hold.
 
+\subsection{Modifications in G'} \label{sec:modifications} % TODO: can't typeset G' in mathmode for some reason
+
+For this paper we consider two possible modifications:
+
+\begin{itemize}
+\item Adding parentheses for explicit grouping.
+\item Forbidding non-terminals in certain positions from expanding using certain productions.
+\end{itemize}
+
+\noindent The latter requires more explanation. As an example, in the following grammar we are forbidding the second \synt{<expr>} in the first production from expanding using the ''Sum'' production:
+
+\setlength{\grammarindent}{5em}
+\begin{grammar}
+  <expr> ::= Sum: <expr> '+' <expr>$_{Sum}$
+    \alt Number: <number>
+\end{grammar}
+
+\noindent Transforming this into a normal grammar, and adding parentheses, we get the following:
+
+\setlength{\grammarindent}{6em}
+\begin{grammar}
+  <expr> ::= Sum: <expr> '+' <expr>$_{Sum}$
+  \alt Number: <number>
+  \alt Paren: '(' <expr> ')'
+
+  <expr$_{Sum}$> ::= Number: <number>
+  \alt Paren: '(' <expr> ')'
+\end{grammar}
+
+\noindent In other words, we produce a grammar where addition is left-associative\footnote{I'm having some issues typesetting this appropriately, and I'm not all that happy with the explanation.}, but we can use explicit grouping via parentheses to override that.
+
+\subsection{An Alternative Word View} \label{sec:word-view}
+
+This section introduces an alternative (isomorphic) definition of a word that will be used to motivate the correctness of later algorithms. The modifications permitted by the previous section significantly limit how $G'$ can differ from $G$. In particular, no new terminals are introduced, except '(' and ')', and they are always introduced in a well-balanced fashion.
+
+If we thus delimit ourselves to only consider languages where words have no unbalanced parentheses\footnote{I.e., the vast, vast majority of programming languages currently in use.} we can give the following alternative definition of a word: a word is a two-tuple containing a sequence of non-parenthesis terminals and a bag (or multiset) of ranges covered by parentheses. For example, the word ''$(1 + 2) * 3$'' is equivalent to $(\text{''}1 + 2 * 3\text{''}, \{\range{1}{3}\})$, while ''$((1 + 2)) * 3$'' is equivalent to $(\text{''}1 + 2 * 3\text{''}, \{\range{1}{3}, \range{1}{3}\})$. The first component will be referred to as a \emph{basic word}, the second as a \emph{range bag}
+
+We will now note a few things about the words $w' \in \words(t)$ for some given $t \in L(T)$:
+
+\begin{itemize}
+\item All $w'$ have the same basic word. Limiting the modifications to those in the previous section means that they can only differ in parentheses. This also implies that two trees that share a word (i.e., that can be ambiguous) must also share a basic word.
+\item Some parentheses are required, i.e., some ranges must be present in all $w'$. For example, removing the parentheses in ''$(1 + 2) * 3$'' changes the tree produced, since multiplication has higher precedence than addition.
+\item There is a finite set of possible ranges in the range bags of $w'$. Grouping parentheses can only be added if they exactly cover a node in the parse tree, and other parentheses can only be added where $G$ allows them.
+\item Duplicated grouping parentheses do not matter. For example, $((1 + 2)) * 3$ permits the same syntax trees as $(1 + 2) * 3$. If there are no parentheses present in $G$ then all parentheses are grouping parentheses, thus we can consider the range bag as a \emph{set} instead.
+\end{itemize}
+
 \section{Static Resolvability Check}
 
-This section describes a decision algorithm for detecting unresolvable ambiguities, starting with a version with several limitations, most of which are later lifted.
+This section describes a decision algorithm for detecting unresolvable ambiguities in a pair of grammars $G$ and $G'$, starting with a version with several limitations, most of which are later lifted. The overarching goal is to find a tree $t \in L(T)$ such that there is no $w' \in L(G')$ for which $\parse(w') = \{t\}$. Alternatiely, find a tree that has no unambiguous words.
 
 \subsection{Basic Algorithm}
 
 Our initial limitations / assumptions are as follows:
 
 \begin{enumerate}
-  \item $G$ contains no parentheses, i.e., given $G = (S, P, \NT, \T, \I)$ we require $\T \cap \{\verb|'('|, \verb|')'|\} = \emptyset$.
+  \item $G$ contains no parentheses, i.e., given $G = (S, P, \NT, \T, \I)$ we require $\T \cap \{\verb|'('|, \verb|')'|\} = \emptyset$. This implies that all parentheses in $G'$ are grouping parentheses, thus we only need to consider words $w' \in L(G')$ whose range bag is a set.
 
-  \item $G'$ is constructed by adding parentheses to all non-terminals of $G$, i.e., $G' = (S, P', \NT, \T \cup \{\verb|'('|, \verb|')'|\}, \I \cup \NT)$ where $P' = P \cup \{ N: N -> \verb|'('|N\verb|')'| \mid N \in \NT \}$.
+  \item $G'$ is constructed by adding parentheses to all non-terminals of $G$, with no other modifications, i.e., $G' = (S, P', \NT, \T \cup \{\verb|'('|, \verb|')'|\}, \I \cup \NT)$ where $P' = P \cup \{ N: N -> \verb|'('|N\verb|')'| \mid N \in \NT \}$. This implies that there are no required grouping parentheses.
 
   \item No production has a right-hand side that matches a single non-terminal, i.e., $\forall (i:N->r) \in P.\ \NT \cap R(r) = \emptyset$\footnote{$R$ is here the more traditional language of a regular expression, i.e., $R(r) \subseteq (\T \cup \NT)^{*}$. It should be written more explicitly somewhere, but I'm lazy at the moment.}.
 \end{enumerate}
 
-We are looking for a counterexample to the resolvable property, i.e., a $t \in L(T)$ for which $\lnot \exists w' \in L(G').\ \parse(w') = \{t\}$. By the construction of $G'$, we have $t \in \parse(\yield(t))$, thus there is at least one (potentialy ambiguous) word $w'$ that can be parsed as $t$. Our task is thus to find a tree $t$ such that $\forall w' \in L(G').\ t \in \parse(w') -> \{t\} \subset \parse(w')$, i.e., a tree that can only be parsed with ambiguous words.
+\noindent The first two limitations allow us to place all words in $\words(t)$ for some given $t$ in a lattice, whose structure is formed by the subset ordering of the range sets. For example, the tree in Figure~\ref{fig:example-grammar:sem-tree} (but where $G'$ has no associativity or precedence) has the lattice of words seen in Figure~\ref{fig:lattice} (omitting the pair of parentheses around the entire word, since they are always permissible).
 
-We begin by noting that parentheses cannot be added just anywhere; they must correspond to a node in the parse tree. For example, for the tree in Figure~\ref{fig:example-grammar:sem-tree} (which could be parsed from ''$1 + 2 * 3$'') it would be valid to add parentheses around ''$1 + 2$'' but not ''$2 * 3$''. As a consequence, adding parentheses restricts the possible parse trees, i.e., given two words $w'_1$ and $w'_2$ where the latter has added some parentheses we have $\parse(w'_1) \supseteq \parse(w'_2)$. We also note that adding double parentheses imposes no additional restriction, e.g., $\parse(\text{''}((1 + 2)) * 3\text{''})$ = $\parse(\text{''}(1 + 2) * 3\text{''})$.
+\begin{figure*}[t]
+\begin{tikzpicture}%[scale = 0.7,font=\tiny]
+  \node (a) at (0,5) {$((1) + (2)) * (3)$};
 
-There is thus a ''most restrictive word'' for every tree. If this word is ambiguous, then we have our counterexample. % TODO: motivate the other tree ''dominating'' or ''shadowing'' this one, to be able to use that term later
+  \node (b1) at (-3.6,4.2) {$(1) + (2) * (3)$};
+  \node (b2) at (-1.2,4.2) {$((1) + (2)) * 3$};
+  \node (b3) at ( 1.2,4.2) {$((1) + 2) * (3)$};
+  \node (b4) at ( 3.6,4.2) {$(1 + (2)) * (3)$};
 
-We will now construct a pushdown automaton that recognizes these most restrictive words in such a way that there is a bijection between successful runs and trees in $L(T)$. As a running example, we will use the following (very simple) grammar $G$:
+  \node (c1) at (-5.5,3) {$(1) + (2) * 3$};
+  \node (c2) at (-3.3,3) {$(1) + 2 * (3)$};
+  \node (c3) at (-1.1,3) {$((1) + 2) * 3$};
+  \node (c4) at (1.1,3) {$1 + (2) * (3)$};
+  \node (c5) at (3.3,3) {$(1 + (2)) * 3$};
+  \node (c6) at (5.5,3) {$(1 + 2) * (3)$};
+
+  \node (d1) at (-3.6,1.8) {$(1) + 2 * 3$};
+  \node (d2) at (-1.2,1.8) {$1 + (2) * 3$};
+  \node (d3) at ( 1.2,1.8) {$1 + 2 * (3)$};
+  \node (d4) at ( 3.6,1.8) {$(1 + 2) * 3$};
+
+  \node (e) at (0, 1) {$1 + 2 * 3$};
+
+  \draw (e) -- (d1);
+  \draw (e) -- (d2);
+  \draw (e) -- (d3);
+  \draw (e) -- (d4);
+
+  \draw (d1) -- (c1);
+  \draw (d1) -- (c2);
+  \draw (d1) -- (c3);
+  \draw (d2) -- (c1);
+  \draw (d2) -- (c4);
+  \draw (d2) -- (c5);
+  \draw (d3) -- (c2);
+  \draw (d3) -- (c4);
+  \draw (d3) -- (c6);
+  \draw (d4) -- (c3);
+  \draw (d4) -- (c5);
+  \draw (d4) -- (c6);
+
+  \draw (c1) -- (b1);
+  \draw (c1) -- (b2);
+  \draw (c2) -- (b1);
+  \draw (c2) -- (b3);
+  \draw (c3) -- (b2);
+  \draw (c3) -- (b3);
+  \draw (c4) -- (b1);
+  \draw (c4) -- (b4);
+  \draw (c5) -- (b2);
+  \draw (c5) -- (b4);
+  \draw (c6) -- (b3);
+  \draw (c6) -- (b4);
+
+  \draw (b1) -- (a);
+  \draw (b2) -- (a);
+  \draw (b3) -- (a);
+  \draw (b4) -- (a);
+%%   \draw[preaction={draw=white, -,line width=6pt}] (a) -- (e) -- (c);
+\end{tikzpicture}
+\caption{The lattice of words for the tree in Figure~\ref{fig:example-grammar:sem-tree}, assuming no precedence in $G'$.}
+\label{fig:lattice}
+\end{figure*}
+
+The bottom word corresponds to the empty range set, while the top word corresponds to the set of possible parentheses ranges. All trees that can be ambiguous must thus share the same bottom word, while the top may differ.
+
+Of particular use is to examine whether the top word (call it $w'$) is ambiguous. There are two cases:
+
+\begin{itemize}
+\item The top word is unambiguous, then this is not a tree we are looking for.
+\item It is ambiguous. That means that there is some other lattice for some other tree that also contains the word. Call the top word of this other lattice $w'_2$. For $w'$ to be in the lattice whose top is $w'_2$ its rangeset must be a subset of the rangeset of the latter. But this is true also for all the other words in the lattice, thus there are no unambiguous words in the lattice, i.e., this tree is what we are looking for.
+\end{itemize}
+
+The algorithm thus looks for two trees, where the set of possible parentheses for one is a superset of the set of possible parentheses for the other. To do this, we use a linear representation of each lattice: namely the top word. If two trees have the same top word, that implies that their sets of possible parentheses are equal. If we can add parentheses to one word and get the other word, that implies that the rangeset of the former is a subset of the latter.
+that term later
+
+We will now construct a pushdown automaton that recognizes these top words in such a way that there is a bijection between successful runs and trees in $L(T)$. As a running example, we will use the following (very simple) grammar $G$:
 
 \setlength{\grammarindent}{3.5em}
 \begin{grammar}
@@ -496,14 +674,14 @@ We will now construct a pushdown automaton that recognizes these most restrictiv
 \end{tikzpicture}
 \end{center}
 
-We then combine them into a single pushdown automata by replacing each edge with a non-terminal label $p \xrightarrow{N} q$ with:
+\noindent We then combine them into a single pushdown automata by replacing each edge with a non-terminal label $p \xrightarrow{N} q$ with:
 
 \begin{itemize}
   \item an edge $p \xrightarrow{'(', +(p, q)} p'$ for every initial state $p'$ in some DFA belonging to non-terminal $N$, and
   \item an edge $q' \xrightarrow{')', -(p, q)} q$ for every final state $q'$ in some DFA belonging to non-terminal $N$,
 \end{itemize}
 
-were $+\gamma$ means ''push $\gamma$'', while $-\gamma$ means ''pop $\gamma$''. Intuitively, parse a child node, but put parentheses around it.
+\noindent Intuitively, we parse a child node, but put parentheses around it. This is where we use assumption 3, without it we might introduce double parentheses here.
 
 \begin{center}
 \begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
@@ -557,7 +735,7 @@ were $+\gamma$ means ''push $\gamma$'', while $-\gamma$ means ''pop $\gamma$''. 
 
 \noindent The resulting pushdown automaton has only a single source of non-determinism: the edges labelled \verb|'('|. Each one corresponds to one of the allowable child productions at that point in the parse tree.
 
-We now have a pushdown automaton that recognizes the ''most restrictive word'' for each tree in $L(T)$, which we will call $A_($. Next we need to determine if it is a valid word for some other tree as well. To do this we create a copy of $A_($ with one modification: for every state $s$ in $A_($ (except the initial and final states), add two transitions $s \xrightarrow{'(', +p} s$ and $s \xrightarrow{')', -p}$. To avoid cluttering the graph too much, these transitions are shown unlabeled below:
+We now have a pushdown automaton (call it $A_{()}$) that recognizes the top word for each tree in $L(T)$. Next we need to be able to add arbitrary parentheses, to produce a word with a rangeset superset. To do this we create a copy of $A_{()}$ with one modification: for every state $s$ in $A_{()}$ (except the initial and final states), add two transitions $s \xrightarrow{'(', +p} s$ and $s \xrightarrow{')', -p} s$. To avoid cluttering the graph too much, these transitions are shown unlabeled below:
 
 \begin{center}
 \begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
@@ -596,14 +774,24 @@ We now have a pushdown automaton that recognizes the ''most restrictive word'' f
 \end{tikzpicture}
 \end{center}
 
-We will call this automaton $A'_($. Intuitively, this automaton recognizes a most restrictive word, but allows the addition of arbitrary well-nested parentheses. Successful runs in this automaton have a surjection to runs in $A_($ (ignore transitions along the newly added edges), and thus also have a surjection to parse trees in $L(T)$. We can also note that every sucessful run in $A_($ is also a successful run in $A'_($, since the latter has all states and transitions of the former. Furthermore, two distinct runs, one in $A_($ (call it $p$) and one in $A'_($ (call it $p'$), that both recognize the same word must represent different parse trees in $L(T)$. To see why, we consider two cases:
+We will call this automaton $A'_{()}$. Successful runs in this automaton have a surjection to runs in $A_($ (ignore transitions along the newly added edges), and thus also have a surjection to parse trees in $L(T)$. We can also note that every sucessful run in $A_{()}$ is also a successful run in $A'_{()}$, since the latter has all states and transitions of the former. Furthermore, two distinct runs, one in $A_{()}$ (call it $p$) and one in $A'_{()}$ (call it $p'$), that both recognize the same word must represent different parse trees in $L(T)$. To see why, we consider two cases:
 
 \begin{enumerate}
-  \item $p'$ only uses transitions present in $A_($. This is a successful run in $A_($, and distinct from $p$. But there is a bijection between runs in $A_($ and parse trees in $L(T)$, thus $p'$ represents a different parse tree.
-  \item $p'$ uses at least one transition added in $A'_($. Using the surjection between runs in $A'_($ and $A_($ we find a new successful run that produces a different word (at least one fewer pair of parentheses). Since this run produces a different word, it must be distinct from $p$, and thus represent a different parse tree.
+  \item $p'$ only uses transitions present in $A_{()}$. This is a successful run in $A_{()}$, and distinct from $p$. But there is a bijection between runs in $A_{()}$ and parse trees in $L(T)$, thus $p'$ represents a different parse tree.
+  \item $p'$ uses at least one transition added in $A'_{()}$. Using the surjection between runs in $A'_{()}$ and $A_{()}$ we find a new successful run that produces a different word (at least one fewer pair of parentheses). Since this run produces a different word, it must be distinct from $p$, and thus represent a different parse tree.
 \end{enumerate}
 
-% TODO: use ''dominating'' or ''shadowing'' here
+Two distinct successful runs that accept the same word thus represent two trees where one permits a superset rangeset of the other. To find such runs we construct a product automaton and trim it. We can construct a product automaton since both $A_{()}$ and $A'_{()}$ are visibly pushdown, with the same partition of the input alphabet (push on open parenthesis, pop on close parenthesis, do nothing otherwise). We can trim the product since it retains the same partitioning and thus is also visibly pushdown.
+
+In this product automaton, if any transition pushes a stack symbol $(a, b)$ where $a \neq b$, or transitions to a state $(p, q)$ where $p \neq q$, then there is a successful run that corresponds to two distinct runs through $A_{()}$ and $A'_{()}$ (since the automaton is trim).
+
+\subsection{Forbidden Children}
+
+\begin{quote}
+  \textbf{NOTE:} I had some text here about version 2 of the problem, but I haven't had time to rewrite it to align properly with the lattice formulation, so I've removed it. I'll talk about it during the meeting. Also, I probably need a better title here, this is probably a smidge too dramatic.
+\end{quote}
+
+\section{Parsetime Ambiguity Reporting} \label{sec:parse-time-reporting}
 
 %% \noindent Generalizing this to a complete grammar, we get the following property: a grammar $G$ is resolvable iff:
 
