@@ -1,21 +1,24 @@
 %% For double-blind review submission, w/o CCS and ACM Reference (max submission space)
-\documentclass[sigplan]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
 %% For double-blind review submission, w/ CCS and ACM Reference
-%\documentclass[sigplan,review,anonymous]{acmart}\settopmatter{printfolios=true}
+%\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true}
 %% For single-blind review submission, w/o CCS and ACM Reference (max submission space)
-%\documentclass[sigplan,review]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+%\documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
 %% For single-blind review submission, w/ CCS and ACM Reference
-%\documentclass[sigplan,review]{acmart}\settopmatter{printfolios=true}
+%\documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true}
 %% For final camera-ready submission, w/ required CCS and ACM Reference
-%\documentclass[sigplan]{acmart}\settopmatter{}
+%\documentclass[acmsmall]{acmart}\settopmatter{}
 
 
-%% Conference information
+%% Journal information
 %% Supplied to authors by publisher for camera-ready submission;
 %% use defaults for review submission.
-\acmConference[PL'18]{ACM SIGPLAN Conference on Programming Languages}{January 01--03, 2018}{New York, NY, USA}
+\acmJournal{PACMPL}
+\acmVolume{1}
+\acmNumber{CONF} % CONF = POPL or ICFP or OOPSLA
+\acmArticle{1}
 \acmYear{2018}
-\acmISBN{} % \acmISBN{978-x-xxxx-xxxx-x/YY/MM}
+\acmMonth{1}
 \acmDOI{} % \acmDOI{10.1145/nnnnnnn.nnnnnnn}
 \startPage{1}
 
@@ -32,7 +35,7 @@
 %% Bibliography style
 \bibliographystyle{ACM-Reference-Format}
 %% Citation style
-%\citestyle{acmauthoryear}  %% For author/year citations
+\citestyle{acmauthoryear}  %% For author/year citations
 %\citestyle{acmnumeric}     %% For numeric citations
 %\setcitestyle{nosort}      %% With 'acmnumeric', to disable automatic
                             %% sorting of references within a single citation;
@@ -80,8 +83,8 @@
 %% symbol definitions used throughout the paper
 
 \newcommand{\NT}{\mathbb{N}} % Set of nonterminals
-\newcommand{\T}{\mathbb{T}} % Set of terminals
-\newcommand{\I}{\mathbb{I}} % Set of identifiers
+\newcommand{\T}{\Sigma} % Set of terminals
+\newcommand{\Labels}{\mathbb{L}} % Set of labels
 \newcommand{\yield}{\mathit{yield}} % yield of a parse tree
 \newcommand{\semantic}{\mathit{semantic}} % remove semantically unimportant productions from a w' \in L(G')
 \newcommand{\parse}{\mathit{parse}} % go from a w' \in L(G') to a subset of L(T)
@@ -89,6 +92,8 @@
 \newcommand{\range}[2]{#1\!-\!#2}
 
 \begin{document}
+
+% Submission may be up to 25 pages, excluding references
 
 %% Title information
 \title{Resolvable Ambiguity}         %% [Short Title] is optional;
@@ -98,7 +103,7 @@
 
 %% Author information
 %% Contents and number of authors suppressed with 'anonymous'.
-%% Each author should be introduced by \author, followed by
+%% Each author should be introduced by \author, followe by
 %% \authornote (optional), \orcid (optional), \affiliation, and
 %% \email.
 %% An author may have multiple affiliations and/or emails; repeat the
@@ -263,15 +268,14 @@ We find that it is ambiguous with two alternatives:
 
 We can select the second option by putting parentheses around ''\ocaml{1; 2}'', but there is no way to select the first. If the user intended the first option we have a problem: we can present an accurate error message, but there is no way for an end-user to solve it; it requires changes to the grammar itself.
 
-% TODO: ref for undecidable ambiguity checking
-To prevent the possibility of an end-user encountering such an error we must ensure that the grammar cannot give rise to an unresolvable ambiguity. It is worth mentioning here that statically checking if a context-free grammar is ambiguous has long been known to be undecidable. Unresolvable ambiguity, however, turns out to be decidable\footnote{With some caveats, I'll talk more about this during the meeting.}.
+To prevent the possibility of an end-user encountering such an error we must ensure that the grammar cannot give rise to an unresolvable ambiguity. It is worth mentioning here that statically checking if a context-free grammar is ambiguous has long been known to be undecidable \cite{cantorAmbiguityProblemBackus1962}. Unresolvable ambiguity, however, turns out to be decidable\footnote{With some caveats, I'll talk more about this during the meeting.}.
 
 Note that, as for ambiguity, the shape of the grammar is important, since the property considers parse trees rather than merely words. For this paper, we consider context-free grammars with EBNF operators.
 
 \subsection{Contributions}
 
 \begin{itemize}
-  \item Building on \cite{palmkvistCreatingDomainSpecificLanguages2019}, which merely isolates ambiguities, an algorithm that suggests solutions to ambiguity errors.
+  \item Building on the work by \citet{palmkvistCreatingDomainSpecificLanguages2019}, which merely isolates ambiguities, an algorithm that suggests solutions to ambiguity errors.
   \item A formalization of the unresolvable ambiguity property for context-free EBNF grammars.
   \item An algorithm for deciding if a grammar is unresolvably ambiguous or not.
 \end{itemize}
@@ -281,63 +285,58 @@ Note that, as for ambiguity, the shape of the grammar is important, since the pr
 \begin{quote} % TODO: remove
   \textbf{NOTE:} The text before this section is largely out of date.
 \end{quote}
+% TODO: note that the syntax tree definition is a little bit non-standard
 
 \subsection{Context-Free Grammars}
 
-% TODO: the last line feels a bit odd, notationally
-\begin{figure}
-  \begin{tabular}{@{}ll@{}}
-      Terminals & $t \in \T$ \\
-      Non-terminals & $N \in \NT$ \\
-      Identifiers & $i \in \I$ \\
-      Regular expressions & $r ::= t \mid N \mid r \cdot r \mid r + r \mid \epsilon \mid r^{*}$ \\
-      Productions & $N -> i : r$ \\
-  \end{tabular}
-  \caption{Context-free EBNF grammars}
-  \label{fig:grammar-definition}
-\end{figure}
+A context-free grammar $G$ is a tuple $(\NT, \T, P, S)$ where:
 
-A context-free EBNF grammar is a tuple $(S, P, \NT, \T, \I)$. $S \in \NT$ is the starting symbol, $P$ is a set of productions, as given in Figure~\ref{fig:grammar-definition}, $\NT$, $\T$, and $\I$ are sets of non-terminals, terminals, and identifiers, respectively. Additionally, we require that $\NT \cap \T = \emptyset$. Most (though not all) grammars we will consider will have unique identifiers, i.e., there are no two distinct productions in $P$ with the same identifier. As an example, Figure~\ref{fig:example-grammar:ambig-grammar} contains a small grammar. The first production listed has the identifier ''Sum'' and consists of an expression, then a literal ''+'', then another expression.
+\begin{itemize}
+\item $\NT$ is a set of non-terminals.
+\item $\T$, disjoint from $\NT$, is a set of terminals.
+\item $P$, a subset of $\NT \times (\NT \cup \T)^{*}$, is a set of productions.
+\item $S \in \NT$ is the starting non-terminal.
+\end{itemize}
 
-The (word) language of a given non-terminal $N$ in a grammar $G = (S, P, \NT, \T, \I)$ is given by $L_G(N)$:
+\noindent A word $w \in \T^{*}$ is recognized by $G$ if there is a sequence of steps starting with $S$ and ending with $w$, where each step replaces a single non-terminal using a production in $P$. The set of words recognized by $G$ is written $L(G)$, and is said to be the word language of $G$.
 
-$$
-\begin{array}{r@{\;=\;}l}
-  L_G(t) & \{t\} \\
-  L_G(N) & \bigcup \{L_G(r) \mid (N -> r) \in P\} \\
-  L_G(r_1 \cdot r_2) & \{w_1 \cdot w_2 \mid w_1 \in L_G(r_1), w_2 \in L_g(r_2)\} \\
-  L_G(r_1 + r_2) & L_G(r_1) \cup L_G(r_2) \\
-  L_G(\epsilon) & \{\epsilon\} \\
-  L_G(r^{*}) & \{\epsilon\} \cup L_G(r) \cup L_G(r \cdot r) \cup \ldots \\
-\end{array}
-$$
+\subsection{Syntax Trees}
 
-\noindent The word language of a grammar $G$, written $L(G)$, is thus $L_G(S)$. We will omit the subscript whenever the intended grammar is clear from context.
+A syntax tree takes the terminals of a word and arranges them into a tree, the shape of which is determined by how (i.e., using which productions) the word was parsed / recognized. For this paper we will use a linear encoding of syntax trees, letting us use context-free grammars to express the set of syntax trees for some given word language. For example, the parse trees of a context-free grammar $G_w = (\NT, \T, P, S)$ are described by the context-free grammar $G_t = (\NT, \T \cup \T_{[]}, P', S)$ where:
 
-Note that the right hand side of a production is a regular expression, which could potentially be ambiguous in and of itself. For this work we assume the rhs regular expressions to either be unambigous, or that any remaining ambiguity is unimportant. This can be achieved in a number of ways, for example using the ambiguity checking of Brabrand and Thomsen \cite{brabrandTypedUnambiguousPattern2010}.
+\begin{itemize}
+\item $T_{[]} = \bigcup_{p \in P} \{ [_p, ]_p \}$, i.e., a unique pair of brackets per production.
+\item $P' = \{ N -> [_p \alpha ]_p \mid p \in P \land p = N -> \alpha \}$, i.e., each production is wrapped with a unique pair of brackets.
+\end{itemize}
 
-As such, for a given grammar $G = (S, P, \NT, \T, \I)$ we construct a linear representation of its parse trees as another grammar $T_G = (S, P', \NT, \T', \I)$ where:
+\noindent Such a grammar will (slightly erroneously) be referred to as a tree grammar, and the recognized language as a tree language. We will also use syntax trees that are not directly derived from the parse trees of a context-free grammar. The precise construction of these will be described at the point of their introduction, but the basic process is the same; surround each production with a unique pair of brackets.
 
-$$
-\begin{array}{r@{\;=\;}l}
-  P' & \{i : N -> [_i r ]_i \mid (i : N -> r) \in P \} \\
-  \T' & \T \sqcup \bigcup_{(i : N -> r) \in P} \{[_i, ]_i \} \\
-\end{array}
-$$
+% TODO: reference a book on tree automata and languages
+As such we can define a function $\yield$ (as seen, e.g., in ) that takes a tree and flattens it, producing the word it was constructed from. Intuitively, this function merely removes the added brackets.
 
-\noindent where $\sqcup$ denotes disjoint union. Intuitively, we surround the right hand side of each production with a unique pair of brackets, signifying the production that was used for the parse. Again, we will omit the subscript whenever the intended grammar is clear from context.
+\subsection{Ambiguity}
 
-The $\yield$ of a parse tree is the word it parsed, i.e., $\yield : L(T) -> L(G)$. Intuitively, $\yield$ removes the brackets introduced when constructing $T$.
+The standard definition of ambiguity, using the above formulation of syntax trees, is as follows:
 
-A given word $w \in L(G)$ is ambiguous iff:
+\begin{definition}
+A word $w \in L(G_w)$ is ambiguous relative its parse tree $G_t$ if:
+  \[ \exists t_1, t_2 \in L(G_t).\ t_1 \neq t_2 \land \yield(t_1) = w = \yield(t_2)\]
+\end{definition}
 
-$$\exists t_1, t_2 \in L(T).\ \yield(t_1) = w \land \yield(t_2) = w \land t_1 \neq t_2$$
+\noindent For this paper, we widen the definition slightly to the following:
 
-\noindent A grammar is ambiguous iff it contains at least one ambiguous word.
+\begin{definition}
+  A word $w \in L(G_w)$ is ambiguous relative a tree grammar $G_t$ and a function $\parse : L(G_w) -> 2^{L(G_t)}$ if:
+  \[ |\parse(w)| > 1 \]
+\end{definition}
+
+\noindent where $2^S$ is the powerset of $S$ and $|S|$ is the cardinality of $S$. The standard ambiguity definition is regained by choosing
+
+\[ \parse(w) = \{ t \mid w = \yield(t) \land t \in L(G_t) \}\ \]
 
 \subsection{Automata}
 
-A nondeterministic finite automaton (NFA) is a tuple $(Q, \Sigma, \Delta, q_0, F)$:
+A nondeterministic finite automaton (NFA) is a tuple $(Q, \Sigma, \delta, q_0, F)$:
 
 \begin{itemize}
 \item A finite set of states $Q$.
@@ -351,26 +350,26 @@ A nondeterministic finite automaton (NFA) is a tuple $(Q, \Sigma, \Delta, q_0, F
 
 \begin{itemize}
 \item $r_0 = q_0$.
-\item $\forall_{i = 0}^{n-1} r_{i+1} \in \delta(r_i, a_i)$.
+\item $\forall i \in \{0, 1, \ldots, n-1\}.\ r_{i+1} \in \delta(r_i, a_i)$.
 \item $r_n \in F$.
 \end{itemize}
 
-\noindent We say that the automaton accepts the word $a_0a_1\ldots a_n$ iff there is such a succesful run. A particular state $q \in Q$ is \emph{reachable} if there is a (not necessarily successful) run starting in $q_0$ and ending in $q$. $q$ is \emph{coreachable} if there is a run starting in $q$ and ending in some $f \in F$.
+\noindent We say that the automaton accepts the word $a_0a_1\ldots a_n$ iff there is such a succesful run.
 
-A deterministic finite automaton (DFA) has the same definition, except $\delta : Q \times \Sigma -> Q$.
+A deterministic finite automaton (DFA) has the same definition, except $\delta : Q \times \Sigma -> Q$, i.e., given a state and a symbol there is always a single state we can transition to.
 
-A pushdown automaton extends a finite automaton with a stack, and lets each transition push or pop symbols from it. Formally, a pushdown automaton is a tuple $(Q, \Sigma, \Gamma, \delta, q_0, F)$:
+A pushdown automaton extends a finite automaton with a stack, and lets each transition push or pop symbols from it. Formally, a nondeterministic pushdown automaton is a tuple $(Q, \Sigma, \Gamma, \delta, q_0, F)$:
 
 \begin{itemize}
 \item A finite set of states $Q$.
 \item A finite set of input symbols $\Sigma$, i.e., an input alphabet.
 \item A finite set of stack symbols $\Gamma$, i.e., a stack alphabet.
-\item A transition function $\delta: Q \times \Sigma \times \Gamma -> 2^{Q \times \Gamma*}$.
+\item A transition function $\delta: Q \times \Sigma \times \Gamma -> 2^{Q \times \Gamma^{*}}$.
 \item An initial state $q_0 \in Q$.
 \item A set of final states $F \subseteq Q$.
 \end{itemize}
 
-\noindent A successful run is now a sequence of \emph{configurations}, elements of $Q \times \Gamma*$, starting with $(q_0, \epsilon)$, ending with $(f, \gamma)$ for some $f \in F$ and $\gamma \in \Gamma*$. Reachable and coreachable are now defined on configurations, rather than states.
+\noindent A successful run is now a sequence of \emph{configurations}, elements of $Q \times \Gamma^{*}$, starting with $(q_0, \epsilon)$, ending with $(f, \gamma)$ for some $f \in F$ and $\gamma \in \Gamma*$.
 
 However, in this paper we will only consider pushdown automata with relatively limited stack manipulation, and will thus use some convenient shorthand:
 
@@ -396,7 +395,7 @@ This gives us some nice properties. Of particular relevance to this paper are th
 
 \begin{itemize}
 \item If two visibly pushdown automata have the same partitions $\Sigma_c$, $\Sigma_i$, and $\Sigma_r$, then we can construct a product automaton that simulates two simultaneous runs through both automata. This product automaton has the same input alphabet partitions, each state is a pair of states (one from each automaton), and each stack symbol is a pair of stack symbols (one from each automaton).
-\item A visibly pushdown automaton can be trimmed \cite{caralpTrimmingVisiblyPushdown2013}, i.e., modified such that all reachable configurations are also coreachable.
+\item A visibly pushdown automaton can be trimmed \cite{caralpTrimmingVisiblyPushdown2013}, i.e., modified in such a way that all remaining states and transitions are part of at least one successful run, none are redundant.
 \end{itemize}
 
 \section{Parse-time Disambiguation}
@@ -405,7 +404,191 @@ We begin this section with some motivation, then list our definition of \emph{re
 
 We can divide the productions present in a programming language grammar in two groups: those that are semantically important, and those that are semantically \emph{un}important. The former group covers most productions, while the latter contains, e.g., parentheses used for explicit grouping. If programs were written directly as syntax trees then the latter would be unnecessary; two syntax trees that differ only by parentheses are semantically the same.
 
-Thus we wish the output of parsing to be a syntax tree consisting entirely of semantically important productions. This distinction is useful to make, because it allows us to decouple \emph{what} we want to be expressible and \emph{how} it is to be expressed. As an example, in Figure~\ref{fig:example-grammar}, \ref{fig:example-grammar:ambig-grammar} is the \emph{what} and \ref{fig:example-grammar:unambig-grammar} is the \emph{how}. The latter grammar is a modification of the former that adds precedence, associativity, and parentheses, yielding an unambiguous grammar with at least one way to express each semantically distinct tree.
+Thus we wish the output of parsing to be a syntax tree consisting entirely of semantically important productions. This distinction is useful to make, because it allows us to decouple \emph{what} we want to be expressible and \emph{how} it is to be expressed.
+
+\begin{figure}
+  \begin{tabular}{@{}ll@{}}
+      Terminals & $t \in \T$ \\
+      Non-terminals & $N \in \NT$ \\
+      Labels & $l \in \Labels$ \\
+      Marks & $m \subseteq \Labels$ \\
+      Regular expressions & $r ::= t \mid N_m \mid r \cdot r \mid r + r \mid \epsilon \mid r^{*}$ \\
+      Labelled productions & $N -> l : r$ \\
+  \end{tabular}
+  \caption{The abstract syntax of a language definition.}
+  \label{fig:input-language-definition}
+\end{figure}
+
+\begin{figure}
+  \begin{tabular}{@{}l@{\quad$->$\quad}l@{ $:$\quad}l@{}}
+    $E$ & $l$ & \verb|'['| ($E$ (\verb|';'| $E$)$^{*}$ $+$ $\epsilon$) \verb|']'| \\
+    $E$ & $a$ & $E$ \verb|'+'| $E$ \\
+    $E$ & $m$ & $E_{\{a\}}$ \verb|'*'| $E_{\{a\}}$ \\
+    $E$ & $n$ & $N$ \\
+  \end{tabular}
+  \caption{The input language definition used as a running example, an expression language with lists, addition, and multiplication, with precedence defined, but not associativity. Assumes that $N$ matches a numeric terminal.}
+  \label{fig:running-example-definition}
+\end{figure}
+
+With that in mind, we define a language definition $D$ as a set of labelled productions, as described in Figure~\ref{fig:input-language-definition}. Note that we require the labels to uniquely identify the production, i.e., there can be no two distinct productions in $D$ that share the same label. A \emph{mark} is used for disambiguation, and forbids certain productions from taking the place of the marked non-terminal. To lessen clutter, we will write $E_\emptyset$ as $E$. As an example, consider the language definition in Figure~\ref{fig:running-example-definition}, which will be used as a running example. In the production describing multiplication ($m$) both non-terminals are marked with $\{a\}$, which thus forbids addition from being a child of a multiplication, enforcing conventional precedence.
+
+From $D$ we then generate four grammars: $G_w$, $G_t$, $G'_w$, and $G'_t$. The first two represent the \emph{what}, while the latter two represent the \emph{how}:
+
+\begin{itemize}
+\item $G_w$ represents a word language describing all semantically distinct programs.
+\item $G_t$ represents a tree language describing the syntax trees obtained by parsing a word in $L(G_w)$. Note that the added brackets are not present in the productions of $E_{l1}$ and $E_{l2}$, since those are all part of the same labelled production in $D$ in Figure~\ref{fig:running-example-definition}.
+\item $G'_w$ is essentially a modified version of $G_w$, e.g., adding parentheses and other forms of disambiguation.
+\item $G'_t$ represents a tree language describing the syntax trees obtained by parsing a word in $L(G'_w)$.
+\end{itemize}
+
+\begin{figure}
+  \begin{subfigure}[t]{.45\linewidth}
+    \centering
+    \begin{tabular}{@{}l@{\quad$->$\quad}l@{}}
+      \toprule
+      $E$ & \verb|'['| $E_{l1}$ \verb|']'| \\
+      $E$ & $E$ \verb|'+'| $E$ \\
+      $E$ & $E$ \verb|'*'| $E$ \\
+      $E$ & $N$ \\
+      \midrule
+      $E_{l1}$ & $\epsilon$ \\
+      $E_{l1}$ & $E$ $E_{l2}$ \\
+      \midrule
+      $E_{l2}$ & $\epsilon$ \\
+      $E_{l2}$ & \verb|';'| $E$ $E_{l2}$ \\
+      \bottomrule
+    \end{tabular}
+    \caption{$G_w$, the generated abstract syntax.}
+    \label{fig:running-example-generated:w}
+  \end{subfigure}%
+%
+  \begin{subfigure}[t]{.54\linewidth}
+    \centering
+    \begin{tabular}{@{}l@{\quad$->$\quad}lll@{}}
+      \toprule
+      $E$ & $[_{l}$ & \verb|'['| $E_{l1}$ \verb|']'| & $]_{l}$ \\
+      $E$ & $[_{a}$ & $E$ \verb|'+'| $E$ & $]_{a}$ \\
+      $E$ & $[_{m}$ & $E$ \verb|'*'| $E$ & $]_{m}$ \\
+      $E$ & $[_{n}$ & $N$ & $]_{n}$ \\
+      \midrule
+      $E_{l1}$ & & $\epsilon$ & \\
+      $E_{l1}$ & & $E$ $E_{l2}$ & \\
+      \midrule
+      $E_{l2}$ & & $\epsilon$ & \\
+      $E_{l2}$ & & \verb|';'| $E$ $E_{l2}$ & \\
+      \bottomrule
+    \end{tabular}
+    \caption{$G_t$, a language describing a linear encoding of the parse trees of $G_w$.}
+    \label{fig:running-example-generated:t}
+  \end{subfigure}
+
+  \begin{subfigure}[t]{.45\linewidth}
+    \centering
+    \begin{tabular}{@{}l@{\quad$->$\quad}l@{}}
+      \toprule
+      $E$ & \verb|'['| $E_{l1}$ \verb|']'| \\
+      $E$ & $E$ \verb|'+'| $E$ \\
+      $E$ & $E_{\{a\}}$ \verb|'*'| $E_{\{a\}}$ \\
+      $E$ & $N$ \\
+      $E$ & \verb|'('| $E$ \verb|')'| \\
+      \midrule
+      $E_{\{a\}}$ & \verb|'['| $E_{l1}$ \verb|']'| \\
+      $E_{\{a\}}$ & $E_{\{a\}}$ \verb|'*'| $E_{\{a\}}$ \\
+      $E_{\{a\}}$ & $N$ \\
+      $E_{\{a\}}$ & \verb|'('| $E$ \verb|')'| \\
+      \midrule
+      $E_{l1}$ & $\epsilon$ \\
+      $E_{l1}$ & $E$ $E_{l2}$ \\
+      \midrule
+      $E_{l2}$ & $\epsilon$ \\
+      $E_{l2}$ & \verb|';'| $E$ $E_{l2}$ \\
+      \bottomrule
+    \end{tabular}
+    \caption{$G'_w$, the generated concrete syntax.}
+    \label{fig:running-example-generated:w-prime}
+  \end{subfigure}%
+%
+  \begin{subfigure}[t]{.54\linewidth}
+    \centering
+    \begin{tabular}{@{}l@{\quad$->$\quad}lll@{}}
+      \toprule
+      $E$ & $[_{l, \emptyset}$ & \verb|'['| $E_{l1}$ \verb|']'| & $]_{l, \emptyset}$ \\
+      $E$ & $[_{a, \emptyset}$ & $E$ \verb|'+'| $E$ & $]_{a, \emptyset}$ \\
+      $E$ & $[_{m, \emptyset}$ & $E_{\{a\}}$ \verb|'*'| $E_{\{a\}}$ & $]_{m, \emptyset}$ \\
+      $E$ & $[_{n, \emptyset}$ & $N$ & $]_{n, \emptyset}$ \\
+      $E$ & $[_{g, \emptyset}$ & \verb|'('| $E$ \verb|')'| & $]_{g, \emptyset}$ \\
+      \midrule
+      $E_{\{a\}}$ & $[_{l, \{a\}}$ & \verb|'['| $E_{l1}$ \verb|']'| & $]_{l, \{a\}}$ \\
+      $E_{\{a\}}$ & $[_{m, \{a\}}$ & $E_{\{a\}}$ \verb|'*'| $E_{\{a\}}$ & $]_{m, \{a\}}$ \\
+      $E_{\{a\}}$ & $[_{n, \{a\}}$ & $N$ & $]_{n, \{a\}}$ \\
+      $E_{\{a\}}$ & $[_{g, \{a\}}$ & \verb|'('| $E$ \verb|')'| & $]_{g, \{a\}}$ \\
+      \midrule
+      $E_{l1}$ & & $\epsilon$ & \\
+      $E_{l1}$ & & $E$ $E_{l2}$ & \\
+      \midrule
+      $E_{l2}$ & & $\epsilon$ & \\
+      $E_{l2}$ & & \verb|';'| $E$ $E_{l2}$ & \\
+      \bottomrule
+    \end{tabular}
+    \caption{$G'_t$, a language describing a linear encoding of the parse trees of $G'_w$.}
+    \label{fig:running-example-generated:t-prime}
+  \end{subfigure}%
+  \caption{The generated grammars.}
+  \label{fig:running-example-generated}
+\end{figure}
+
+\noindent Examples of words in each of these four languages can be seen in Figure~\ref{fig:example-words-in-square}, along with visualizations of the syntax trees.
+
+{
+\newcommand{\terminal}[1]{\ \underline{#1}\ }
+
+\begin{figure}
+  \begin{subfigure}[b]{.40\linewidth}
+    \[1 + 2 * 3\]
+    \caption{Example word in $L(G_w)$.}
+  \end{subfigure}
+  \begin{subfigure}[b]{.55\linewidth}
+    \begin{center}
+    \Tree [.{$m$}
+        [.{$a$}
+          [.{$n$} 1 ]
+          +
+          [.{$n$} 2 ] ]
+        *
+        [.{$n$} 3 ] ]
+    \end{center}
+    \[[_m [_a [_n \terminal{1} ]_n \terminal{+} [_n \terminal{2} ]_n ]_a \terminal{*} [_n \terminal{3} ]_n ]_m\]
+    \caption{Example word in $L(G_T)$ and visualized tree.}
+  \end{subfigure}
+
+  \begin{subfigure}[b]{.40\linewidth}
+    \[(1 + 2) * 3\]
+    \caption{Example word in $L(G'_w)$.}
+  \end{subfigure}
+  \begin{subfigure}[b]{.55\linewidth}
+    \begin{center}
+    \Tree [.{$m, \emptyset$}
+        [.{$g, \{a\}$}
+          (
+          [.{$a, \emptyset$}
+            [.{$n, \emptyset$} 1 ]
+            +
+            [.{$n, \emptyset$} 2 ] ]
+          ) ]
+        *
+        [.{$n, \{a\}$} 3 ] ]
+    \end{center}
+    \[[_{m} [_{g, \{a\}} \terminal{(} [_{a} [_{n} \terminal{1} ]_{n} \terminal{+} [_{n} \terminal{2} ]_{n} ]_{a} \terminal{)} ]_{g, \{a\}} \terminal{*} [_{n, \{a\}} \terminal{3} ]_{n, \{a\}} ]_{m}\]
+    \caption{Example word in $L(G'_T)$ and visualized tree.}
+  \end{subfigure}
+  \caption{Example with words from each grammar that correspond to each other. We abbreviate $[_{n, \emptyset}$ as $[_n$. The non-bracket terminals in the tree languages appear underlined for increased clarity.}
+  \label{fig:example-words-in-square}
+\end{figure}
+}
+
+At this point we also note that the shape of $D$ determines where the final concrete syntax permits grouping parentheses. For example, $G_w$ in Figure~\ref{fig:running-example-generated:w} can be seen as a valid language definition (if we generate new unique labels for each of the productions). However, starting with that language definition would allow the expression ''$[1(;2)]$'', which makes no intuitive sense; grouping parentheses should only be allowed around complete expressions, but ''$;2$'' is not a valid expression.
+
+As an example, in Figure~\ref{fig:example-grammar}, \ref{fig:example-grammar:ambig-grammar} is the \emph{what} and \ref{fig:example-grammar:unambig-grammar} is the \emph{how}. The latter grammar is a modification of the former that adds precedence, associativity, and parentheses, yielding an unambiguous grammar with at least one way to express each semantically distinct tree.
 
 \begin{figure*}
   \begin{subfigure}{.45\linewidth}
@@ -731,15 +914,6 @@ In this product automaton, if any transition pushes a stack symbol $(a, b)$ wher
 \newpage
 
 \begin{figure*}[ht]
-  \begin{tabular}{@{}l@{\quad$->$\quad}l@{ $:$\quad}l@{}}
-    \synt{Expr} & Sum & \synt{Expr} \verb|'+'| \synt{Expr} \\
-    \synt{Expr} & Product & \synt{Expr}$_{Sum}$ \verb|'*'| \synt{Expr}$_{Sum}$ \\
-    \synt{Expr} & Number & \synt{Number} \\
-  \end{tabular}
-  \caption{The input language definition used as a running example, a simple expression language with addition and multiplication, with precedence defined, but not associativity. Assumes that \synt{Number} matches a numeric terminal.}
-\end{figure*}
-
-\begin{figure*}[ht]
   \begin{tikzcd}
     L(G_w) & L(G_t) \arrow[l, "\yield"] \\
     L(G'_w) & L(G'_t) \arrow[u, "\semantic"'] \arrow[l, "\yield"]
@@ -747,108 +921,7 @@ In this product automaton, if any transition pushes a stack symbol $(a, b)$ wher
   \caption{The generated grammars and their relation to each other.}
 \end{figure*}
 
-\begin{figure*}[ht]
-  \begin{subfigure}[t]{.45\linewidth}
-    \centering
-    \begin{tabular}{@{}l@{\quad$->$\quad}l@{}}
-      \toprule
-      \synt{Expr} & \synt{Expr} \verb|'+'| \synt{Expr} \\
-      \synt{Expr} & \synt{Expr} \verb|'*'| \synt{Expr} \\
-      \synt{Expr} & \synt{Number} \\
-      \bottomrule
-    \end{tabular}
-    \caption{$G_w$, the generated abstract syntax.}
-  \end{subfigure}%
-%
-  \begin{subfigure}[t]{.54\linewidth}
-    \centering
-    \begin{tabular}{@{}l@{\quad$->$\quad}lll@{}}
-      \toprule
-      \synt{Expr} & $[_{Sum}$ & \synt{Expr} \verb|'+'| \synt{Expr} & $]_{Sum}$ \\
-      \synt{Expr} & $[_{Product}$ & \synt{Expr} \verb|'*'| \synt{Expr} & $]_{Product}$ \\
-      \synt{Expr} & $[_{Number}$ & \synt{Number} & $]_{Number}$ \\
-      \bottomrule
-    \end{tabular}
-    \caption{$G_t$, a language describing a linear encoding of the parse trees of $G_w$.}
-  \end{subfigure}
 
-  \begin{subfigure}{.45\linewidth}
-    \centering
-    \begin{tabular}{@{}l@{\quad$->$\quad}l@{}}
-      \toprule
-      \synt{Expr} & \synt{Expr} \verb|'+'| \synt{Expr} \\
-      \synt{Expr} & \synt{Expr}$_{Sum}$ \verb|'*'| \synt{Expr}$_{Sum}$ \\
-      \synt{Expr} & \synt{Number} \\
-      \synt{Expr} & \verb|'('| \synt{Expr} \verb|')'| \\
-      \midrule
-      \synt{Expr}$_{Sum}$ & \synt{Expr}$_{Sum}$ \verb|'*'| \synt{Expr}$_{Sum}$ \\
-      \synt{Expr}$_{Sum}$ & \synt{Number} \\
-      \synt{Expr}$_{Sum}$ & \verb|'('| \synt{Expr} \verb|')'| \\
-      \bottomrule
-    \end{tabular}
-    \caption{$G'_w$, the generated concrete syntax.}
-  \end{subfigure}%
-%
-  \begin{subfigure}{.54\linewidth}
-    \centering
-    \begin{tabular}{@{}l@{\quad$->$\quad}lll@{}}
-      \toprule
-      \synt{Expr} & $[_{Sum}$ & \synt{Expr} \verb|'+'| \synt{Expr} & $]_{Sum}$ \\
-      \synt{Expr} & $[_{Product}$ & \synt{Expr}$_{Sum}$ \verb|'*'| \synt{Expr}$_{Sum}$ & $]_{Product}$ \\
-      \synt{Expr} & $[_{Number}$ & \synt{Number} & $]_{Number}$ \\
-      \synt{Expr} & $[_{Grouping}$ & \verb|'('| \synt{Expr} \verb|')'| & $]_{Grouping}$ \\
-      \midrule
-      \synt{Expr}$_{Sum}$ & $[_{Sum2}$ & \synt{Expr}$_{Sum}$ \verb|'*'| \synt{Expr}$_{Sum}$ & $]_{Sum2}$ \\
-      \synt{Expr}$_{Sum}$ & $[_{Number2}$ & \synt{Number} & $]_{Number2}$ \\
-      \synt{Expr}$_{Sum}$ & $[_{Grouping2}$ & \verb|'('| \synt{Expr} \verb|')'| & $]_{Grouping2}$ \\
-      \bottomrule
-    \end{tabular}
-    \caption{$G'_t$, a language describing a linear encoding of the parse trees of $G'_w$.}
-  \end{subfigure}%
-  \caption{The generated grammars.}
-\end{figure*}
-
-\begin{figure*}[ht]
-  \begin{subfigure}[b]{.45\linewidth}
-    \[1 + 2 * 3\]
-    \caption{Example word in $L(G_w)$.}
-  \end{subfigure}
-  \begin{subfigure}[b]{.45\linewidth}
-    \begin{center}
-    \Tree [.Product
-        [.Sum
-          [.Number 1 ]
-          '+'
-          [.Number 2 ] ]
-        '*'
-        [.Number 3 ] ]
-    \end{center}
-    \[[_P [_S [_N 1 ]_N + [_N 2 ]_N ]_S * [_N 3 ]_N ]_P\]
-    \caption{Example word in $L(G_T)$ and visualized tree.}
-  \end{subfigure}
-
-  \begin{subfigure}[b]{.45\linewidth}
-    \[(1 + 2) * 3\]
-    \caption{Example word in $L(G'_w)$.}
-  \end{subfigure}
-  \begin{subfigure}[b]{.45\linewidth}
-    \begin{center}
-    \Tree [.Product
-        [.Grouping2
-          '('
-          [.Sum
-            [.Number 1 ]
-            '+'
-            [.Number 2 ] ]
-          ')' ]
-        '*'
-        [.Number2 3 ] ]
-    \end{center}
-    \[[_P [_{G2} ( [_S [_N 1 ]_N + [_N 2 ]_N ]_S ) ]_{G2} * [_{N2} 3 ]_{N2} ]_P\]
-    \caption{Example word in $L(G'_T)$ and visualized tree.}
-  \end{subfigure}
-  \caption{Example with words from each grammar that correspond to each other. The subscripts are abbreviated as follows: $S = \text{Sum}$ , $P = \text{Product}$ , $N = \text{Number}$ , and $G = \text{Grouping}$ .}
-\end{figure*}
 
 \begin{figure*}[ht]
   \begin{subfigure}[b]{.45\linewidth}
