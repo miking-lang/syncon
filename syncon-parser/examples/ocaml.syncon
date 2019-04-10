@@ -1,0 +1,41 @@
+type Expression
+
+syncon list: Expression =
+  "[" (ehead: Expression (";" etail: Expression)*)? "]"
+{ builtin }
+
+# For operators, the names "left" and "right" are reserved
+# for the expression to the left or right respectively
+infix seqcomp: Expression = ";"
+{ builtin }
+
+# Here only "right" is defined / reserved
+prefix negate: Expression = "-"
+{ builtin }
+
+# For "infix", "#assoc" can be used to specify associativity
+# as "left", "right", or "none"
+# It defaults to "none", which means undefined associativity,
+# i.e., always group explicitly
+infix add: Expression = "+" { #assoc left; builtin }
+infix mul: Expression = "*" { #assoc left; builtin }
+infix sub: Expression = "-" { #assoc left; builtin }
+infix div: Expression = "/" { #assoc left; builtin }
+
+# Totally define precedence for certain operators. Those on the
+# same line get the same precedence, those on higher lines have
+# higher precedence.
+# If two infix operators on the same line have differing associativity,
+# (or at least one has "none") then they will need to be grouped
+# explicitly, otherwise they'll associate together, so to speak
+precedence {
+  negate
+  mul div
+  add sub
+}
+
+# Note that precedence isn't transitive, and there is no way to
+# specify that a given operator should behave exactly the same
+# as some other operator. The former I'm fairly sure is correct,
+# the latter might be desireable, at least in some weakened form,
+# maybe grouping operators or something.
