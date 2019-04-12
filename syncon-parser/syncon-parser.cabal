@@ -14,10 +14,18 @@ executable syncon-parser
                , text
                , hashable
                , unordered-containers
+               , containers
+               , array
                , recursion-schemes
+               , bytestring
+               , utf8-string
+               , regex-pcre-builtin
+               , pretty-show
   main-is: Main.hs
   other-modules: Pre
+               , Result
                , P1Lexing.Types
+               , P1Lexing.Lexer
                , P2LanguageDefiniton.Types
   default-language: Haskell2010
   default-extensions: NoImplicitPrelude
