@@ -36,7 +36,7 @@ data Error l n
   | CommentRegexError l Int Text
   | UnicodeError UnicodeException
   | OverlappingLex l [Token l n]
-  | NoLex Text
+  | NoLex Position Text
   deriving (Show)
 
 data LanguageInternal n = LanguageInternal
@@ -175,27 +175,6 @@ allOneLanguage lang langToks path = do
     go lex = do
       tokens <- lexHere [lang] lex
       case tokens & M.elems & catMaybes of
-        [] -> Error [NoLex $ decodeUtf8 $ remainingSource lex]
+        [] -> Error [NoLex (position lex) $ decodeUtf8 $ remainingSource lex]
         [(len, t)] -> (t:) <$> maybe (return []) go (advanceLexer len lex)
         ts -> compErr "P1Lexing.Lexer.allOneLanguage.go" $ "Impossible: " <> show (length ts)
-
--- module Regex where
-
--- import Text.Regex.PCRE.Text (execute)
--- import Text.Regex.PCRE.Wrap (compUTF8, compNoAutoCapture, wrapCompile, Regex)
-
--- import Data.Text.Encoding (encodeUtf8)
--- import Data.ByteString (useAsCString)
-
--- safeCompile :: Text -> IO _
--- safeCompile t = useAsCString (encodeUtf8 t) $ \str -> do
---   let compOpts = compUTF8 .|. compNoAutoCapture
---       execOpts = 0
---   wrapCompile compOpts execOpts str >>= \case
---     Left s -> compErr "Regex.safeCompile" $ show s
---     Right reg -> return reg
-
--- match :: Regex -> Text -> Maybe Text
--- match reg t = case unsafePerformIO (execute reg t) of
---   Left err -> compErr "Regex.match" $ show err
---   Right

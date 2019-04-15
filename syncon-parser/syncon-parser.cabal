@@ -21,12 +21,14 @@ executable syncon-parser
                , utf8-string
                , regex-pcre-builtin
                , pretty-show
+               , Earley
   main-is: Main.hs
   other-modules: Pre
                , Result
                , P1Lexing.Types
                , P1Lexing.Lexer
                , P2LanguageDefiniton.Types
+               , P2LanguageDefinition.Parser
   default-language: Haskell2010
   default-extensions: NoImplicitPrelude
                     , EmptyCase

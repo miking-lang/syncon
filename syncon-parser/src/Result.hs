@@ -25,3 +25,7 @@ instance Semigroup e => Monad (Result e) where
   (>>) = (*>)
   Data a >>= f = f a
   Error e >>= _ = Error e
+
+instance Bifunctor Result where
+  bimap f _ (Error e) = Error $ f e
+  bimap _ f (Data a) = Data $ f a

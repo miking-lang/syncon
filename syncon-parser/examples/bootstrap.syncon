@@ -10,6 +10,8 @@ token Name = "[[:lower:]][[:word:]]*"
 token TypeName = "[[:upper:]][[:word:]]*"
 token String = "\"(\\\\.|[^\"\\\\])*\""
 
+comment "//[^\\n]*(\\n|$)"
+
 // === Syntax Types ===
 
 syncon typeDef: Top =
@@ -20,6 +22,12 @@ syncon typeDef: Top =
 
 syncon tokenDef: Top =
   "token" syType:TypeName "=" regex:String
+{ builtin }
+
+// === Comment Definitions ===
+
+syncon commentDef: Top =
+  "comment" regex:String
 { builtin }
 
 // === Syncon Definitions (including operators) ===
@@ -41,7 +49,7 @@ syncon postfixDef: Top =
 
 syncon infixDef: Top =
   "infix" name:Name ":" syType:TypeName "="
-  descr:SyntaxDescription+ "{" (InfixProperty ";")* "builtin" "}"
+  descr:SyntaxDescription* "{" (InfixProperty ";")* "builtin" "}"
 { builtin }
 
 
@@ -54,7 +62,6 @@ syncon assoc: InfixProperty = "#assoc" a:Assoc { builtin }
 type Assoc
 syncon assocLeft: Assoc = "left" { builtin }
 syncon assocRight: Assoc = "right" { builtin }
-syncon assocNone: Assoc = "none" { builtin }
 
 
 // === Syntax Descriptions ===
@@ -89,4 +96,5 @@ syncon forbidDef: Top =
 
 syncon precedenceList: Top =
   "precedence" "{" line:(name:Name+ ";")+ "}"
+  "except" "{" eLine:(eName:Name+ ";")+ "}"
 { builtin }
