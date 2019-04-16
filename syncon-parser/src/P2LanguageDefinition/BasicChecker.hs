@@ -35,6 +35,8 @@ data Error
 -- is valid. This validity includes things like checking that regexes are correct,
 -- that nothing is defined twice, that no syntax type used is undefined, etc.
 -- The check does not check for any kind of ambiguity, neither internal nor unresolvable.
+--
+-- NOTE: this will not check the validity of regular expressions
 mkDefinitionFile :: [Top] -> Res DefinitionFile
 mkDefinitionFile (Seq.fromList -> tops) = do
   findDuplicates s_name synconTops
@@ -47,6 +49,7 @@ mkDefinitionFile (Seq.fromList -> tops) = do
     typeTops = toList tops & mapMaybe asTypeDef & Seq.fromList
     synconTops = Seq.fromList [s | SynconTop s <- toList tops]
     forbids = Seq.fromList [f | ForbidTop f <- toList tops]
+    comments = Seq.fromList [c | CommentTop c <- toList tops]
 
     typeNames = void syntaxTypes & S.fromMap
     synconAndSDNames = (s_syntaxType &&& getSDNames) <$> syncons

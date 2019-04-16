@@ -57,11 +57,11 @@ synconTokens = Lexer.LanguageTokens
   , "(", ")", "*", "+", "?", ".", "comment", "left", "right", "precedence", "except"
   , "type", "builtin", "forbid" ]
   -- Regex tokens
-  [ (NameTok, "[[:lower:]][[:word:]]*")
-  , (TypeNameTok, "[[:upper:]][[:word:]]*")
-  , (StringTok, "\"(\\\\.|[^\"\\\\])*\"") ]
+  [ (NameTok, (Nowhere, "[[:lower:]][[:word:]]*"))
+  , (TypeNameTok, (Nowhere, "[[:upper:]][[:word:]]*"))
+  , (StringTok, (Nowhere, "\"(\\\\.|[^\"\\\\])*\"")) ]
   -- Comment regex
-  "//[^\\n]*(\\n|$)"
+  [(Nowhere, "//[^\\n]*(\\n|$)")]
 
 -- |
 -- = Parsers for top level declarations

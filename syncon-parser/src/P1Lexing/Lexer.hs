@@ -15,6 +15,7 @@ import Pre
 
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Array as Array
+import qualified Data.Text as Text
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.UTF8 as UTF8
 import qualified Data.Sequence as Seq
@@ -28,11 +29,11 @@ import P1Lexing.Types
 
 data LanguageTokens n = LanguageTokens
   [Text] -- ^ Literals
-  [(n, Text)] -- ^ Other token kinds, with regexes in the texts
-  Text -- ^ A regex for comments
+  [(n, (Range, Text))] -- ^ Other token kinds, with regexes in the texts (paired with the range at which they were defined)
+  [(Range, Text)] -- ^ Regexes for comments (range for the string, the regex itself)
 
 data Error l n
-  = RegexError l n Int Text
+  = RegexError l Position Text
   | CommentRegexError l Int Text
   | UnicodeError UnicodeException
   | OverlappingLex l [Token l n]
@@ -64,6 +65,13 @@ compileRegex t = unsafePerformIO (compile compOpts execOpts (encodeUtf8 ("(*UCP)
     compOpts = compUTF8 .|. compNoAutoCapture
     execOpts = 0
 
+compileRegex' :: l -> Range -> Text -> Result [Error l n] Regex
+compileRegex' l r t = case compileRegex t of
+  Left (errColumn, message) -> case r of
+    Range (Position line column) _ -> Error [RegexError l (Position line (column + errColumn)) (toS message)]
+    Nowhere -> Error [RegexError l (Position (-1) errColumn) (toS message)]
+  Right regex -> Data regex
+
 -- | Construct a new lexer, capable of lexing multiple languages
 mkLexer :: (Eq l, Hashable l) => [(l, LanguageTokens n)] -> Result [Error l n] (Lexer l n)
 mkLexer langs = do
@@ -81,14 +89,13 @@ mkLexer langs = do
         { literals = lits'
         , tokenRegexes = others'
         , whitespaceRegex = whitespace }
-    mkRegex l (n, t) = case compileRegex t of
-      Left (column, message) -> Error [RegexError l n column message]
-      Right reg -> Data (n, reg)
-    mkWhitespace l comments = case compileRegex comments of
-      Left (column, message) -> Error [CommentRegexError l column message]
-      Right _ -> case compileRegex ("((" <> comments <> ")|\\s)*") of
+    mkRegex l (n, (r, t)) = (n,) <$> compileRegex' l r t
+    mkWhitespace l comments = traverse (uncurry $ compileRegex' l) comments >>= \_ ->
+      case compileRegex $ "(" <> Text.intercalate "|" (fmap (snd >>> paren) comments) <> "|\\s)*" of
         Left err -> compErr "P1Lexing.Lexer.mkLexer.mkWhitespace" $ show err
         Right reg -> Data reg
+
+    paren s = "(" <> s <> ")"
 
 -- TODO: catch file not found stuff and put in 'Result'
 -- | Construct a new 'Lexer' positioned at the beginning of the given file

@@ -21,6 +21,7 @@ data DefinitionFile = DefinitionFile
   , syntaxTypes :: !(HashMap TypeName (Either SyntaxType TokenType))
   , forbids :: !(Seq Forbid)
   , precedences :: !PrecedenceMatrix
+  , comments :: !(Seq Comment)
   } deriving (Show)
 
 -- | A big sum type of all the top-level declarations

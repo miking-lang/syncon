@@ -7,6 +7,7 @@ import Result (Result(..))
 
 import Text.Show.Pretty (pPrint)
 
+import P1Lexing.Types (Range(..))
 import qualified P1Lexing.Types as Lexer
 import qualified P1Lexing.Lexer as Lexer
 
@@ -21,11 +22,11 @@ synconTokens = Lexer.LanguageTokens
   , "(", ")", "*", "+", "?", ".", "comment", "left", "right", "precedence", "except"
   , "type", "builtin", "forbid" ]
   -- Regex tokens
-  [ ("Name", "[[:lower:]][[:word:]]*")
-  , ("TypeName", "[[:upper:]][[:word:]]*")
-  , ("String", "\"(\\\\.|[^\"\\\\])*\"") ]
+  [ ("Name", (Nowhere, "[[:lower:]][[:word:]]*"))
+  , ("TypeName", (Nowhere, "[[:upper:]][[:word:]]*"))
+  , ("String", (Nowhere, "\"(\\\\.|[^\"\\\\])*\"")) ]
   -- Comment regex
-  "//[^\\n]*(\\n|$)"
+  [(Nowhere, "//[^\\n]*(\\n|$)")]
 
 lexTest :: IO ()
 lexTest = do
