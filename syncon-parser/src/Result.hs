@@ -8,6 +8,13 @@ data Result e a
   | Error e
   deriving (Functor, Foldable, Traversable, Show)
 
+-- | Convenience function that makes an error if the parameter is
+-- distinct from 'mempty' (which is expected to represent "no error").
+errorIfNonEmpty :: (Monoid e, Eq e) => e -> Result e ()
+errorIfNonEmpty e
+  | e == mempty = Data ()
+  | otherwise = Error e
+
 instance Semigroup e => Applicative (Result e) where
   pure = Data
   Data f <*> Data a = Data $ f a

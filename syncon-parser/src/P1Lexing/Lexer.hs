@@ -59,7 +59,7 @@ runRegex reg str = case unsafePerformIO (execute reg str) of
     (start, len) -> str & ByteString.drop start & ByteString.take len & Just
 
 compileRegex :: Text -> Either (Int, Text) Regex
-compileRegex t = unsafePerformIO (compile compOpts execOpts (encodeUtf8 ("^" <> t))) & first (second toS)
+compileRegex t = unsafePerformIO (compile compOpts execOpts (encodeUtf8 ("(*UCP)^" <> t))) & first (second toS)
   where
     compOpts = compUTF8 .|. compNoAutoCapture
     execOpts = 0

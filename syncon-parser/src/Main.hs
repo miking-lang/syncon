@@ -3,6 +3,7 @@
 module Main where
 
 import Pre
+import Result (Result(..))
 
 import Text.Show.Pretty (pPrint)
 
@@ -11,6 +12,7 @@ import qualified P1Lexing.Lexer as Lexer
 
 import qualified P2LanguageDefinition.Types as LD
 import qualified P2LanguageDefinition.Parser as LD
+import qualified P2LanguageDefinition.BasicChecker as LD
 
 synconTokens :: Lexer.LanguageTokens Text
 synconTokens = Lexer.LanguageTokens
@@ -32,9 +34,15 @@ lexTest = do
 
 parseTest :: IO ()
 parseTest = do
-  res <- LD.parseFile' "examples/bootstrap.syncon"
+  res <- LD.parseFile "examples/bootstrap.syncon"
   pPrint res
 
+checkTest :: IO ()
+checkTest = do
+  res <- LD.parseFile "examples/broken.syncon"
+  case res of
+    Data tops -> pPrint $ LD.mkDefinitionFile tops
+    Error _ -> pPrint res
 
 main :: IO ()
-main = parseTest
+main = checkTest

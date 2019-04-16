@@ -6,20 +6,32 @@ module P2LanguageDefinition.Types where
 
 import Pre
 
+import Data.Data (Data)
 import Data.Functor.Foldable.TH (makeBaseFunctor)
+import qualified Data.HashMap.Strict as M
 
 import P1Lexing.Types (Range, Ranged, range)
 
 -- TODO: make this something more fancy once we start namespacing things
-newtype Name = Name Text deriving (Show, Eq, Hashable)
-newtype TypeName = TypeName Text deriving (Show, Eq, Hashable)
+newtype Name = Name Text deriving (Show, Eq, Hashable, Data, Typeable)
+newtype TypeName = TypeName Text deriving (Show, Eq, Hashable, Data, Typeable)
 
 data DefinitionFile = DefinitionFile
   { syncons :: !(HashMap Name Syncon)
   , syntaxTypes :: !(HashMap TypeName (Either SyntaxType TokenType))
   , forbids :: !(Seq Forbid)
-  , precedences :: !(Seq PrecedenceList)
+  , precedences :: !PrecedenceMatrix
   } deriving (Show)
+
+-- | A big sum type of all the top-level declarations
+data Top
+  = SyntaxTypeTop SyntaxType
+  | TokenTypeTop TokenType
+  | CommentTop Comment
+  | SynconTop Syncon
+  | ForbidTop Forbid
+  | PrecedenceTop PrecedenceList
+  deriving (Show, Data, Typeable)
 
 -- |
 -- = Syncons
@@ -32,26 +44,26 @@ data Syncon = Syncon
   , s_syntaxType :: !TypeName
   , s_syntaxDescription :: !SyntaxDescription
   , s_range :: !Range
-  } deriving (Show)
+  } deriving (Show, Data, Typeable)
 
 -- | A syntax type definition.
 data SyntaxType = SyntaxType
   { st_name :: !TypeName
   , st_range :: !Range
-  } deriving (Show)
+  } deriving (Show, Data, Typeable)
 
 -- | A token syntax type definition, including the regex that recognizes it
 data TokenType = TokenType
   { t_name :: !TypeName
   , t_regex :: !Text
   , t_range :: !Range
-  } deriving (Show)
+  } deriving (Show, Data, Typeable)
 
 -- | A comment type declaration
 data Comment = Comment
   { c_regex :: !Text
   , c_range :: !Range
-  } deriving (Show)
+  } deriving (Show, Data, Typeable)
 
 -- |
 -- == Syntax Descriptions
@@ -63,16 +75,17 @@ data SyntaxDescription
   | SDNamed Range SDName SyntaxDescription
   | SDSyTy Range TypeName
   | SDToken Range Text -- ^ A literal token, i.e., something written as a quoted string in a .syncon file
-  deriving (Show)
+  deriving (Show, Data, Typeable)
 
-data Repetition = RepStar | RepQuestion | RepPlus deriving (Show)
+data Repetition = RepStar | RepQuestion | RepPlus deriving (Show, Data, Typeable)
 
 -- | Names for subsections of syntax descriptions. These include special names
 --   for operator positions
 data SDName
   = SDLeft | SDRight
   | SDName Text
-  deriving (Show)
+  deriving (Show, Data, Typeable, Eq, Generic)
+instance Hashable SDName
 
 -- |
 -- = Disambiguation
@@ -81,7 +94,7 @@ data SDName
 --   syntax description with the second name, from parsing as the syncon with
 --   the third name (without parens surrounding it). This is the most basic
 --   disambiguation tool, which all other disambiguations eventually translate to
-data Forbid = Forbid !Range !Name !SDName !Name deriving (Show)
+data Forbid = Forbid !Range !Name !SDName !Name deriving (Show, Data, Typeable)
 
 -- | Make the (operator) syncons appearing earlier in the list have higher precedence
 --   than those that appear later (i.e., total precedence among the mentioned syncons).
@@ -92,7 +105,19 @@ data Forbid = Forbid !Range !Name !SDName !Name deriving (Show)
 --
 --   The last member is an exception list, the operators appearing in the same list
 --   there will *not* have their relative precedence defined by this precedence list.
-data PrecedenceList = PrecedenceList !Range !(Seq (Seq Name)) !(Seq (Seq Name)) deriving (Show)
+data PrecedenceList = PrecedenceList !Range !(Seq (Seq Name)) !(Seq (Seq Name)) deriving (Show, Data, Typeable)
+
+-- | A (sparse) matrix of precedences. Should only ever contain references to syncons
+-- defined as operators. Internally is a map from (min a b, max a b) names to orderings
+-- and sets of where each pair is defined.
+newtype PrecedenceMatrix = PrecedenceMatrix (HashMap (Name, Name) (Ordering, HashSet Range))
+  deriving (Show)
+
+-- | A partial order function on syncons given a precedence matrix.
+precCompare :: PrecedenceMatrix -> Name -> Name -> Maybe Ordering
+precCompare (PrecedenceMatrix mat) (Name n1) (Name n2)
+  | n1 == n2 = Just EQ
+  | otherwise = fst <$> M.lookup (Name $ min n1 n2, Name $ max n1 n2) mat
 
 makeBaseFunctor ''SyntaxDescription
 

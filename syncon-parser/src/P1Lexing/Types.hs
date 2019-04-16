@@ -2,8 +2,10 @@ module P1Lexing.Types where
 
 import Pre
 
-data Range = Nowhere | Range !Position !Position deriving (Show)
-data Position = Position { line :: !Int, column :: !Int } deriving (Show, Eq, Ord)
+import Data.Data (Data)
+
+data Range = Nowhere | Range !Position !Position deriving (Show, Eq, Data, Typeable, Generic)
+data Position = Position { line :: !Int, column :: !Int } deriving (Show, Eq, Ord, Data, Typeable, Generic)
 
 firstPosition :: Position
 firstPosition = Position { line = 1, column = 1 }
@@ -32,6 +34,15 @@ class Ranged a where
 instance Ranged Range where
   range = identity
 
+instance (Ranged l, Ranged r) => Ranged (Either l r) where
+  range = either range range
+
+instance Ranged (a, Range) where
+  range = snd
+
 instance Ranged (Token l n) where
   range (LitTok r _ _) = r
   range (OtherTok r _ _ _) = r
+
+instance Hashable Range
+instance Hashable Position

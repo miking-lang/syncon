@@ -1,0 +1,65 @@
+type Top
+
+// === Duplicate syncon definition ===
+syncon duplicateSyncon: Top =
+  "type" syType:TypeName
+{ builtin }
+syncon duplicateSyncon: Top =
+  "type" syType:TypeName
+{ builtin }
+
+// === Duplicate syntax type definition ===
+type DuplicateType
+type DuplicateType
+token DuplicateType = "blub"
+
+// === Duplicate sdname definition ===
+syncon thing: Top = dupsd:Top dupsd:Top dupsd:Top* { builtin }
+
+// === Undefined Syntax type ===
+syncon undef: UndefType = "blub" { builtin }
+
+// === Undefined syncon (should give two errors) ===
+forbid unsyncon1.uncaught = unsyncon2
+
+// === Undefined sdname ===
+forbid undef.undefsdname = undef
+
+// === Incorrect syntax type in forbid ===
+forbid thing.dupsd = op4
+
+// === Undefined name in precedence list ===
+precedence {
+  unsyncon1;
+  unsyncon2 unsyncon2;
+}
+
+// === Inconsistent precedence in one precedence list ===
+prefix op1:Top = "*" { builtin }
+postfix op2:Top = "+" { builtin }
+infix op3:Top = "-" { builtin }
+precedence {
+  op1;
+  op2 op1;
+}
+
+// === Inconsistent precedence in two precedence lists ===
+precedence {
+  op1;
+  op3;
+}
+precedence {
+  op1 op3;
+}
+
+// === Not an operator ===
+precedence {
+  undef;
+}
+
+// === Multiple syntax types ===
+type NewType
+infix op4:NewType = "/" { builtin }
+precedence {
+  op1 op4;
+}

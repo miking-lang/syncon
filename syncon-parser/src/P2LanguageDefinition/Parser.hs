@@ -5,7 +5,6 @@ module P2LanguageDefinition.Parser
 , SynconDefinitionLanguage(..)
 , TokenKind(..)
 , parseFile
-, parseFile'
 ) where
 
 import Pre
@@ -21,7 +20,6 @@ import P2LanguageDefinition.Types
 
 data Error
   = LexingError (Lexer.Error Lang TokenKind)
-  | DuplicateDefinition Text [Range]
   | UnexpectedToken [Text] Tok
   | UnexpectedEOF [Text]
   | AmbiguousParse -- TODO: this is very unsatisfactory, but I don't want to implement two versions of the ambiguity detection thing
@@ -39,14 +37,18 @@ type Lang = SynconDefinitionLanguage
 -- Internal types
 type Prod r a = Earley.Prod r Text Tok a
 type Tok = Token Lang TokenKind
-data Top
-  = SyntaxTypeTop SyntaxType
-  | TokenTypeTop TokenType
-  | CommentTop Comment
-  | SynconTop Syncon
-  | ForbidTop Forbid
-  | PrecedenceTop PrecedenceList
-  deriving (Show)
+
+-- | Don't check for correctness in any way, just parse the file and return a list of top-level definitions
+parseFile :: FilePath -> IO (Result [Error] [Top])
+parseFile path = lex <&> \getTokens -> do
+  tokens <- getTokens
+  case Earley.fullParses (Earley.parser tops) tokens of
+    ([], Report{expected, unconsumed = next : _}) -> Error [UnexpectedToken expected next]
+    ([], Report{expected, unconsumed = []}) -> Error [UnexpectedEOF expected]
+    ([res], _) -> return res  -- TODO: deal with other cases as well
+    (_, _) -> Error [AmbiguousParse]
+  where
+    lex = Lexer.allOneLanguage SynconDefinitionLanguage synconTokens path <&> first (fmap LexingError)
 
 synconTokens :: Lexer.LanguageTokens TokenKind
 synconTokens = Lexer.LanguageTokens
@@ -60,36 +62,6 @@ synconTokens = Lexer.LanguageTokens
   , (StringTok, "\"(\\\\.|[^\"\\\\])*\"") ]
   -- Comment regex
   "//[^\\n]*(\\n|$)"
-
--- | This will coalesce all the top-level declarations, make sure that each of them
--- is valid. This validity includes things like checking that regexes are correct,
--- that nothing is defined twice, that no syntax type used is undefined, etc.
--- The check does not check for any kind of ambiguity, neither internal nor unresolvable.
-mkDefinitionFile :: [Top] -> Result [Error] DefinitionFile
-mkDefinitionFile = compErr "" "unimplemented"  -- TODO
-
--- | Parse a file and produce the language definition contained therein
-parseFile :: FilePath -> IO (Result [Error] DefinitionFile)
-parseFile path = lex <&> \getTokens -> do
-  tokens <- getTokens
-  case Earley.fullParses (Earley.parser tops) tokens of
-    ([], Report{expected, unconsumed = next : _}) -> Error [UnexpectedToken expected next]
-    ([], Report{expected, unconsumed = []}) -> Error [UnexpectedEOF expected]
-    ([res], _) -> mkDefinitionFile res  -- TODO: deal with other cases as well
-    (_, _) -> Error [AmbiguousParse]
-  where
-    lex = Lexer.allOneLanguage SynconDefinitionLanguage synconTokens path <&> first (fmap LexingError)
-
-parseFile' :: FilePath -> IO (Result [Error] [Top])
-parseFile' path = lex <&> \getTokens -> do
-  tokens <- getTokens
-  case Earley.fullParses (Earley.parser tops) tokens of
-    ([], Report{expected, unconsumed = next : _}) -> Error [UnexpectedToken expected next]
-    ([], Report{expected, unconsumed = []}) -> Error [UnexpectedEOF expected]
-    ([res], _) -> return res  -- TODO: deal with other cases as well
-    (_, _) -> Error [AmbiguousParse]
-  where
-    lex = Lexer.allOneLanguage SynconDefinitionLanguage synconTokens path <&> first (fmap LexingError)
 
 -- |
 -- = Parsers for top level declarations
