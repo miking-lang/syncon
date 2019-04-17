@@ -95,7 +95,8 @@ instance Hashable SDName
 --   syntax description with the second name, from parsing as the syncon with
 --   the third name (without parens surrounding it). This is the most basic
 --   disambiguation tool, which all other disambiguations eventually translate to
-data Forbid = Forbid !Range !Name !SDName !Name deriving (Show, Data, Typeable)
+data Forbid = Forbid !Range !Name !SDName !Name
+  deriving (Show, Data, Typeable)
 
 -- | Make the (operator) syncons appearing earlier in the list have higher precedence
 --   than those that appear later (i.e., total precedence among the mentioned syncons).
@@ -106,7 +107,8 @@ data Forbid = Forbid !Range !Name !SDName !Name deriving (Show, Data, Typeable)
 --
 --   The last member is an exception list, the operators appearing in the same list
 --   there will *not* have their relative precedence defined by this precedence list.
-data PrecedenceList = PrecedenceList !Range !(Seq (Seq Name)) !(Seq (Seq Name)) deriving (Show, Data, Typeable)
+data PrecedenceList = PrecedenceList !Range !(Seq (Seq Name)) !(Seq (Seq Name))
+  deriving (Show, Data, Typeable)
 
 -- | A (sparse) matrix of precedences. Should only ever contain references to syncons
 -- defined as operators. Internally is a map from (min a b, max a b) names to orderings

@@ -70,6 +70,7 @@ checkSyncon types Syncon{..} = do
     Error [Undefined (coerce s_syntaxType) s_range]
   findDuplicates fst [(t, r) | SDNamed r (SDName t) _ <- universe s_syntaxDescription]
 
+-- | Check that forbids refer to actually defined things, and that the syntax types agree
 checkForbid :: HashMap Name (TypeName, HashMap SDName (Maybe TypeName)) -> Forbid -> Res ()
 checkForbid names (Forbid r n1 sdname n2) = do
   ~(_, sdnames) <- lookupName n1
@@ -88,6 +89,8 @@ checkForbid names (Forbid r n1 sdname n2) = do
     toText SDLeft = compErr "P2LanguageDefinition.BasicChecker.checkForbid.toText" "unexpected SDLeft"
     toText SDRight = compErr "P2LanguageDefinition.BasicChecker.checkForbid.toText" "unexpected SDRight"
 
+-- | Check that precedence is consistent, and that a single precedence list only defines
+-- precedence for a single syntax type
 checkPrecedences :: Foldable t
                  => HashMap Name (TypeName, HashMap SDName (Maybe TypeName))
                  -> t Top
@@ -116,10 +119,10 @@ checkPrecedences names tops = consistentTypes *> matrix
       & M.traverseWithKey checkEntry
       & fmap (M.mapMaybe identity >>> PrecedenceMatrix)
     mat (PrecedenceList r pList eList) =
-      mergePreMatrices ltPrecedences eqPrecedences `M.difference` exceptions
+      mergePreMatrices gtPrecedences eqPrecedences `M.difference` exceptions
       where
-        ltPrecedences = ((toList <$> pList & orderedPairs)
-          >>= uncurry (liftA2 $ mkEntry LT))
+        gtPrecedences = ((toList <$> pList & orderedPairs)
+          >>= uncurry (liftA2 $ mkEntry GT))
           & foldl' mergePreMatrices M.empty
         eqPrecedences = (toList pList >>= orderedPairs)
           & fmap (uncurry $ mkEntry EQ)
@@ -149,6 +152,9 @@ checkPrecedences names tops = consistentTypes *> matrix
            >>> fmap (first pure >>> bisequence)
            >>> fold)
 
+-- |
+-- = Helpers
+
 -- | Find all duplicate definitions, given a name function and a collection of definitions
 findDuplicates :: (Ranged a, Coercible b Text, Eq b, Hashable b, Foldable t) => (a -> b) -> t a -> Res ()
 findDuplicates getName tops = (getName &&& (range >>> pure)) <$> toList tops
@@ -157,9 +163,6 @@ findDuplicates getName tops = (getName &&& (range >>> pure)) <$> toList tops
   & M.toList
   & fmap (\(t, ranges) -> DuplicateDefinition (coerce t) ranges)
   & errorIfNonEmpty
-
--- |
--- = Helpers
 
 -- | Extract all 'SDName's defined in the syntax description of a syncon
 getSDNames :: Syncon -> HashMap SDName (Maybe TypeName)

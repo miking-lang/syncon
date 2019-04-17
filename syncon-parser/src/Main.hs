@@ -14,6 +14,7 @@ import qualified P1Lexing.Lexer as Lexer
 import qualified P2LanguageDefinition.Types as LD
 import qualified P2LanguageDefinition.Parser as LD
 import qualified P2LanguageDefinition.BasicChecker as LD
+import qualified P2LanguageDefinition.Elaborator as LD
 
 synconTokens :: Lexer.LanguageTokens Text
 synconTokens = Lexer.LanguageTokens
@@ -38,12 +39,29 @@ parseTest = do
   res <- LD.parseFile "examples/bootstrap.syncon"
   pPrint res
 
-checkTest :: IO ()
-checkTest = do
+checkFailTest :: IO ()
+checkFailTest = do
   res <- LD.parseFile "examples/broken.syncon"
   case res of
     Data tops -> pPrint $ LD.mkDefinitionFile tops
     Error _ -> pPrint res
 
+checkSuccessTest :: IO ()
+checkSuccessTest = do
+  res <- LD.parseFile "examples/bootstrap.syncon"
+  case res of
+    Data tops -> pPrint $ LD.mkDefinitionFile tops
+    Error _ -> pPrint res
+
+elaborationTest :: IO ()
+elaborationTest = do
+  res <- LD.parseFile "examples/bootstrap.syncon"
+  case res of
+    Error _ -> pPrint res
+    Data tops -> case LD.mkDefinitionFile tops of
+      res'@Error{} -> pPrint res'
+      Data defFile -> pPrint $
+        LD.elaborate (LD.syncons defFile) (LD.forbids defFile) (LD.precedences defFile)
+
 main :: IO ()
-main = checkTest
+main = elaborationTest
