@@ -1,6 +1,5 @@
 module P2LanguageDefinition.Elaborator
-( Elaboration
-, elaborate
+( elaborate
 ) where
 
 import Pre
@@ -16,8 +15,6 @@ import P2LanguageDefinition.Types
 -- case, because different precedence levels don't care about associativity, and differing
 -- associativities on the same levels merely have to stay undefined, there is no good definition.
 data Assoc = AssocLeft | AssocRight
-
-type Elaboration = HashMap (Name, SDName) (HashSet Name)
 
 -- | Produce a single structure containing all disambiguation. Note that there won't be a mapping
 -- for the (qualified) sdnames that have no marks, i.e., conceptually the total map is obtained

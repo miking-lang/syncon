@@ -56,13 +56,13 @@ data SyntaxType = SyntaxType
 -- | A token syntax type definition, including the regex that recognizes it
 data TokenType = TokenType
   { t_name :: !TypeName
-  , t_regex :: !Text
+  , t_regex :: !(Range, Text)
   , t_range :: !Range
   } deriving (Show, Data, Typeable)
 
 -- | A comment type declaration
 data Comment = Comment
-  { c_regex :: !Text
+  { c_regex :: !(Range, Text)
   , c_range :: !Range
   } deriving (Show, Data, Typeable)
 
@@ -121,6 +121,9 @@ precCompare :: PrecedenceMatrix -> Name -> Name -> Maybe Ordering
 precCompare (PrecedenceMatrix mat) (Name n1) (Name n2)
   | n1 == n2 = Just EQ
   | otherwise = fst <$> M.lookup (Name $ min n1 n2, Name $ max n1 n2) mat
+
+-- | A complete disambiguation elaboration
+type Elaboration = HashMap (Name, SDName) (HashSet Name)
 
 makeBaseFunctor ''SyntaxDescription
 

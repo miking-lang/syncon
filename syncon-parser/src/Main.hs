@@ -15,6 +15,7 @@ import qualified P2LanguageDefinition.Types as LD
 import qualified P2LanguageDefinition.Parser as LD
 import qualified P2LanguageDefinition.BasicChecker as LD
 import qualified P2LanguageDefinition.Elaborator as LD
+import qualified P4Parsing.Parser as Parser
 
 synconTokens :: Lexer.LanguageTokens Text
 synconTokens = Lexer.LanguageTokens
@@ -31,7 +32,7 @@ synconTokens = Lexer.LanguageTokens
 
 lexTest :: IO ()
 lexTest = do
-  res <- Lexer.allOneLanguage @Text "SynconDef" synconTokens "examples/bootstrap.syncon"
+  res <- Lexer.allOneLanguage' @Text "SynconDef" synconTokens "examples/bootstrap.syncon"
   pPrint $ fmap Lexer.tokenText <$> res
 
 parseTest :: IO ()
@@ -41,27 +42,37 @@ parseTest = do
 
 checkFailTest :: IO ()
 checkFailTest = do
-  res <- LD.parseFile "examples/broken.syncon"
-  case res of
-    Data tops -> pPrint $ LD.mkDefinitionFile tops
-    Error _ -> pPrint res
+  tops <- LD.parseFile "examples/broken.syncon" >>= dataOrError
+  df <- LD.mkDefinitionFile tops & dataOrError
+  pPrint df
 
 checkSuccessTest :: IO ()
 checkSuccessTest = do
-  res <- LD.parseFile "examples/bootstrap.syncon"
-  case res of
-    Data tops -> pPrint $ LD.mkDefinitionFile tops
-    Error _ -> pPrint res
+  tops <- LD.parseFile "examples/bootstrap.syncon" >>= dataOrError
+  df <- LD.mkDefinitionFile tops & dataOrError
+  pPrint df
 
 elaborationTest :: IO ()
 elaborationTest = do
-  res <- LD.parseFile "examples/bootstrap.syncon"
-  case res of
-    Error _ -> pPrint res
-    Data tops -> case LD.mkDefinitionFile tops of
-      res'@Error{} -> pPrint res'
-      Data defFile -> pPrint $
-        LD.elaborate (LD.syncons defFile) (LD.forbids defFile) (LD.precedences defFile)
+  tops <- LD.parseFile "examples/bootstrap.syncon" >>= dataOrError
+  df <- LD.mkDefinitionFile tops & dataOrError
+  pPrint $ LD.elaborate (LD.syncons df) (LD.forbids df) (LD.precedences df)
+
+parse4Test :: IO ()
+parse4Test = do
+  putStrLn @Text "Initial parse"
+  tops <- LD.parseFile "examples/bootstrap.syncon" >>= dataOrError
+  df <- LD.mkDefinitionFile tops & dataOrError
+  putStrLn @Text "Second parse"
+  parseFile <- Parser.parseSingleLanguage df & dataOrError
+  setOfNodes <- parseFile "examples/bootstrap.syncon" >>= dataOrError
+  pPrint setOfNodes
+
+dataOrError :: Show e => Result e a -> IO a
+dataOrError (Data a) = return a
+dataOrError (Error e) = do
+  pPrint e
+  compErr "Main.dataOrError" "Got error"
 
 main :: IO ()
-main = elaborationTest
+main = parse4Test

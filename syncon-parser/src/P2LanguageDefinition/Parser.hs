@@ -10,9 +10,12 @@ module P2LanguageDefinition.Parser
 import Pre
 import Result (Result(..))
 
+import qualified Data.Text as Text
+import qualified Data.Sequence as Seq
+import qualified Data.HashSet as S
+
 import Text.Earley (Grammar, (<?>), terminal, satisfy, rule, Report(..))
 import qualified Text.Earley as Earley
-import qualified Data.Sequence as Seq
 
 import P1Lexing.Types (Range(Nowhere), range, Token(..))
 import qualified P1Lexing.Lexer as Lexer
@@ -20,8 +23,8 @@ import P2LanguageDefinition.Types
 
 data Error
   = LexingError (Lexer.Error Lang TokenKind)
-  | UnexpectedToken [Text] Tok
-  | UnexpectedEOF [Text]
+  | UnexpectedToken (HashSet Text) Tok
+  | UnexpectedEOF (HashSet Text)
   | AmbiguousParse -- TODO: this is very unsatisfactory, but I don't want to implement two versions of the ambiguity detection thing
   deriving (Show)
 
@@ -38,17 +41,22 @@ type Lang = SynconDefinitionLanguage
 type Prod r a = Earley.Prod r Text Tok a
 type Tok = Token Lang TokenKind
 
+lexFile :: FilePath -> IO (Result [Lexer.Error Lang TokenKind] [Tok])
+lexFile = case Lexer.allOneLanguage SynconDefinitionLanguage synconTokens of
+  Error err -> compErr "P2LanguageDefinition.Parser.lexFile" $ show err
+  Data fun -> fun
+
 -- | Don't check for correctness in any way, just parse the file and return a list of top-level definitions
 parseFile :: FilePath -> IO (Result [Error] [Top])
 parseFile path = lex <&> \getTokens -> do
   tokens <- getTokens
   case Earley.fullParses (Earley.parser tops) tokens of
-    ([], Report{expected, unconsumed = next : _}) -> Error [UnexpectedToken expected next]
-    ([], Report{expected, unconsumed = []}) -> Error [UnexpectedEOF expected]
+    ([], Report{expected, unconsumed = next : _}) -> Error [UnexpectedToken (S.fromList expected) next]
+    ([], Report{expected, unconsumed = []}) -> Error [UnexpectedEOF $ S.fromList expected]
     ([res], _) -> return res  -- TODO: deal with other cases as well
     (_, _) -> Error [AmbiguousParse]
   where
-    lex = Lexer.allOneLanguage SynconDefinitionLanguage synconTokens path <&> first (fmap LexingError)
+    lex = lexFile path <&> first (fmap LexingError)
 
 synconTokens :: Lexer.LanguageTokens TokenKind
 synconTokens = Lexer.LanguageTokens
@@ -90,13 +98,13 @@ syntaxTypeDef = rule $ constr <$> lit "type" <*> tyName <?> "syntax type declara
 tokenTypeDef :: Grammar r (Prod r TokenType)
 tokenTypeDef = rule $ constr <$> lit "token" <*> tyName <* lit "=" <*> string <?> "token type declaration"
   where
-    constr start (_, tyn) (end, regex) = TokenType tyn regex (range start <> end)
+    constr start (_, tyn) regex@(end, _) = TokenType tyn regex (range start <> end)
 
 -- | Parse a comment declaration
 commentDef :: Grammar r (Prod r Comment)
 commentDef = rule $ constr <$> lit "comment" <*> string <?> "comment declaration"
   where
-    constr start (end, regex) = Comment regex (range start <> end)
+    constr start regex@(end, _) = Comment regex (range start <> end)
 
 forbidDef :: Grammar r (Prod r Forbid)
 forbidDef = rule . (<?> "forbid disambiguation") $ do
@@ -243,8 +251,15 @@ tyName = (<?> "type name") . terminal $ \case
 -- | Parse a string (well, 'Text'), plus its 'Range'. The string will have its escapes processed (in a later version).
 string :: Prod r (Range, Text) -- TODO: process escapes, remove '"', etc., then update doc comment
 string = (<?> "string") . terminal $ \case
-  OtherTok r _ StringTok str -> Just (r, str)
+  OtherTok r _ StringTok str -> Just (r, str & Text.tail & Text.init & Text.unpack & convert & Text.pack)
   _ -> Nothing
+  where
+    convert ('\\' : '\\' : rest) = '\\' : convert rest
+    convert ('\\' : 'n' : rest) = '\n' : convert rest
+    convert ('\\' : 't' : rest) = '\t' : convert rest
+    convert ('\\' : '"' : rest) = '"' : convert rest
+    convert (c : rest) = c : convert rest
+    convert [] = ""
 
 -- | Parse a literal
 lit :: Text -> Prod r Tok

@@ -9,6 +9,7 @@ module P1Lexing.Lexer
 , lexHere
 , advanceLexer
 , allOneLanguage
+, allOneLanguage'
 ) where
 
 import Pre
@@ -171,12 +172,14 @@ advanceLexer len lex@Lexer{position,remainingSource}
   where
     (past, future) = UTF8.splitAt len remainingSource
 
--- | Convenience function for lexing an entire file as a single language.
+-- | Convenience function for producing a function that lexes any file with a single language.
+-- See also 'allOneLanguage''.
 allOneLanguage :: forall l n. (Eq l, Hashable l)
-               => l -> LanguageTokens n -> FilePath -> IO (Result [Error l n] [Token l n])
-allOneLanguage lang langToks path = do
-  resLexer <- mkLexer [(lang, langToks)] <&> startFileLex path & sequenceA & fmap join
-  return $ resLexer >>= go
+               => l -> LanguageTokens n
+               -> Result [Error l n] (FilePath -> IO (Result [Error l n] [Token l n]))
+allOneLanguage lang langToks = do
+  lexer <- mkLexer [(lang, langToks)]
+  return $ \path -> fmap (>>= go) $ startFileLex path lexer
   where
     go :: Lexer l n -> Result [Error l n] [Token l n]
     go lex = do
@@ -185,3 +188,10 @@ allOneLanguage lang langToks path = do
         [] -> Error [NoLex (position lex) $ decodeUtf8 $ remainingSource lex]
         [(len, t)] -> (t:) <$> maybe (return []) go (advanceLexer len lex)
         ts -> compErr "P1Lexing.Lexer.allOneLanguage.go" $ "Impossible: " <> show (length ts)
+
+-- | Convenience function for parsing a single file using a single language.
+allOneLanguage' :: (Eq l, Hashable l)
+                => l -> LanguageTokens n -> FilePath
+                -> IO (Result [Error l n] [Token l n])
+allOneLanguage' lang langToks path = allOneLanguage lang langToks <*> pure path
+  & sequenceA & fmap join

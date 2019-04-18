@@ -32,6 +32,8 @@ executable syncon-parser
                , P2LanguageDefinition.Parser
                , P2LanguageDefinition.BasicChecker
                , P2LanguageDefinition.Elaborator
+               , P4Parsing.Types
+               , P4Parsing.Parser
   default-language: Haskell2010
   default-extensions: NoImplicitPrelude
                     , EmptyCase

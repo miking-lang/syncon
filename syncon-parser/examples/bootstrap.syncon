@@ -96,5 +96,5 @@ syncon forbidDef: Top =
 
 syncon precedenceList: Top =
   "precedence" "{" line:(name:Name+ ";")+ "}"
-  "except" "{" eLine:(eName:Name+ ";")+ "}"
+  ("except" "{" eLine:(eName:Name+ ";")+ "}")?
 { builtin }
