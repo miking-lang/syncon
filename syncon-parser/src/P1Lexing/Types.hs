@@ -10,6 +10,10 @@ data Position = Position { line :: !Int, column :: !Int } deriving (Show, Eq, Or
 firstPosition :: Position
 firstPosition = Position { line = 1, column = 1 }
 
+stepPosition :: Position -> Char -> Position
+stepPosition (Position l _) '\n' = Position (l+1) (column firstPosition)
+stepPosition (Position l c) _ = Position l (c+1)
+
 instance Semigroup Range where
   Range s1 e1 <> Range s2 e2 = Range (min s1 s2) (max e1 e2)
   Nowhere <> r = r
@@ -22,7 +26,7 @@ instance Monoid Range where
 data Token l n
   = LitTok Range l Text
   | OtherTok Range l n Text
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic, Data, Typeable)
 instance (Hashable l, Hashable n) => Hashable (Token l n)
 
 tokenText :: Token l n -> Text

@@ -5,6 +5,8 @@ module P4Parsing.Types where
 
 import Pre
 
+import Data.Data (Data)
+
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 
 import P1Lexing.Types (Range, Ranged(..))
@@ -15,15 +17,16 @@ data Node l n = Node
   { n_name :: P2.Name
   , n_contents :: HashMap P2.SDName (Seq (NodeInternals l n (Node l n)))
   , n_range :: Range
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Data, Typeable)
 
 data NodeInternals l n node
   = NodeLeaf node
   | TokenLeaf (P1.Token l n)
   | Struct (HashMap P2.SDName (Seq (NodeInternals l n node)))
-  deriving (Show, Functor, Foldable, Traversable, Eq)
+  deriving (Show, Functor, Foldable, Traversable, Eq, Data, Typeable)
 
 makeBaseFunctor ''Node
+makeBaseFunctor ''NodeInternals
 deriving instance (Eq l, Eq n, Eq a) => Eq (NodeF l n a)
 deriving instance (Show l, Show n, Show a) => Show (NodeF l n a)
 

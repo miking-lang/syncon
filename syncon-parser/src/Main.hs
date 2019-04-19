@@ -5,10 +5,15 @@ module Main where
 import Pre
 import Result (Result(..))
 
-import Data.Functor.Foldable (project)
+import FileAnnotation (annotate, putInTemplate)
+
+import Data.Data (Data)
+
+import Data.Generics.Uniplate.Data (universe, universeBi)
+import Data.Functor.Foldable (project, cata)
 import Text.Show.Pretty (pPrint)
 
-import P1Lexing.Types (Range(..))
+import P1Lexing.Types (Range(..), range)
 import qualified P1Lexing.Types as Lexer
 import qualified P1Lexing.Lexer as Lexer
 
@@ -17,6 +22,7 @@ import qualified P2LanguageDefinition.Parser as LD
 import qualified P2LanguageDefinition.BasicChecker as LD
 import qualified P2LanguageDefinition.Elaborator as LD
 
+import qualified P4Parsing.Types as Parser
 import qualified P4Parsing.Parser as Parser
 import qualified P4Parsing.AmbiguityReporter as Parser
 
@@ -82,11 +88,44 @@ ambigReportingTest = do
       Parser.Ambiguity r alts -> (r, fmap (project >>> void) $ toList alts)
       Parser.TopAmbiguity _ -> (Nowhere, [])
 
+parseToHTMLDebug :: FilePath -> FilePath -> FilePath -> IO ()
+parseToHTMLDebug defFile sourceFile outFile = do
+  tops <- LD.parseFile defFile >>= dataOrError
+  df <- LD.mkDefinitionFile tops & dataOrError
+  parseFile <- Parser.parseSingleLanguage df & dataOrError
+  setOfNodes <- parseFile sourceFile >>= dataOrError
+  source <- readFile sourceFile
+  case Parser.report setOfNodes of
+    Data nodes -> nodes >>= universe >>= nodeAnnotation
+      & annotate source
+      & putInTemplate "resources/htmlTemplate.html"
+      & (>>= writeFile outFile)
+    Error errs -> pPrint $ errs <&> \case
+      -- Parser.Ambiguity r alts -> (r, fmap (project >>> fmap (project >>> void)) $ toList alts)
+      Parser.Ambiguity r alts -> (r, fmap (project >>> void) $ toList alts)
+      Parser.TopAmbiguity _ -> (Nowhere, [])
+
+nodeAnnotation :: Parser.Node l LD.TypeName -> [(Range, Text)]
+nodeAnnotation n = (range n, Parser.n_name n & coerce)
+  : cata findToks (Parser.Struct $ Parser.n_contents n)
+  where
+    findToks (Parser.TokenLeafF tok) = [tokToAnno tok]
+    findToks f = fold f
+    tokToAnno (Lexer.LitTok r _ t) = (r, "literal " <> show t)
+    tokToAnno (Lexer.OtherTok r _ (LD.TypeName tyn) t) = (r, "token " <> show tyn <> " " <> show t)
+
 dataOrError :: Show e => Result e a -> IO a
 dataOrError (Data a) = return a
 dataOrError (Error e) = do
   pPrint e
   compErr "Main.dataOrError" "Got error"
 
+test :: IO ()
+test = parseToHTMLDebug "examples/bootstrap.syncon" "examples/bootstrap.syncon" "out.html"
+
 main :: IO ()
-main = ambigReportingTest
+main = getArgs >>= \case
+  [defFile, sourceFile, outFile] -> parseToHTMLDebug defFile sourceFile outFile
+  args -> putStrLn $
+    "Expected arguments: <syncon-def-file> <source-file> <output-html-file>\n"
+    <> "Got " <> show (length args) <> " arguments: " <> (intercalate " " $ show <$> args)

@@ -10,6 +10,7 @@ module P4Parsing.Parser
 import Pre
 import Result (Result(..))
 
+import Data.Data (Data)
 import Control.Monad.Fix (mfix)
 import qualified Data.Sequence as Seq
 import qualified Data.HashMap.Strict as M
@@ -35,7 +36,7 @@ data Error l
   deriving (Show)
 type Res l = Result [Error l]
 
-data SingleLanguage = SingleLanguage deriving (Show, Eq, Generic)
+data SingleLanguage = SingleLanguage deriving (Show, Eq, Generic, Data, Typeable)
 instance Hashable SingleLanguage
 type SL = SingleLanguage
 

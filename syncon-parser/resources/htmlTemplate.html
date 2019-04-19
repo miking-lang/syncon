@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title></title>
+</head>
+<style type="text/css">
+  html {
+    height: 100%;
+  }
+  .tagged {
+    cursor: pointer;
+  }
+  .tagged:hover {
+    background-color: rgba(0, 0, 0, 0.09);
+  }
+  body {
+    display: flex;
+    flex-direction: row;
+    box-sizing: border-box;
+    height: 100%;
+    margin: 0px;
+    padding: 5px;
+  }
+  code {
+    white-space: pre;
+    width: 50%;
+    overflow-x: auto;
+  }
+  #sidebar {
+    width: 50%;
+    font-family: monospace;
+    overflow-x: auto
+  }
+  #sidebar > .tag {
+    box-sizing: border-box;
+    width: 100%;
+    margin-bottom: 5px;
+    white-space: pre;
+    padding: 2px;
+    border-style: solid;
+    border-color: gray;
+    border-width: 1px;
+  }
+  #sidebar > .tag:hover {
+    background-color: gray;
+  }
+  code .tag {
+    display: none;
+  }
+  .highlight {
+    background-color: gray;
+  }
+  .locked {
+    font-weight: bold;
+  }
+</style>
+<body>
+
+<code>
+$prettyprint$
+</code>
+<div id="sidebar"></div>
+
+<script type="text/javascript">
+let sidebar = document.getElementById("sidebar");
+let lock = null;
+
+Array.from(document.getElementsByClassName("tagged")).forEach(function(e) {
+  e.addEventListener("mouseover", showTag);
+  e.addEventListener("mouseout", hideTag);
+  e.addEventListener("click", clickTag);
+})
+
+function copyTag(elem) {
+  let tag = elem.getElementsByClassName("tag")[0].cloneNode(true);
+  tag.originThing = elem;
+  tag.addEventListener("mouseover", function() {
+    elem.classList.add("highlight");
+  })
+  tag.addEventListener("mouseout", function() {
+    elem.classList.remove("highlight");
+  })
+  tag.addEventListener("removed", function() {
+    console.log("removed");
+    elem.classList.remove("highlight");
+  })
+  return tag;
+}
+
+function showTag(e) {
+  if (this.shownThing || lock)
+    return;
+  sideTag(this, true);
+}
+
+function hideTag(e) {
+  if (!this.shownThing || lock)
+    return;
+  sideTag(this, false);
+}
+
+function sideTag(elem, show) {
+  if (show) {
+    if (elem.shownThing)
+      sideTag(elem, false);
+    elem.shownThing = copyTag(elem);
+    sidebar.appendChild(elem.shownThing);
+  } else if (elem.shownThing) {
+    elem.shownThing.remove();
+    elem.shownThing = null;
+  }
+}
+
+function clickTag(e) {
+  if (e.defaultPrevented) {
+    sideTag(this, true);
+    return;
+  }
+
+  if (!lock) {
+    lock = this;
+    this.classList.add("locked");
+    e.stopPropagation();
+  } else if (lock === this) {
+    lock = null;
+    this.classList.remove("locked");
+    e.stopPropagation();
+  } else {
+    lock.classList.remove("locked");
+    this.classList.add("locked");
+    lock = this;
+    Array.from(sidebar.children).forEach(function(t) {
+      t.originThing.shownThing = null;
+    })
+    sidebar.innerHTML = "";
+    sideTag(this, true);
+    e.preventDefault();
+  }
+}
+</script>
+</body>
+</html>

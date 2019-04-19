@@ -114,10 +114,7 @@ startFileLex path lexer = do
 -- | Update position according to the symbols passed in the given string. Assumes the
 -- bytestring is properly encoded UTF8.
 advancePosition :: ByteString -> Position -> Position
-advancePosition str pos = UTF8.foldl step pos str
-  where
-    step (Position l _) '\n' = Position (l+1) (column firstPosition)
-    step (Position l c) _ = Position l (c+1)
+advancePosition str pos = UTF8.foldl stepPosition pos str
 
 -- | Finds the longest token at the current location for each of the supplied languages.
 -- If multiple tokens have the same length, prioritize a literal token. If there

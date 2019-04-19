@@ -26,6 +26,7 @@ executable syncon-parser
   main-is: Main.hs
   other-modules: Pre
                , Result
+               , FileAnnotation
                , P1Lexing.Types
                , P1Lexing.Lexer
                , P2LanguageDefinition.Types
