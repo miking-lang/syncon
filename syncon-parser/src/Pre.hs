@@ -21,6 +21,7 @@ module Pre
 , Equal
 , equal
 , isEqual
+, equalBy
 
 , Compose(..)
 
@@ -54,6 +55,9 @@ equal = Just >>> Equal
 isEqual :: Equal a -> Bool
 isEqual Equal{} = True
 isEqual _ = False
+
+equalBy :: (Foldable f, Eq b) => (a -> b) -> f a -> Bool
+equalBy f = foldMap (f >>> equal) >>> isEqual
 
 instance Eq a => Semigroup (Equal a) where
   NotEqual <> _ = NotEqual

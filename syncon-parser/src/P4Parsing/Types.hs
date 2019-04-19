@@ -7,7 +7,7 @@ import Pre
 
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 
-import P1Lexing.Types (Range)
+import P1Lexing.Types (Range, Ranged(..))
 import qualified P1Lexing.Types as P1
 import qualified P2LanguageDefinition.Types as P2
 
@@ -24,6 +24,11 @@ data NodeInternals l n node
   deriving (Show, Functor, Foldable, Traversable, Eq)
 
 makeBaseFunctor ''Node
+deriving instance (Eq l, Eq n, Eq a) => Eq (NodeF l n a)
+deriving instance (Show l, Show n, Show a) => Show (NodeF l n a)
+
+instance Ranged (Node l n) where
+  range = n_range
 
 instance (Hashable l, Hashable n) => Hashable (Node l n) where
   hashWithSalt = hashUsing $ \(Node n c r) ->

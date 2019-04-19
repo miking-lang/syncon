@@ -88,7 +88,7 @@ computeNonTerminals types markings = unmarked <> toList markings & S.fromList
       pure (tyn, S.empty)
 
 computeSynconsBySyntaxType :: Foldable f => f Syncon -> HashMap TypeName (HashSet Name)
-computeSynconsBySyntaxType syncons = M.fromList $ do
+computeSynconsBySyntaxType syncons = M.fromListWith S.union $ do
   Syncon{s_name, s_syntaxType} <- toList syncons
   pure (s_syntaxType, S.singleton s_name)
 
@@ -102,7 +102,9 @@ generateGrammar DefinitionFile{..}
         parens <- M.traverseWithKey (mkParenRule nts') syTyToSyncon
         syncons' <- mapM (generateSyncon markings isSyTy nts' >>> rule) syncons
         return $ forWithKey (S.toMap nts) $ \(tyn, excludes) _ ->
-          M.difference syncons' (S.toMap excludes)
+          syncons'
+          & (`M.intersection` (S.toMap $ M.lookupDefault S.empty tyn syTyToSyncon))
+          & (`M.difference` S.toMap excludes)
           & toList & (lookupEmpty tyn parens : ) & asum & (<?> coerce tyn)
       M.lookup (TypeName "Top", S.empty) nts'
         & compFromJust "P4Parsing.Parser.generateGrammar" "Top somehow vanished during generation"
@@ -120,7 +122,7 @@ generateGrammar DefinitionFile{..}
       end <- lit ")"
       pure $ (val, range start <> range end)
     forWithKey = flip M.mapWithKey
-    isSyTy tyn = M.lookupDefault (Right undefined) tyn syntaxTypes & isLeft
+    isSyTy tyn = M.lookup tyn syntaxTypes <&> isLeft & fromMaybe False
 
 -- TODO: pass in a value representing the language (for correct token recognizing)
 generateSyncon :: HashMap (Name, SDName) (TypeName, HashSet Name)

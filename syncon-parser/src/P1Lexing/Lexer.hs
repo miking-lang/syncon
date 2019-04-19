@@ -91,6 +91,9 @@ mkLexer langs = do
         , tokenRegexes = others'
         , whitespaceRegex = whitespace }
     mkRegex l (n, (r, t)) = (n,) <$> compileRegex' l r t
+    mkWhitespace _ [] = case compileRegex "\\s*" of
+      Left err -> compErr "P1Lexing.Lexer.mkLexer.mkWhitespace" $ show err
+      Right reg -> Data reg
     mkWhitespace l comments = traverse (uncurry $ compileRegex' l) comments >>= \_ ->
       case compileRegex $ "(" <> Text.intercalate "|" (fmap (snd >>> paren) comments) <> "|\\s)*" of
         Left err -> compErr "P1Lexing.Lexer.mkLexer.mkWhitespace" $ show err

@@ -1,0 +1,10 @@
+type Top
+type Expression
+
+token Int = "\\d+"
+
+syncon print: Top = "print" e:Expression { builtin }
+
+infix plus: Expression = "+" { builtin }
+infix times: Expression = "*" { builtin }
+syncon intLit: Expression = num:Int { builtin }

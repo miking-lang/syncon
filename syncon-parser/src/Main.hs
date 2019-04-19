@@ -5,6 +5,7 @@ module Main where
 import Pre
 import Result (Result(..))
 
+import Data.Functor.Foldable (project)
 import Text.Show.Pretty (pPrint)
 
 import P1Lexing.Types (Range(..))
@@ -15,7 +16,9 @@ import qualified P2LanguageDefinition.Types as LD
 import qualified P2LanguageDefinition.Parser as LD
 import qualified P2LanguageDefinition.BasicChecker as LD
 import qualified P2LanguageDefinition.Elaborator as LD
+
 import qualified P4Parsing.Parser as Parser
+import qualified P4Parsing.AmbiguityReporter as Parser
 
 synconTokens :: Lexer.LanguageTokens Text
 synconTokens = Lexer.LanguageTokens
@@ -60,13 +63,24 @@ elaborationTest = do
 
 parse4Test :: IO ()
 parse4Test = do
-  putStrLn @Text "Initial parse"
   tops <- LD.parseFile "examples/bootstrap.syncon" >>= dataOrError
   df <- LD.mkDefinitionFile tops & dataOrError
-  putStrLn @Text "Second parse"
   parseFile <- Parser.parseSingleLanguage df & dataOrError
   setOfNodes <- parseFile "examples/bootstrap.syncon" >>= dataOrError
   pPrint setOfNodes
+
+ambigReportingTest :: IO ()
+ambigReportingTest = do
+  tops <- LD.parseFile "examples/ambig.syncon" >>= dataOrError
+  df <- LD.mkDefinitionFile tops & dataOrError
+  parseFile <- Parser.parseSingleLanguage df & dataOrError
+  setOfNodes <- parseFile "examples/ambig.test" >>= dataOrError
+  case Parser.report setOfNodes of
+    Data nodes -> pPrint nodes
+    Error errs -> pPrint $ errs <&> \case
+      -- Parser.Ambiguity r alts -> (r, fmap (project >>> fmap (project >>> void)) $ toList alts)
+      Parser.Ambiguity r alts -> (r, fmap (project >>> void) $ toList alts)
+      Parser.TopAmbiguity _ -> (Nowhere, [])
 
 dataOrError :: Show e => Result e a -> IO a
 dataOrError (Data a) = return a
@@ -75,4 +89,4 @@ dataOrError (Error e) = do
   compErr "Main.dataOrError" "Got error"
 
 main :: IO ()
-main = parse4Test
+main = ambigReportingTest

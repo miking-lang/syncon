@@ -248,8 +248,8 @@ tyName = (<?> "type name") . terminal $ \case
   OtherTok r _ TypeNameTok n -> Just (r, TypeName n)
   _ -> Nothing
 
--- | Parse a string (well, 'Text'), plus its 'Range'. The string will have its escapes processed (in a later version).
-string :: Prod r (Range, Text) -- TODO: process escapes, remove '"', etc., then update doc comment
+-- | Parse a string (well, 'Text'), plus its 'Range'. The string will have its escapes processed.
+string :: Prod r (Range, Text)
 string = (<?> "string") . terminal $ \case
   OtherTok r _ StringTok str -> Just (r, str & Text.tail & Text.init & Text.unpack & convert & Text.pack)
   _ -> Nothing
