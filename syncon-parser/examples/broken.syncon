@@ -28,6 +28,10 @@ forbid undef.undefsdname = undef
 // === Incorrect syntax type in forbid ===
 forbid thing.dupsd = op4
 
+// === Forbid non-syntaxtype ===
+syncon thing: Top = things:(thing:Top ";")* { builtin }
+forbid thing.things = thing
+
 // === Undefined name in precedence list ===
 precedence {
   unsyncon1;

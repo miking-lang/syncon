@@ -21,6 +21,8 @@ import qualified Text.Earley as Earley
 import Data.Generics.Uniplate.Data (universe)
 import Data.Functor.Foldable (para)
 
+import ErrorMessage (FormatError(..), simpleErrorMessage)
+
 import P1Lexing.Types (Token(..), Range, range)
 import P1Lexing.Lexer (LanguageTokens(..))
 import qualified P1Lexing.Lexer as Lexer
@@ -34,6 +36,18 @@ data Error l
   | UnexpectedEOF (HashSet Text)
   | MissingTop
   deriving (Show)
+
+instance Show l => FormatError (Error l) where
+  formatError (LexingError e) = formatError e
+  formatError (UnexpectedToken expected tok) = simpleErrorMessage (range tok) $
+    "Unexpected token " <> show tok <> ", expected one of:\n"
+    <> (toList expected & sort & foldMap (<> "\n"))
+  formatError (UnexpectedEOF expected) = simpleErrorMessage mempty $
+    "Unexpected end of file, expected one of:\n"
+    <> (toList expected & sort & foldMap (<> "\n"))
+  formatError MissingTop = simpleErrorMessage mempty
+    "You must define a syntax type named 'Top'."
+
 type Res l = Result [Error l]
 
 data SingleLanguage = SingleLanguage deriving (Show, Eq, Generic, Data, Typeable)
@@ -91,7 +105,7 @@ computeNonTerminals types markings = unmarked <> toList markings & S.fromList
 computeSynconsBySyntaxType :: Foldable f => f Syncon -> HashMap TypeName (HashSet Name)
 computeSynconsBySyntaxType syncons = M.fromListWith S.union $ do
   Syncon{s_name, s_syntaxType} <- toList syncons
-  pure (s_syntaxType, S.singleton s_name)
+  pure (snd s_syntaxType, S.singleton s_name)
 
 newtype GrammarQuant l = GrammarQuant {unquant :: forall r. Grammar r (Prod r l [Node l TypeName])}
 

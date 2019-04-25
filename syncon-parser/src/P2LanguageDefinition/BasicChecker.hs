@@ -9,10 +9,13 @@ module P2LanguageDefinition.BasicChecker
 import Pre hiding (check)
 import Result (Result(..), errorIfNonEmpty)
 
+import qualified Data.Text as Text
 import Data.Bitraversable (bisequence)
 import qualified Data.Sequence as Seq
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
+
+import ErrorMessage (ErrorMessage(..), FormatError(..), simpleErrorMessage)
 
 import Data.Generics.Uniplate.Data (universe)
 
@@ -25,11 +28,49 @@ data Error
   | Undefined Text Range
   | NotAnOperator Name Range
   | InconsistentPrecedence (Name, Name) [(Ordering, HashSet Range)]
-  | NonEqSelfPrecedence Name Range
+  | NonEqSelfPrecedence Name (HashSet Range)
   | WrongSyntaxType Name SDName TypeName Name TypeName Range  -- ^ name.sdname : syntaxtype, but name : typename
   | NotASyntaxTypeOccurrence Name SDName Range
   | NotAllSameSyntaxType (HashMap TypeName (HashSet Name)) Range
   deriving (Show, Eq)
+
+instance FormatError Error where
+  formatError (DuplicateDefinition defname ranges) = ErrorMessage
+    { e_message = defname <> " is defined multiple times."
+    , e_range = fold ranges
+    , e_ranges = sort ranges `zip` [1 :: Int ..]
+      & fmap (second $ show >>> ("Definition " <>))
+    }
+  formatError (Undefined defname r) = simpleErrorMessage r $
+    defname <> " is undefined"
+  formatError (NotAnOperator defname r) = simpleErrorMessage r $
+    coerce defname <> " is not an operator (it was defined with 'syncon', not 'infix', 'prefix', or 'suffix')."
+  formatError (InconsistentPrecedence (n1, n2) defs) = ErrorMessage
+    { e_message = coerce n1 <> " and " <> coerce n2 <> " have inconsistent precedences."
+    , e_range = foldMap (snd >>> fold) defs
+    , e_ranges = defs >>= \(ordering, rs) -> (, fmt ordering) <$> toList rs
+    }
+    where
+      fmt LT = coerce n1 <> " < " <> coerce n2
+      fmt EQ = coerce n1 <> " = " <> coerce n2
+      fmt GT = coerce n1 <> " > " <> coerce n2
+  formatError (NonEqSelfPrecedence defname rs) = ErrorMessage
+    { e_message = coerce defname <> " is declared to have higher precedence than itself."
+    , e_range = fold rs
+    , e_ranges = toList rs <&> (, "")
+    }
+  formatError (WrongSyntaxType n1 (SDName sdn) tyn1 n2 tyn2 r) = simpleErrorMessage r $
+    coerce n1 <> "." <> sdn <> " has syntax type " <> coerce tyn1 <> ", but "
+    <> coerce n2 <> " has syntax type " <> coerce tyn2 <> "."
+  formatError (NotASyntaxTypeOccurrence n (SDName sdn) r) = simpleErrorMessage r $
+    coerce n <> "." <> sdn <> " is not declared as a syntax type, cannot forbid."
+  formatError (NotAllSameSyntaxType typePartitions r) = simpleErrorMessage r $
+    "All syncons in a precedence list must share the same syntax type.\n\n" <> formatted
+    where
+      formatted = typePartitions <&> (toList >>> fmap coerce >>> Text.intercalate ", ")
+        & M.toList
+        & foldMap (\(tyn, syncons) -> coerce tyn <> ":\n  " <> syncons <> "\n")
+  formatError a = ErrorMessage { e_message = show a, e_range = mempty, e_ranges = [] }
 
 -- | This will coalesce all the top-level declarations, make sure that each of them
 -- is valid. This validity includes things like checking that regexes are correct,
@@ -52,7 +93,7 @@ mkDefinitionFile (Seq.fromList -> tops) = do
     comments = Seq.fromList [c | CommentTop c <- toList tops]
 
     typeNames = void syntaxTypes & S.fromMap
-    synconAndSDNames = (s_syntaxType &&& getSDNames) <$> syncons
+    synconAndSDNames = ((s_syntaxType >>> snd) &&& getSDNames) <$> syncons
 
     syncons = mkMap s_name synconTops
     syntaxTypes = mkMap getTypeName typeTops
@@ -66,25 +107,25 @@ mkDefinitionFile (Seq.fromList -> tops) = do
 -- | Find all errors local to a single syncon
 checkSyncon :: HashSet TypeName -> Syncon -> Res ()
 checkSyncon types Syncon{..} = do
-  unless (s_syntaxType `S.member` types) $
-    Error [Undefined (coerce s_syntaxType) s_range]
+  unless (snd s_syntaxType `S.member` types) $
+    Error [Undefined (coerce $ snd s_syntaxType) $ fst s_syntaxType]
   findDuplicates fst [(t, r) | SDNamed r (SDName t) _ <- universe s_syntaxDescription]
 
 -- | Check that forbids refer to actually defined things, and that the syntax types agree
 checkForbid :: HashMap Name (TypeName, HashMap SDName (Maybe TypeName)) -> Forbid -> Res ()
-checkForbid names (Forbid r n1 sdname n2) = do
+checkForbid names (Forbid _ n1 (sdr, sdname) n2) = do
   ~(_, sdnames) <- lookupName n1
   ~(n2ty, _) <- lookupName n2
   case M.lookup sdname sdnames of
-    Nothing -> Error [Undefined (toText sdname) r]
-    Just Nothing -> Error [NotASyntaxTypeOccurrence n1 sdname r]
+    Nothing -> Error [Undefined (toText sdname) sdr]
+    Just Nothing -> Error [NotASyntaxTypeOccurrence (snd n1) sdname $ fst n1 <> sdr]
     Just (Just n1ty) | n2ty == n1ty -> pure ()
-    Just (Just n1ty) -> Error [WrongSyntaxType n1 sdname n1ty n2 n2ty r]
+    Just (Just n1ty) -> Error [WrongSyntaxType (snd n1) sdname n1ty (snd n2) n2ty $ fst n2]
   pure ()
   where
-    lookupName n = case M.lookup n names of
+    lookupName (nr, n) = case M.lookup n names of
       Just info -> Data info
-      Nothing -> Error [Undefined (coerce n) r]
+      Nothing -> Error [Undefined (coerce n) nr]
     toText (SDName t) = t
     toText SDLeft = compErr "P2LanguageDefinition.BasicChecker.checkForbid.toText" "unexpected SDLeft"
     toText SDRight = compErr "P2LanguageDefinition.BasicChecker.checkForbid.toText" "unexpected SDRight"
@@ -136,6 +177,7 @@ checkPrecedences names tops = consistentTypes *> matrix
     checkEntry pair@(n1, n2) (M.toList -> entries)
       | n1 /= n2, [entry] <- entries = pure $ Just entry
       | n1 == n2, [(EQ, _)] <- entries = pure Nothing  -- NOTE: an operator always has equal precedence with itself, don't store it
+      | n1 == n2, [(_, rs)] <- entries = Error [NonEqSelfPrecedence n1 rs]
       | otherwise = Error [InconsistentPrecedence pair entries]
 
     reverseOrdering LT = GT

@@ -27,8 +27,8 @@ elaborate syncons forbids (PrecedenceMatrix mat) = elaboratedForbids : assocEntr
   & foldl' (M.unionWith S.union) M.empty
   where
     elaboratedForbids = toList forbids
-      & fmap (\(Forbid _ n1 sdname n2) -> ((n1, sdname), S.singleton n2))
-      & M.fromList
+      & fmap (\(Forbid _ (_, n1) (_, sdname) (_, n2)) -> ((n1, sdname), S.singleton n2))
+      & M.fromListWith S.union
 
     operatorSDNames = syncons
       <&> (getSDNames >>> S.filter (\sdname -> sdname == SDLeft || sdname == SDRight))

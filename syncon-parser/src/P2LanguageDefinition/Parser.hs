@@ -17,6 +17,8 @@ import qualified Data.HashSet as S
 import Text.Earley (Grammar, (<?>), terminal, satisfy, rule, Report(..))
 import qualified Text.Earley as Earley
 
+import ErrorMessage (FormatError(..), simpleErrorMessage)
+
 import P1Lexing.Types (Range(Nowhere), range, Token(..))
 import qualified P1Lexing.Lexer as Lexer
 import P2LanguageDefinition.Types
@@ -27,6 +29,16 @@ data Error
   | UnexpectedEOF (HashSet Text)
   | AmbiguousParse -- TODO: this is very unsatisfactory, but I don't want to implement two versions of the ambiguity detection thing
   deriving (Show)
+
+instance FormatError Error where
+  formatError (LexingError e) = formatError e
+  formatError (UnexpectedToken expected tok) = simpleErrorMessage (range tok) $
+    "Unexpected token " <> show tok <> ", expected one of:\n"
+    <> (toList expected & sort & foldMap (<> "\n"))
+  formatError (UnexpectedEOF expected) = simpleErrorMessage Nowhere $
+    "Unexpected end of file, expected one of:\n"
+    <> (toList expected & sort & foldMap (<> "\n"))
+  formatError AmbiguousParse = simpleErrorMessage Nowhere "Got an ambiguous parse of the definition file, go complain to your local Viktor."
 
 data SynconDefinitionLanguage = SynconDefinitionLanguage deriving (Eq, Generic, Show)
 
@@ -109,10 +121,13 @@ commentDef = rule $ constr <$> lit "comment" <*> string <?> "comment declaration
 forbidDef :: Grammar r (Prod r Forbid)
 forbidDef = rule . (<?> "forbid disambiguation") $ do
   start <- lit "forbid"
-  ~(_, n) <- name <* lit "."
-  ~(_, Name sdname) <- name <* lit "="
+  ~n <- name <* lit "."
+  sdname <- (second (coerce >>> SDName) <$> name)
+    <|> ((,SDLeft) . range <$> lit "left")
+    <|> ((,SDRight) . range <$> lit "right")
+  lit "="
   ~(end, n2) <- name
-  pure $ Forbid (range start <> end) n (SDName sdname) n2
+  pure $ Forbid (range start <> end) n sdname (end, n2)
 
 precedenceDef :: Grammar r (Prod r PrecedenceList)
 precedenceDef = rule . (<?> "precedence disambiguation list") $ do
@@ -139,7 +154,7 @@ synconDef :: Grammar r (Prod r Syncon)
 synconDef = syntaxDescription >>= \description -> rule . (<?> "syncon definition") $ do
   start <- lit "syncon"
   ~(_, n) <- name <* lit ":"
-  ~(_, tyn) <- tyName <* lit "="
+  tyn <- tyName <* lit "="
   descrs <- Seq.fromList <$> some description <* lit "{" <* lit "builtin"
   end <- lit "}" -- TODO: parse body appropriately
   pure $ Syncon
@@ -159,7 +174,7 @@ prefixDef = syntaxDescription >>= \description -> rule . (<?> "prefix operator d
   end <- lit "}" -- TODO: parse body appropriately
   pure $ Syncon
     { s_name = n
-    , s_syntaxType = tyn
+    , s_syntaxType = (tyn_r, tyn)
     , s_syntaxDescription = SDSeq
       (foldMap range descrs)
       (descrs Seq.|> SDNamed Nowhere SDRight (SDSyTy tyn_r tyn))
@@ -176,7 +191,7 @@ postfixDef = syntaxDescription >>= \description -> rule . (<?> "postfix operator
   end <- lit "}" -- TODO: parse body appropriately
   pure $ Syncon
     { s_name = n
-    , s_syntaxType = tyn
+    , s_syntaxType = (tyn_r, tyn)
     , s_syntaxDescription = SDSeq
       (foldMap range descrs)
       (SDNamed Nowhere SDLeft (SDSyTy tyn_r tyn) Seq.<| descrs)
@@ -195,11 +210,13 @@ infixDef = syntaxDescription >>= \description -> rule . (<?> "infix operator def
     sdname <- (SDRight <$ lit "left") -- NOTE: this inversion is intentional
               <|> (SDLeft <$ lit "right")
     end <- lit ";"
-    pure $ \n' -> Forbid (range start' <> range end) n' sdname n'
+    pure $ \n' ->
+      let r = range start' <> range end
+      in Forbid r (r, n') (r, sdname) (r, n')
   end <- lit "builtin" *> lit "}"  -- TODO: body appropriately
   pure $ (, mForbid <*> pure n) $ Syncon
     { s_name = n
-    , s_syntaxType = tyn
+    , s_syntaxType = (tyn_r, tyn)
     , s_syntaxDescription = SDSeq
       (foldMap range descrs)
       (SDNamed Nowhere SDLeft (SDSyTy tyn_r tyn)

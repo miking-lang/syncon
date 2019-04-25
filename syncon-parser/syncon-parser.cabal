@@ -21,12 +21,14 @@ executable syncon-parser
                , utf8-string
                , regex-pcre-builtin
                , pretty-show
+               , pretty-terminal
                , uniplate
                , Earley
   main-is: Main.hs
   other-modules: Pre
                , Result
                , FileAnnotation
+               , ErrorMessage
                , P1Lexing.Types
                , P1Lexing.Lexer
                , P2LanguageDefinition.Types

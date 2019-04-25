@@ -13,6 +13,7 @@ module P1Lexing.Lexer
 ) where
 
 import Pre
+import Result (Result(..))
 
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Array as Array
@@ -22,9 +23,9 @@ import qualified Data.ByteString.UTF8 as UTF8
 import qualified Data.Sequence as Seq
 import qualified Data.HashMap.Strict as M
 
-import Text.Regex.PCRE.ByteString (compile, execute, Regex, compUTF8, compNoAutoCapture)
+import ErrorMessage (FormatError(..), simpleErrorMessage)
 
-import Result (Result(..))
+import Text.Regex.PCRE.ByteString (compile, execute, Regex, compUTF8, compNoAutoCapture)
 
 import P1Lexing.Types
 
@@ -35,11 +36,21 @@ data LanguageTokens n = LanguageTokens
 
 data Error l n
   = RegexError l Position Text
-  | CommentRegexError l Int Text
   | UnicodeError UnicodeException
   | OverlappingLex l [Token l n]
-  | NoLex Position Text
+  | NoLex Position
   deriving (Show)
+
+instance (Show l, Show n) => FormatError (Error l n) where
+  formatError (RegexError _ pos t) = simpleErrorMessage (Range pos pos) $
+    "Regex error: " <> t
+  formatError (UnicodeError ex) = simpleErrorMessage Nowhere $
+    "The file must be UTF8 encoded, got an error: " <> show ex
+  formatError (OverlappingLex _ toks) = simpleErrorMessage (foldMap range toks) $
+    "Lexing needs to produce a unique longest token, but there were multiple:\n"
+    <> foldMap (show >>> (<> "\n")) toks
+  formatError (NoLex pos) = simpleErrorMessage (Range pos (Position (line pos + 4) maxBound)) $
+    "There is no valid token starting here."
 
 data LanguageInternal n = LanguageInternal
   { literals :: !(Seq ByteString)
@@ -185,7 +196,7 @@ allOneLanguage lang langToks = do
     go lex = do
       tokens <- lexHere [lang] lex
       case tokens & M.elems & catMaybes of
-        [] -> Error [NoLex (position lex) $ decodeUtf8 $ remainingSource lex]
+        [] -> Error [NoLex (position lex)]
         [(len, t)] -> (t:) <$> maybe (return []) go (advanceLexer len lex)
         ts -> compErr "P1Lexing.Lexer.allOneLanguage.go" $ "Impossible: " <> show (length ts)
 

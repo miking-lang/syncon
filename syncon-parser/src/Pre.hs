@@ -29,7 +29,7 @@ module Pre
 , HashSet
 ) where
 
-import Protolude as Exports hiding ((<>), reader, sourceLine, sourceColumn)
+import Protolude as Exports hiding ((<>), reader, sourceLine, sourceColumn, splitAt)
 
 import Control.Arrow ((***), (>>>), (<<<), (&&&))
 import Data.Semigroup ((<>))

@@ -5,7 +5,6 @@
 type Top
 
 // Posix character classes in token definitions
-// These should be the correct Posix ones, which have a bunch of unicode stuff, but that appears hard to find
 token Name = "[[:lower:]][[:word:]]*"
 token TypeName = "[[:upper:]][[:word:]]*"
 token String = "\"(\\\\.|[^\"\\\\])*\""

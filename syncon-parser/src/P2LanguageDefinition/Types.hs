@@ -42,7 +42,7 @@ data Top
 --   the syntax description in proper positions.
 data Syncon = Syncon
   { s_name :: !Name
-  , s_syntaxType :: !TypeName
+  , s_syntaxType :: !(Range, TypeName)
   , s_syntaxDescription :: !SyntaxDescription
   , s_range :: !Range
   } deriving (Show, Data, Typeable)
@@ -88,6 +88,11 @@ data SDName
   deriving (Show, Data, Typeable, Eq, Generic)
 instance Hashable SDName
 
+textualSDName :: SDName -> Text
+textualSDName (SDName n) = n
+textualSDName SDLeft = "left"
+textualSDName SDRight = "right"
+
 -- |
 -- = Disambiguation
 
@@ -95,7 +100,7 @@ instance Hashable SDName
 --   syntax description with the second name, from parsing as the syncon with
 --   the third name (without parens surrounding it). This is the most basic
 --   disambiguation tool, which all other disambiguations eventually translate to
-data Forbid = Forbid !Range !Name !SDName !Name
+data Forbid = Forbid !Range !(Range, Name) !(Range, SDName) !(Range, Name)
   deriving (Show, Data, Typeable)
 
 -- | Make the (operator) syncons appearing earlier in the list have higher precedence
