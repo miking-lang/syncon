@@ -23,9 +23,10 @@ type AnnoM = State AnnotationState
 -- All text is properly escaped, and whitespace is preserved.
 annotate :: Text -> [(Range, Text)] -> Text
 annotate source annotations = flip evalState initState $ do
+  start <- dumpCurrentCommands
   source' <- Text.unpack source & traverse step & fmap mconcat
   extras <- dumpRemainingCommands
-  return $ toS $ Builder.toLazyText $ source' <> extras
+  return $ toS $ Builder.toLazyText $ start <> source' <> extras
   where
     initState = AnnotationState { position = firstPosition, commands }
     commands = sortBy (compare `on` fst) $ do
@@ -42,11 +43,16 @@ putInTemplate templatePath html =
 step :: Char -> AnnoM Builder
 step c = do
   prevPosition <- gets position
-  let newPosition = stepPosition prevPosition c
-  (now, later) <- gets commands <&> span (fst >>> (<= newPosition))
-  put $ AnnotationState { position = newPosition, commands = later }
+  modify $ \st -> st { position = stepPosition prevPosition c }
+  (escapeChar c <>) <$> dumpCurrentCommands
+
+dumpCurrentCommands :: AnnoM Builder
+dumpCurrentCommands = do
+  st@AnnotationState{position, commands} <- get
+  let (now, later) = span (fst >>> (<= position)) commands
   let tags = foldMap (snd >>> dumpCommand) now
-  return $ escapeChar c <> tags
+  put $ st { commands = later }
+  return tags
 
 dumpRemainingCommands :: AnnoM Builder
 dumpRemainingCommands = do
