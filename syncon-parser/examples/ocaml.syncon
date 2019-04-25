@@ -1,46 +1,120 @@
-type Expression
+type Top  // Top-level things
+type Exp  // Expressions
+type Pat  // Patterns
 
-syncon list: Expression =
-  "[" (head: Expression (";" tail: Expression)*)? "]"
+// Identifiers
+token Ident = "[[:lower:]][[:word:]]*"
+token Integer = "[0-9]+"
+token String = "\"(\\\\.|[^\"\\\\])*\""
+
+syncon topLet: Top =
+  "let" x:Ident args:Pat*
+  "=" e:Exp ";;"?
 { builtin }
 
-// For operators, the names "left" and "right" are reserved
-// for the expression to the left or right respectively
-infix seqcomp: Expression = ";" { #assoc left; builtin }
+syncon topLetRec: Top =
+  "let" "rec" x:Ident args:Pat*
+  "=" e:Exp
+  more:("and" x2:Ident args2:Pat*
+        "=" e2:Exp)* ";;"?
+{ builtin }
 
-// A specific occurence of a syntax-type can be restricted to
-// not be a specific syncon. This is the one underlying
-// primitive, but there are nicer ways to write this for
-// precedence and associativity
-forbid list.head = seqcomp
-forbid list.tail = seqcomp
+syncon letExp: Exp =
+  "let" x:Ident args:Pat*
+  "=" e:Exp "in" body:Exp
+{ builtin }
 
-// Here only "right" is defined / reserved
-prefix negate: Expression = "-" { builtin }
+syncon letRecExp: Exp =
+  "let" "rec" x:Ident args:Pat*
+  "=" e:Exp "in" body:Exp
+{ builtin }
+
+syncon match: Exp =
+  "match" e:Exp "with"
+  arm:("|" p:Pat "->" body:Exp)+
+{ builtin }
 
 // For "infix", "#assoc" can be used to specify associativity
-// as "left", "right", or "none"
-// It defaults to "none", which means undefined associativity,
-// i.e., always group explicitly
-infix add: Expression = "+" { #assoc left; builtin }
-infix mul: Expression = "*" { #assoc left; builtin }
-infix sub: Expression = "-" { #assoc left; builtin }
-infix div: Expression = "/" { #assoc left; builtin }
+// as "left" or "right".
+// The default is no associativity i.e., always group explicitly
+infix sum:Exp = "+" { #assoc left; builtin }
+infix difference:Exp = "-" { #assoc left; builtin }
+infix product:Exp = "*" { #assoc left; builtin }
+infix equal:Exp = "=" { builtin }
+infix leq:Exp = "<=" { builtin }
+
+infix funApp: Exp = // Intentionally left blank
+{ #assoc left; builtin }
+
+infix cons:Exp = "::" { #assoc right; builtin }
+infix seqComp:Exp = ";" { #assoc right; builtin }
 
 // Totally define precedence for certain operators. Those on the
 // same line get the same precedence, those on higher lines have
 // higher precedence.
 // If two infix operators on the same line have differing associativity,
 // (or at least one has "none") then they will need to be grouped
-// explicitly, otherwise they'll associate together, so to speak
+// explicitly, otherwise they'll associate together, so to speak.
 precedence {
-  negate;
-  mul div;
-  add sub;
+  funApp;
+  product;
+  sum difference;
+  cons;
+  equal leq;
+  seqComp;
 }
-
 // Note that precedence isn't transitive, and there is no way to
 // specify that a given operator should behave exactly the same
-// as some other operator. The former I'm fairly sure is correct,
-// the latter might be desireable, at least in some weakened form,
-// maybe grouping operators or something.
+// as some other operator. The former I'm fairly sure is as it should
+// be, but the latter might be desireable, at least in some weakened
+// form, maybe grouping operators or something.
+
+// An additional feature with precedence lists, not shown here, is
+// that you can specify exceptions, e.g.
+//   precedence {
+//     a b;
+//     c d;
+//   } except {
+//     a d;
+//   }
+// defines total precedence amongst 'a', 'b', 'c', and 'd', except
+// 'a' and 'd' get no defined precedence.
+
+syncon variable: Exp = v:Ident { builtin }
+syncon unitLit: Exp = "()" { builtin }
+syncon trueLit: Exp = "true" { builtin }
+syncon falseLit: Exp = "false" { builtin }
+syncon intLit: Exp = i:Integer { builtin }
+syncon stringLit: Exp = s:String { builtin }
+
+syncon list: Exp =
+  "[" (head: Exp (";" tail: Exp)*)? "]"
+{ builtin }
+
+// A specific occurence of a syntax-type can be restricted to
+// not be a specific syncon. This is the one underlying
+// primitive, but there are nicer ways to write this for
+// precedence and associativity
+forbid list.head = seqComp
+forbid list.tail = seqComp
+
+syncon function: Exp =
+  "fun" args:Pat+ "->" body:Exp
+{ builtin }
+
+syncon intPat: Pat = i:Integer { builtin }
+syncon stringPat: Pat = s:String { builtin }
+syncon truePat: Pat = "true" { builtin }
+syncon falsePat: Pat = "false" { builtin }
+syncon bindPat: Pat = id:Ident { builtin }
+syncon wildcardPat: Pat = "_" { builtin }
+syncon listPat: Pat =
+  "[" (p:Pat (";" ps:Pat)*)? "]"
+{ builtin }
+infix consPat: Pat = "::" { #assoc right; builtin }
+
+
+forbid funApp.left = match
+forbid sum.left = match
+forbid seqComp.left = match
+forbid funApp.left = letRecExp
