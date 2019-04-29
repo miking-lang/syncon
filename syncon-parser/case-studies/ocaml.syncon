@@ -1,0 +1,286 @@
+type Top
+
+// This file is transliterated fairly literally from http://caml.inria.fr/pub/docs/manual-ocaml/language.html
+// Any additions or changes made can be found at the end of the file, most of the initial stuff is made as direct a translation as possible
+// Delimitation: ignoring polymorphic variants, objects, and #-types
+
+type Ident
+syncon lowerIdent: Ident = id:LowerIdent { builtin }
+syncon upperIdent: Ident = id:UpperIdent { builtin }
+token UpperIdent = "[[:upper:]][[:alnum:]_']*"   // was called "capitalized-ident"
+token LowerIdent = "[[:lower:]_][[:alnum:]_']*"  // was called "lowercase-ident"
+
+token Integer = "-?([0-9][0-9_]*|(0x|0X)[0-9a-fA-F][0-9a-fA-F_]*|(0o|0O)[0-7][0-7_]*|(0b|0B)[0-1][0-1_]*)"  // was called "integer-literal"
+
+// TODO: this does not include hexadecimal notation for floats
+// NOTE: the original made both decimal point and e notation optional, but that makes it overlap with
+//       Integer, so I've here changed it to require at least one of them (messy regex)
+token Float = "-?([0-9][0-9_]*((\\.[0-9_]*)([eE][+\\-]?[0-9][0-9_])?|(\\.[0-9_]*)?([eE][+\\-]?[0-9][0-9_])))" // was called "float-literal"
+
+token Character = "'([^'\\\\]|\\\\[\\\\nrtb\"[:space:]]|\\\\[0-9][0-9][0-9]|\\\\x[0-9a-fA-F][0-9a-fA-F]|\\\\o[0-7][0-7][0-7])'"
+// TODO: strings also have \u{} and \<newline>
+token String = "\"([^\"\\\\]|\\\\[\\\\nrtb\"[:space:]]|\\\\[0-9][0-9][0-9]|\\\\x[0-9a-fA-F][0-9a-fA-F]|\\\\o[0-7][0-7][0-7])*\""
+
+// TODO: these are defined as tokens as opposed to a sequence of other terminals to avoid ambiguity, see if we can get away with the "proper" way to do it
+token Label = "~[[:lower:]_][[:alnum:]_']*"
+token OptLabel = "\\?[[:lower:]_][[:alnum:]_']*"
+
+// TODO: think of a good way to do operators. Maybe a separate token type per thing that would be distinguished according to the precedence table of ocaml?
+
+// === 7.3 Names ===
+
+// The first elements here should eventually be binding interacting types, i.e., thin wrapper types around (one or more) token types, but for now they're just syntax types with a single syncon per
+
+type ValueName
+syncon valueName: ValueName = n:LowerIdent { builtin }
+// TODO: insert parenthesized operator names here (maybe)
+
+type LabelName
+syncon labelName: LabelName = n:LowerIdent { builtin }
+
+type ConstrName
+syncon constrName: ConstrName = n:UpperIdent { builtin }
+
+type TagName
+syncon tagName: TagName = n:UpperIdent { builtin }
+
+type TypeConstrName
+syncon typeConstrName: TypeConstrName = n:LowerIdent { builtin }
+
+type FieldName
+syncon fieldName: FieldName = n:LowerIdent { builtin }
+
+type ModuleName
+syncon moduleName: ModuleName = n:UpperIdent { builtin }
+
+type ModTypeName
+syncon modTypeName: ModTypeName = n:LowerIdent { builtin }
+syncon upperModTypeName: ModTypeName = n:UpperIdent { builtin }
+
+type ClassName
+syncon className: ClassName = n:LowerIdent { builtin }
+
+type InstVarName
+syncon instVarName: InstVarName = n:LowerIdent { builtin }
+
+type MethodName
+syncon methodName: MethodName = n:LowerIdent { builtin }
+
+// The second set of elements here are things that can be referred to with a path, i.e., qualified.
+// Again, there should be some form of support for something like this, but for the moment that is
+// not the case. Technically OCaml also supports Functor application in these paths, in some cases,
+// but we're ignoring that here.
+
+type ValuePath
+syncon valuePath: ValuePath = (mn:ModulePath ".")? n:ValueName { builtin }
+
+type Constr
+syncon constr: Constr = (mn:ModulePath ".")? n:ConstrName { builtin }
+
+type TypeConstr
+syncon typeConstr: TypeConstr = (mn:ModulePath ".")? n:TypeConstrName { builtin }
+
+type Field
+syncon field: Field = (mn:ModulePath ".")? n:FieldName { builtin }
+
+type ModTypePath
+syncon modTypePath: ModTypePath = (mn:ModulePath ".")? n:ModTypeName { builtin }
+
+type ClassPath
+syncon classPath: ClassPath = (mn:ModulePath ".")? n:ClassName { builtin }
+
+type ClassTypePath
+syncon classTypePath: ClassTypePath = (mp:ModulePath ".")? n:ClassName { builtin }
+
+type ModulePath
+syncon modulePath: ModulePath = (mn:ModuleName ".")* m:ModuleName { builtin }
+
+// === 7.4 Type Expressions ===
+
+type TypExpr
+
+syncon tyVar: TypExpr = "'" id:Ident { builtin }
+syncon anonType: TypExpr = "_" { builtin }
+infix funType: TypExpr = "->" { #assoc right; builtin }
+prefix labeledFunType: TypExpr = opt:"?"? l:LabelName ":" a:TypExpr "->" { builtin }
+syncon prodType: TypExpr = a:TypExpr ("*" b:TypExpr)+ { builtin }
+syncon simpleTypeConstr: TypExpr = n:TypeConstr { builtin }
+postfix unaryTypeConstr: TypExpr = n:TypeConstr { builtin }
+syncon manyTypeConstr: TypExpr = "(" head:TypExpr ("," tail:TypExpr)+ ")" n:TypeConstr { builtin }
+postfix asTyVar: TypExpr = "as" "'" id:Ident { builtin }
+
+// '*' is in the precedenc list in the manual, but '*' doesn't look like an operator here, so we add some extra forbids at the end
+precedence {
+  unaryTypeConstr;
+  // '*' should be here
+  funType labeledFunType;
+  asTyVar;
+}
+forbid unaryTypeConstr.left = prodType
+forbid prodType.a = funType
+forbid prodType.b = funType
+forbid prodType.a = labeledFunType
+forbid prodType.b = labeledFunType
+forbid prodType.a = asTyVar
+forbid prodType.b = asTyVar
+
+// === 7.5 Constants ===
+
+// These are just put into Exp and Pat directly. Empty list, array, and begin end are joined with their
+// non-empty versions.
+// BUG in manual grammar: begin end is not a valid pattern, which the manual suggests
+
+syncon intLit: Exp = i:Integer { builtin }
+syncon floatLit: Exp = f:Float { builtin }
+syncon charLit: Exp = c:Character { builtin }
+syncon stringLit: Exp = s:String { builtin }
+syncon constrLit: Exp = c:Constr { builtin }
+syncon trueLit: Exp = "true" { builtin }
+syncon falseLit: Exp = "false" { builtin }
+syncon unitLit: Exp = "()" { builtin }
+
+syncon intPat: Pat = i:Integer { builtin }
+syncon floatPat: Pat = f:Float { builtin }
+syncon charPat: Pat = c:Character { builtin }
+syncon stringPat: Pat = s:String { builtin }
+syncon constrPat: Pat = c:Constr { builtin }
+syncon truePat: Pat = "true" { builtin }
+syncon falsePat: Pat = "false" { builtin }
+syncon unitPat: Pat = "()" { builtin }
+
+// === 7.6 Patterns ===
+
+type Pat
+
+syncon bindPat: Pat = n:ValueName { builtin }
+syncon wildPat: Pat = "_" { builtin }
+postfix asPat: Pat = "as" n:ValueName { builtin }
+syncon typedPat: Pat = "(" p:Pat ":" ty:TypExpr ")" { builtin }
+infix orPat: Pat = "|" { #assoc left; builtin }
+prefix constrAppPat: Pat = c:Constr { builtin }
+syncon tupPat: Pat = a:Pat ("," b:Pat)+ { builtin }
+syncon listPat: Pat = "[" (head:Pat (";" tail:Pat) ";"?)? "]" { builtin }
+infix consPat: Pat = "::" { #assoc right; builtin }
+syncon arrayPat: Pat = "[|" (head:Pat (";" tail:Pat) ";"?)? "|]" { builtin }
+syncon charRangePat: Pat = a:Character ".." b:Character { builtin }
+prefix lazyPat: Pat = "lazy" { builtin } // Technically from chapter 8.3, but eh
+
+precedence {
+  lazyPat;
+  constrAppPat;
+  consPat;
+  // "," should be here
+  orPat;
+  asPat;
+}
+forbid lazyPat.right = tupPat
+forbid constrAppPat.right = tupPat
+forbid consPat.left = tupPat
+forbid consPat.right = tupPat
+forbid tupPat.a = orPat
+forbid tupPat.b = orPat
+forbid tupPat.a = asPat
+forbid tupPat.b = asPat
+
+// === 7.7 Expressions ===
+
+type Exp
+
+syncon identExp: Exp = id:ValuePath { builtin }
+syncon beginEnd: Exp = "begin" e:Exp "end" { builtin }
+syncon typeAnnotation: Exp = "(" e:Exp ":" t:TypExpr ")" { builtin }
+syncon tuple: Exp = a:Exp ("," b:Exp)+ { builtin }
+prefix constrExp: Exp = c:Constr { builtin }
+infix consExp: Exp = "::" { #assoc right; builtin }
+syncon list: Exp = "[" (head:Exp (";" tail:Exp)* ";"?)? "]" { builtin }
+syncon array: Exp = "[|" (head:Exp (";" tail:Exp)* ";"?)? "|]" { builtin }
+postfix application: Exp = a:Argument+ { builtin }
+prefix neg: Exp = "-" { builtin }
+prefix negFloat: Exp = "-." { builtin }
+infix product: Exp = "*" { #assoc left; builtin }
+infix sum: Exp = "+" { #assoc left; builtin }
+infix difference: Exp = "-" { #assoc left; builtin }
+infix differenceFloat: Exp = "-." { #assoc left; builtin }
+infix equal: Exp = "=" { #assoc left; builtin }
+infix notEqual: Exp = "!=" { #assoc left; builtin }
+infix lessThan: Exp = "<" { #assoc left; builtin }
+infix greaterThan: Exp = ">" { #assoc left; builtin }
+infix orText: Exp = "or" { #assoc right; builtin }
+infix or: Exp = "||" { #assoc right; builtin }
+infix andSingle: Exp = "&" { #assoc right; builtin }
+infix andDouble: Exp = "&&" { #assoc right; builtin }
+infix refAssign: Exp = ":=" { #assoc right; builtin }
+infix mod: Exp = "mod" { #assoc left; builtin }
+infix land: Exp = "land" { #assoc left; builtin }
+infix lor: Exp = "lor" { #assoc left; builtin }
+infix lxor: Exp = "lxor" { #assoc left; builtin }
+infix lsl: Exp = "lsl" { #assoc right; builtin }
+infix lsr: Exp = "lsr" { #assoc right; builtin }
+infix asr: Exp = "asr" { #assoc right; builtin }
+postfix fieldAccess: Exp = "." f:Field { builtin }
+infix fieldUpdate: Exp = "." f:Field "<-" { #assoc right; builtin }
+postfix arrayAccess: Exp = "." "(" e:Exp ")" { builtin }
+infix arrayUpdate: Exp = "." "(" e:Exp ")" "<-" { #assoc right; builtin }
+postfix stringAccess: Exp = "." "[" e:Exp "]" { builtin }
+infix stringUpdate: Exp = "." "[" e:Exp "]" "<-" { #assoc right; builtin }
+syncon if: Exp = "if" c:Exp "then" t:Exp ("else" e:Exp)? { builtin }
+syncon while: Exp = "while" c:Exp "do" b:Exp "done" { builtin }
+syncon for: Exp = "for" v:ValueName "=" e1:Exp "to" e2:Exp "do" b:Exp "done" { builtin }
+syncon forDownto: Exp = "for" v:ValueName "=" e1:Exp "downto" e2:Exp "do" b:Exp "done" { builtin }
+infix seqComp: Exp = ";" { #assoc right; builtin }
+syncon match: Exp =
+  "match" e:Exp "with"
+  "|"? p1:Pat ("when" c1:Exp)? "->" r1:Exp
+  ("|" p:Pat ("when" c:Exp)? "->" r:Exp)*
+{ builtin }
+syncon function: Exp =
+  "function"
+  "|"? p1:Pat ("when" c1:Exp)? "->" r1:Exp
+  ("|" p:Pat ("when" c:Exp)? "->" r:Exp)*
+{ builtin }
+prefix fun: Exp = "fun" p:Parameter+ (":" ty:TypExpr)? "->" { builtin }
+syncon try:
+  Exp = "try" e:Exp "with"
+  "|"? p1:Pat ("when" c1:Exp)? "->" r1:Exp
+  ("|" p:Pat ("when" c:Exp)? "->" r:Exp)*
+{ builtin }
+prefix let: Exp =
+  "let" rec:"rec"? l:LetBinding
+  ("and" l2:LetBinding)*
+  "in"
+{ builtin }
+prefix assert: Exp = "assert" { builtin }
+prefix lazy: Exp = "lazy" { builtin }
+prefix letModule: Exp =
+  "let" "module" m:ModuleName
+  ("(" an:ModuleName ":" amt:ModuleType ")")*
+  (":" mt:ModuleType)
+  "=" ModuleExp "in"
+{ builtin }
+prefix letOpen: Exp = "let" "open" mp:ModulePath "in" { builtin }
+syncon anonOpen: Exp = mp:ModulePath "." "(" e:Exp ")" { builtin }
+syncon anonOpenList: Exp = mp:ModulePath "." "[" (head:Exp (";" tail:Exp)* ";"?)? "]" { builtin } // NOTE: the informal grammar suggests that this is only valid if it's a length 1 list, but the text and compiler clarifies that it works fine for multiple elements
+syncon anonOpenArray: Exp = mp:ModulePath "." "[|" (head:Exp (";" tail:Exp)* ";"?)? "|]" { builtin }
+
+precedence {
+  fieldAccess arrayAccess stringAccess;
+  application constrExp assert lazy;
+  neg negFloat;
+  lsl lsr asr;
+  mod land lor lxor;
+  sum difference differenceFloat;
+  consExp;
+  equal notEqual lessThan greaterThan;
+  andSingle andDouble;
+  orText or;
+  // ","
+  fieldUpdate arrayUpdate stringUpdate refAssign;
+  // "if"
+  seqComp;
+  let letModule letOpen fun; // + "match", "function", "try"
+}
+// TODO: write out forbids for ",", "if", "match", "function", and "try"
+
+type Argument
+type Parameter
+type LetBinding

@@ -43,7 +43,7 @@ synconTokens = Lexer.LanguageTokens
 lexTest :: IO ()
 lexTest = do
   res <- Lexer.allOneLanguage' @Text "SynconDef" synconTokens "examples/bootstrap.syncon"
-  pPrint $ fmap Lexer.tokenText <$> res
+  pPrint $ fmap Lexer.textualToken <$> res
 
 parseTest :: IO ()
 parseTest = do

@@ -23,7 +23,7 @@ import Data.Functor.Foldable (para)
 
 import ErrorMessage (FormatError(..), simpleErrorMessage)
 
-import P1Lexing.Types (Token(..), Range, range)
+import P1Lexing.Types (Token(..), textualToken, Range, range)
 import P1Lexing.Lexer (LanguageTokens(..))
 import qualified P1Lexing.Lexer as Lexer
 import P2LanguageDefinition.Types (DefinitionFile(..), TypeName(..), Name(..), Syncon(..), Comment(..), Elaboration, SyntaxDescription(..), SyntaxDescriptionF(..), TokenType(..), SDName, SyntaxType, Repetition(..))
@@ -40,7 +40,7 @@ data Error l
 instance Show l => FormatError (Error l) where
   formatError (LexingError e) = formatError e
   formatError (UnexpectedToken expected tok) = simpleErrorMessage (range tok) $
-    "Unexpected token " <> show tok <> ", expected one of:\n"
+    "Unexpected token " <> textualToken tok <> ", expected one of:\n"
     <> (toList expected & sort & foldMap (<> "\n"))
   formatError (UnexpectedEOF expected) = simpleErrorMessage mempty $
     "Unexpected end of file, expected one of:\n"

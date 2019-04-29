@@ -109,7 +109,10 @@ checkSyncon :: HashSet TypeName -> Syncon -> Res ()
 checkSyncon types Syncon{..} = do
   unless (snd s_syntaxType `S.member` types) $
     Error [Undefined (coerce $ snd s_syntaxType) $ fst s_syntaxType]
+  for_ [(r, tyn) | SDSyTy r tyn <- universe s_syntaxDescription] $ \(r, tyn) ->
+    unless (tyn `S.member` types) $ Error [Undefined (coerce tyn) r]
   findDuplicates fst [(t, r) | SDNamed r (SDName t) _ <- universe s_syntaxDescription]
+  pure ()
 
 -- | Check that forbids refer to actually defined things, and that the syntax types agree
 checkForbid :: HashMap Name (TypeName, HashMap SDName (Maybe TypeName)) -> Forbid -> Res ()

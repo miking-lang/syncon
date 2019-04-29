@@ -36,9 +36,9 @@ data Token l n
   deriving (Show, Eq, Generic, Data, Typeable)
 instance (Hashable l, Hashable n) => Hashable (Token l n)
 
-tokenText :: Token l n -> Text
-tokenText (LitTok _ _ t) = t
-tokenText (OtherTok _ _ _ t) = t
+textualToken :: Show n => Token l n -> Text
+textualToken (LitTok _ _ t) = show t
+textualToken (OtherTok _ _ n t) = "(" <> show n <> ") " <> t  -- TODO: better printing of this
 
 class Ranged a where
   range :: a -> Range

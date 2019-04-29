@@ -19,7 +19,7 @@ import qualified Text.Earley as Earley
 
 import ErrorMessage (FormatError(..), simpleErrorMessage)
 
-import P1Lexing.Types (Range(Nowhere), range, Token(..))
+import P1Lexing.Types (Range(Nowhere), range, Token(..), textualToken)
 import qualified P1Lexing.Lexer as Lexer
 import P2LanguageDefinition.Types
 
@@ -33,7 +33,7 @@ data Error
 instance FormatError Error where
   formatError (LexingError e) = formatError e
   formatError (UnexpectedToken expected tok) = simpleErrorMessage (range tok) $
-    "Unexpected token " <> show tok <> ", expected one of:\n"
+    "Unexpected token " <> textualToken tok <> ", expected one of:\n"
     <> (toList expected & sort & foldMap (<> "\n"))
   formatError (UnexpectedEOF expected) = simpleErrorMessage Nowhere $
     "Unexpected end of file, expected one of:\n"
@@ -280,6 +280,6 @@ string = (<?> "string") . terminal $ \case
 
 -- | Parse a literal
 lit :: Text -> Prod r Tok
-lit t = (<?> t) . satisfy $ \case
+lit t = (<?> show t) . satisfy $ \case
   LitTok _ _ t' | t == t' -> True
   _ -> False
