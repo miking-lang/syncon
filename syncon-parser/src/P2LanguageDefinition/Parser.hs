@@ -75,7 +75,7 @@ synconTokens = Lexer.LanguageTokens
   -- Literal tokens
   [ "token", "=", "syncon", ":", "{", ";", "}", "prefix", "postfix", "infix", "#assoc"
   , "(", ")", "*", "+", "?", ".", "comment", "left", "right", "precedence", "except"
-  , "type", "builtin", "forbid", "|" ]
+  , "type", "builtin", "forbid", "|", "rec" ]
   -- Regex tokens
   [ (NameTok, (Nowhere, "[[:lower:]][[:word:]]*"))
   , (TypeNameTok, (Nowhere, "[[:upper:]][[:word:]]*"))
@@ -122,9 +122,7 @@ forbidDef :: Grammar r (Prod r Forbid)
 forbidDef = rule . (<?> "forbid disambiguation") $ do
   start <- lit "forbid"
   ~n <- name <* lit "."
-  sdname <- (second (coerce >>> SDName) <$> name)
-    <|> ((,SDLeft) . range <$> lit "left")
-    <|> ((,SDRight) . range <$> lit "right")
+  sdname <- sdName
   lit "="
   ~(end, n2) <- name
   pure $ Forbid (range start <> end) n sdname (end, n2)
@@ -164,6 +162,11 @@ synconDef = syntaxDescription >>= \description -> rule . (<?> "syncon definition
     , s_range = range start <> range end
     }
 
+sdleft :: SyntaxDescription
+sdleft = SDNamed Nowhere (SDName "left") (SDRec Nowhere LRec)
+sdright :: SyntaxDescription
+sdright = SDNamed Nowhere (SDName "right") (SDRec Nowhere RRec)
+
 -- | A prefix syncon definition. The argument will be named 'SDRight'.
 prefixDef :: Grammar r (Prod r Syncon)
 prefixDef = syntaxDescription >>= \description -> rule . (<?> "prefix operator definition") $ do
@@ -177,7 +180,7 @@ prefixDef = syntaxDescription >>= \description -> rule . (<?> "prefix operator d
     , s_syntaxType = (tyn_r, tyn)
     , s_syntaxDescription = SDSeq
       (foldMap range descrs)
-      (descrs Seq.|> SDNamed Nowhere SDRight (SDSyTy tyn_r tyn))
+      (descrs Seq.|> sdright)
     , s_range = range start <> range end
     }
 
@@ -194,7 +197,7 @@ postfixDef = syntaxDescription >>= \description -> rule . (<?> "postfix operator
     , s_syntaxType = (tyn_r, tyn)
     , s_syntaxDescription = SDSeq
       (foldMap range descrs)
-      (SDNamed Nowhere SDLeft (SDSyTy tyn_r tyn) Seq.<| descrs)
+      (sdleft Seq.<| descrs)
     , s_range = range start <> range end
     }
 
@@ -207,21 +210,19 @@ infixDef = syntaxDescription >>= \description -> rule . (<?> "infix operator def
   descrs <- Seq.fromList <$> many description <* lit "{"
   mForbid <- optional $ do
     start' <- lit "#assoc"
-    sdname <- (SDRight <$ lit "left") -- NOTE: this inversion is intentional
-              <|> (SDLeft <$ lit "right")
+    lrrec <- (RRec <$ lit "left") -- NOTE: this inversion is intentional
+              <|> (LRec <$ lit "right")
     end <- lit ";"
     pure $ \n' ->
       let r = range start' <> range end
-      in Forbid r (r, n') (r, sdname) (r, n')
+      in ForbidRec r (r, n') (r, lrrec) (r, n')
   end <- lit "builtin" *> lit "}"  -- TODO: body appropriately
   pure $ (, mForbid <*> pure n) $ Syncon
     { s_name = n
     , s_syntaxType = (tyn_r, tyn)
     , s_syntaxDescription = SDSeq
       (foldMap range descrs)
-      (SDNamed Nowhere SDLeft (SDSyTy tyn_r tyn)
-       Seq.<| (descrs
-       Seq.|> SDNamed Nowhere SDRight (SDSyTy tyn_r tyn)))
+      (sdleft Seq.<| (descrs Seq.|> sdright))
     , s_range = range start <> range end
     }
 
@@ -237,11 +238,12 @@ syntaxDescription = mdo
         return $ SDSeq (range start <> range end) descrs
   let sdlit = uncurry SDToken <$> string
   let sdsyty = uncurry SDSyTy <$> tyName
-  let atom = sdsequence <|> sdlit <|> sdsyty <|> (lit "(" *> alted <* lit ")")
+  let sdrec = lit "rec" <&> (\t -> SDRec (range t) Rec)
+  let atom = sdsequence <|> sdlit <|> sdsyty <|> sdrec <|> (lit "(" *> alted <* lit ")")
   let named = do
-        ~(r, Name n) <- name <* lit ":"
+        ~(r, sdname) <- sdName <* lit ":"
         inner <- atom
-        return $ SDNamed (r <> range inner) (SDName n) inner
+        return $ SDNamed (r <> range inner) sdname inner
   let rep = ((,) <$> lit "*" <*> pure RepStar)
             <|> ((,) <$> lit "+" <*> pure RepPlus)
             <|> ((,) <$> lit "?" <*> pure RepQuestion)
@@ -272,6 +274,13 @@ name = (<?> "name") . terminal $ \case
 tyName :: Prod r (Range, TypeName)
 tyName = (<?> "type name") . terminal $ \case
   OtherTok r _ TypeNameTok n -> Just (r, TypeName n)
+  _ -> Nothing
+
+sdName :: Prod r (Range, SDName)
+sdName = (<?> "name") . terminal $ \case
+  OtherTok r _ NameTok n -> Just (r, SDName n)
+  LitTok r _ "left" -> Just (r, SDName "left")
+  LitTok r _ "right" -> Just (r, SDName "right")
   _ -> Nothing
 
 -- | Parse a string (well, 'Text'), plus its 'Range'. The string will have its escapes processed.

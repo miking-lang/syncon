@@ -76,23 +76,21 @@ postfix sdStar: SyntaxDescription = "*" { builtin }
 postfix sdPlus: SyntaxDescription = "+" { builtin }
 postfix sdQuestion: SyntaxDescription = "?" { builtin }
 
-syncon sdAlt: SyntaxDescription = l:SyntaxDescription+ ("|" r:SyntaxDescription+)+ { builtin }
+syncon sdAlt: SyntaxDescription = left:rec ("|" right:rec)+ { builtin }
+forbid sdAlt.left = sdAlt
+forbid sdAlt.right = sdAlt
 
-prefix sdName: SyntaxDescription = name:Name ":" { builtin }
+prefix sdName: SyntaxDescription = name:(Name | "left" | "right") ":" { builtin }
 
 precedence {
   sdName;
   sdStar sdPlus sdQuestion;
+  sdAlt;
 }
-forbid sdAlt.l = sdAlt
-forbid sdAlt.r = sdAlt
-forbid sdStar.left = sdAlt
-forbid sdPlus.left = sdAlt
-forbid sdQuestion.left = sdAlt
-forbid sdName.right = sdAlt
 
 syncon sdLitToken: SyntaxDescription = tok:String { builtin }
 syncon sdSyTy: SyntaxDescription = name:TypeName { builtin }
+syncon sdRec: SyntaxDescription = "rec" { builtin }
 
 
 // === Disambiguation ===

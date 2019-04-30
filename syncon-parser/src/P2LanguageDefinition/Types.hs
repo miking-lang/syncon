@@ -16,6 +16,9 @@ import P1Lexing.Types (Range, Ranged, range)
 newtype Name = Name Text deriving (Show, Eq, Hashable, Data, Typeable)
 newtype TypeName = TypeName Text deriving (Show, Eq, Hashable, Data, Typeable)
 
+-- | Names for subsections of syntax descriptions.
+newtype SDName = SDName Text deriving (Show, Eq, Hashable, Data, Typeable)
+
 data DefinitionFile = DefinitionFile
   { syncons :: !(HashMap Name Syncon)
   , syntaxTypes :: !(HashMap TypeName (Either SyntaxType TokenType))
@@ -76,23 +79,16 @@ data SyntaxDescription
   | SDRep Range Repetition SyntaxDescription
   | SDNamed Range SDName SyntaxDescription
   | SDSyTy Range TypeName
+  | SDRec Range Rec
   | SDToken Range Text -- ^ A literal token, i.e., something written as a quoted string in a .syncon file
   deriving (Show, Data, Typeable)
 
+-- | Recursion to the same syntax type, behaves exactly the same as just writing that syntax type,
+-- except in precedence lists, where forbids are generated for recs.
+data Rec = LRec | RRec | Rec deriving (Show, Data, Typeable, Eq, Generic)
+instance Hashable Rec
+
 data Repetition = RepStar | RepQuestion | RepPlus deriving (Show, Data, Typeable)
-
--- | Names for subsections of syntax descriptions. These include special names
---   for operator positions
-data SDName
-  = SDLeft | SDRight
-  | SDName Text
-  deriving (Show, Data, Typeable, Eq, Generic)
-instance Hashable SDName
-
-textualSDName :: SDName -> Text
-textualSDName (SDName n) = n
-textualSDName SDLeft = "left"
-textualSDName SDRight = "right"
 
 -- |
 -- = Disambiguation
@@ -101,7 +97,9 @@ textualSDName SDRight = "right"
 --   syntax description with the second name, from parsing as the syncon with
 --   the third name (without parens surrounding it). This is the most basic
 --   disambiguation tool, which all other disambiguations eventually translate to
-data Forbid = Forbid !Range !(Range, Name) !(Range, SDName) !(Range, Name)
+data Forbid
+  = Forbid !Range !(Range, Name) !(Range, SDName) !(Range, Name)
+  | ForbidRec !Range !(Range, Name) !(Range, Rec) !(Range, Name)
   deriving (Show, Data, Typeable)
 
 -- | Make the (operator) syncons appearing earlier in the list have higher precedence
@@ -129,7 +127,7 @@ precCompare (PrecedenceMatrix mat) (Name n1) (Name n2)
   | otherwise = fst <$> M.lookup (Name $ min n1 n2, Name $ max n1 n2) mat
 
 -- | A complete disambiguation elaboration
-type Elaboration = HashMap (Name, SDName) (HashSet Name)
+type Elaboration = HashMap (Name, Either Rec SDName) (HashSet Name)
 
 makeBaseFunctor ''SyntaxDescription
 
@@ -151,10 +149,12 @@ instance Ranged SyntaxDescription where
   range (SDRep r _ _) = r
   range (SDNamed r _ _) = r
   range (SDSyTy r _) = r
+  range (SDRec r _) = r
   range (SDToken r _) = r
 
 instance Ranged Forbid where
   range (Forbid r _ _ _) = r
+  range (ForbidRec r _ _ _) = r
 
 instance Ranged PrecedenceList where
   range (PrecedenceList r _ _) = r

@@ -70,7 +70,6 @@ instance FormatError Error where
       formatted = typePartitions <&> (toList >>> fmap coerce >>> Text.intercalate ", ")
         & M.toList
         & foldMap (\(tyn, syncons) -> coerce tyn <> ":\n  " <> syncons <> "\n")
-  formatError a = ErrorMessage { e_message = show a, e_range = mempty, e_ranges = [] }
 
 -- | This will coalesce all the top-level declarations, make sure that each of them
 -- is valid. This validity includes things like checking that regexes are correct,
@@ -93,7 +92,7 @@ mkDefinitionFile (Seq.fromList -> tops) = do
     comments = Seq.fromList [c | CommentTop c <- toList tops]
 
     typeNames = void syntaxTypes & S.fromMap
-    synconAndSDNames = ((s_syntaxType >>> snd) &&& getSDNames) <$> syncons
+    synconAndSDNames = (\syn -> (snd $ s_syntaxType syn, getSDRecs syn, getSDNames syn)) <$> syncons
 
     syncons = mkMap s_name synconTops
     syntaxTypes = mkMap getTypeName typeTops
@@ -115,28 +114,33 @@ checkSyncon types Syncon{..} = do
   pure ()
 
 -- | Check that forbids refer to actually defined things, and that the syntax types agree
-checkForbid :: HashMap Name (TypeName, HashMap SDName (Maybe TypeName)) -> Forbid -> Res ()
-checkForbid names (Forbid _ n1 (sdr, sdname) n2) = do
-  ~(_, sdnames) <- lookupName n1
-  ~(n2ty, _) <- lookupName n2
-  case M.lookup sdname sdnames of
-    Nothing -> Error [Undefined (toText sdname) sdr]
-    Just Nothing -> Error [NotASyntaxTypeOccurrence (snd n1) sdname $ fst n1 <> sdr]
-    Just (Just n1ty) | n2ty == n1ty -> pure ()
-    Just (Just n1ty) -> Error [WrongSyntaxType (snd n1) sdname n1ty (snd n2) n2ty $ fst n2]
-  pure ()
+checkForbid :: HashMap Name (TypeName, HashSet Rec, HashMap SDName (Maybe TypeName)) -> Forbid -> Res ()
+checkForbid names = \case
+  Forbid _ n1 (sdr, sdname) n2 -> do
+    ~(_, _, sdnames) <- lookupName n1
+    ~(n2ty, _, _) <- lookupName n2
+    case M.lookup sdname sdnames of
+      Nothing -> Error [Undefined (toText sdname) sdr]
+      Just Nothing -> Error [NotASyntaxTypeOccurrence (snd n1) sdname $ fst n1 <> sdr]
+      Just (Just n1ty) | n2ty == n1ty -> pure ()
+      Just (Just n1ty) -> Error [WrongSyntaxType (snd n1) sdname n1ty (snd n2) n2ty $ fst n2]
+    pure ()
+  ForbidRec _ n1 _ n2 -> do
+    ~(n1ty, _, _) <- lookupName n1
+    ~(n2ty, _, _) <- lookupName n2
+    unless (n1ty == n2ty) $
+      Error [WrongSyntaxType (snd n1) (SDName "rec") n1ty (snd n2) n2ty $ fst n2]
+    pure ()
   where
     lookupName (nr, n) = case M.lookup n names of
       Just info -> Data info
       Nothing -> Error [Undefined (coerce n) nr]
     toText (SDName t) = t
-    toText SDLeft = compErr "P2LanguageDefinition.BasicChecker.checkForbid.toText" "unexpected SDLeft"
-    toText SDRight = compErr "P2LanguageDefinition.BasicChecker.checkForbid.toText" "unexpected SDRight"
 
 -- | Check that precedence is consistent, and that a single precedence list only defines
 -- precedence for a single syntax type
 checkPrecedences :: Foldable t
-                 => HashMap Name (TypeName, HashMap SDName (Maybe TypeName))
+                 => HashMap Name (TypeName, HashSet Rec, HashMap SDName (Maybe TypeName))
                  -> t Top
                  -> Res PrecedenceMatrix
 checkPrecedences names tops = consistentTypes *> matrix
@@ -153,9 +157,8 @@ checkPrecedences names tops = consistentTypes *> matrix
                  _ -> Error [NotAllSameSyntaxType types r])
     operatorType r n@(Name t) = case M.lookup n names of
       Nothing -> Error [Undefined t r]
-      Just (ty, sdnames) -> if SDLeft `M.member` sdnames || SDRight `M.member` sdnames
-        then Data (ty, S.singleton n)
-        else Error [NotAnOperator n r]
+      Just (_, recs, _) | S.null recs -> Error [NotAnOperator n r]
+      Just (ty, _, _) -> Data (ty, S.singleton n)
 
     matrix = precedences
       & fmap mat
@@ -211,13 +214,21 @@ findDuplicates getName tops = (getName &&& (range >>> pure)) <$> toList tops
 
 -- | Extract all 'SDName's defined in the syntax description of a syncon
 getSDNames :: Syncon -> HashMap SDName (Maybe TypeName)
-getSDNames = s_syntaxDescription >>> inner >>> M.fromList
+getSDNames Syncon{s_syntaxDescription, s_syntaxType = (_, selfTy)} =
+  inner s_syntaxDescription & M.fromList
   where
     inner descr = universe descr
       & mapMaybe (\case
                      SDNamed _ sdname (SDSyTy _ ty) -> Just (sdname, Just ty)
+                     SDNamed _ sdname SDRec{} -> Just (sdname, Just selfTy)
                      SDNamed _ sdname _ -> Just (sdname, Nothing)
                      _ -> Nothing)
+
+-- | Find all 'Rec's present in the syntax description of a syncon
+getSDRecs :: Syncon -> HashSet Rec
+getSDRecs = s_syntaxDescription >>> inner >>> S.fromList
+  where
+    inner descr = [r | SDRec _ r <- universe descr]
 
 -- | Make a 'HashMap' given a function to generate a key and a collection of values
 mkMap :: (Eq b, Hashable b, Foldable t) => (a -> b) -> t a -> HashMap b a

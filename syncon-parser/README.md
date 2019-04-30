@@ -100,7 +100,7 @@ Note that precedence is not transitive, no precedences are defined implicitly.
 
 ------
 
-Finally, you can specify that a given syncon cannot be the direct child of another with a `forbid` declaration:
+You can also specify that a given syncon cannot be the direct child of another with a `forbid` declaration:
 
 ```
 syncon list: Exp =
@@ -112,3 +112,19 @@ infix seqComp:Exp = ";" { #assoc right; builtin }
 forbid list.head = seqComp
 forbid list.tail = seqComp
 ```
+
+------
+
+Finally, if you have something that doesn't quite look like an operator, but you still want to take advantage of precedence, you can use `rec` as a special syntax type in the syntax description. This behaves mostly the same as just using the same syntax type literally, but interacts slightly differently with precedence lists. For example,
+
+```
+syncon ocamlTuple: Exp = eh:rec ("," et:rec)+ { builtin }
+```
+
+is basically the same as
+
+```
+syncon ocamlTuple: Exp = eh:Exp ("," et:Exp)+ { builtin }
+```
+
+except that `rec` interacts with precedence lists. Putting the former syncon in a precedence list is ok and generates forbids for each occurence of `rec`, while the latter would be an error, since it's not an operator.

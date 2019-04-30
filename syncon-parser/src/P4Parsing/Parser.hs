@@ -26,7 +26,7 @@ import ErrorMessage (FormatError(..), simpleErrorMessage)
 import P1Lexing.Types (Token(..), textualToken, Range, range)
 import P1Lexing.Lexer (LanguageTokens(..))
 import qualified P1Lexing.Lexer as Lexer
-import P2LanguageDefinition.Types (DefinitionFile(..), TypeName(..), Name(..), Syncon(..), Comment(..), Elaboration, SyntaxDescription(..), SyntaxDescriptionF(..), TokenType(..), SDName, SyntaxType, Repetition(..))
+import P2LanguageDefinition.Types (DefinitionFile(..), TypeName(..), Name(..), Syncon(..), Comment(..), Elaboration, SyntaxDescription(..), SyntaxDescriptionF(..), TokenType(..), SDName, SyntaxType, Repetition(..), Rec(..))
 import P2LanguageDefinition.Elaborator (elaborate)
 import P4Parsing.Types
 
@@ -82,19 +82,29 @@ dfToLanguageTokens DefinitionFile{syncons, syntaxTypes, comments} =
       Right TokenType{t_name, t_regex} <- toList syntaxTypes
       pure $ (t_name, t_regex)
 
-mkMarkings :: HashMap Name Syncon -> (TypeName -> Bool) -> Elaboration -> HashMap (Name, SDName) (TypeName, HashSet Name)
-mkMarkings syncons isSyTy elaboration =
-  M.differenceWith replaceMarkings tynames elaboration
-  & M.filter (fst >>> isSyTy)
+mkMarkings :: HashMap Name Syncon -> (TypeName -> Bool) -> Elaboration -> HashMap (Name, Either Rec SDName) (TypeName, HashSet Name)
+mkMarkings syncons isSyTy elaboration = M.filter (fst >>> isSyTy) tynames
   where
     tynames = M.fromList $ do
       (n, syncon) <- M.toList syncons
-      SDNamed _ sdname (SDSyTy _ tyn) <- universe $ s_syntaxDescription syncon
-      pure ((n, sdname), (tyn, S.empty))
-    replaceMarkings (tyn, _) markings = Just (tyn, markings)
+      universe (s_syntaxDescription syncon) >>= \case
+        SDNamed _ sdname (SDSyTy _ tyn) ->
+          pure ( (n, Right sdname)
+               , (tyn, getMarkings (n, Right sdname)) )
+        SDNamed _ sdname (SDRec _ r) ->
+          pure ( (n, Right sdname)
+               , ( s_syntaxType syncon & snd
+                 , getMarkings (n, Right sdname) <> getMarkings (n, Left r) ) )
+        SDRec _ r ->
+          pure ( (n, Left r)
+               , (s_syntaxType syncon & snd
+                 , getMarkings (n, Left r) ) )
+        _ -> []
+    getMarkings :: (Name, Either Rec SDName) -> HashSet Name
+    getMarkings k = M.lookupDefault S.empty k elaboration
 
 computeNonTerminals :: HashMap TypeName (Either SyntaxType TokenType)
-                    -> HashMap (Name, SDName) (TypeName, HashSet Name)
+                    -> HashMap (Name, Either Rec SDName) (TypeName, HashSet Name)
                     -> HashSet (TypeName, HashSet Name)
 computeNonTerminals types markings = unmarked <> toList markings & S.fromList
   where
@@ -140,23 +150,28 @@ generateGrammar DefinitionFile{..}
     isSyTy tyn = M.lookup tyn syntaxTypes <&> isLeft & fromMaybe False
 
 -- TODO: pass in a value representing the language (for correct token recognizing)
-generateSyncon :: HashMap (Name, SDName) (TypeName, HashSet Name)
+generateSyncon :: HashMap (Name, Either Rec SDName) (TypeName, HashSet Name)
                -> (TypeName -> Bool)
                -> HashMap (TypeName, HashSet Name) (Prod r l (Node l TypeName, Range))
                -> Syncon -> Prod r l (Node l TypeName, Range)
-generateSyncon markings isSyTy nts Syncon{s_name = n, s_syntaxDescription} = para alg s_syntaxDescription
+generateSyncon markings isSyTy nts Syncon{s_name = n, s_syntaxDescription, s_syntaxType = (_, syty)} =
+  para alg s_syntaxDescription
   & fmap (\(internals, r) -> (Node n (asStruct internals) r, r))
   & (<?> ("syncon " <> coerce n))
   where
     alg (SDNamedF _ sdname (SDSyTy _ tyn, _))
-      | isSyTy tyn = M.lookupDefault (tyn, S.empty) (n, sdname) markings
+      | isSyTy tyn = M.lookupDefault (tyn, S.empty) (n, Right sdname) markings
         & flip lookupEmpty nts
         & fmap (first $ NodeLeaf >>> Seq.singleton >>> M.singleton sdname >>> Struct)
+    alg (SDNamedF _ sdname (SDRec{}, _)) = M.lookupDefault (syty, S.empty) (n, Right sdname) markings
+      & flip lookupEmpty nts
+      & fmap (first $ NodeLeaf >>> Seq.singleton >>> M.singleton sdname >>> Struct)
     alg sdf = snd <$> sdf & \case
       SDTokenF _ t -> lit t <&> (TokenLeaf &&& range)
       SDSyTyF _ tyn -> if isSyTy tyn
         then lookupEmpty (tyn, S.empty) nts <&> first NodeLeaf
         else othertok tyn <&> (TokenLeaf &&& range)
+      SDRecF _ _ -> lookupEmpty (syty, S.empty) nts <&> first NodeLeaf
       SDNamedF _ sdname sd -> sd <&> first (Seq.singleton >>> M.singleton sdname >>> Struct)
       SDRepF _ rep sd -> repF rep sd <&> (unzip >>> (combineMany *** mconcat))
       SDSeqF _ sds -> toList sds & sequenceA & fmap (unzip >>> (combineMany *** mconcat))
