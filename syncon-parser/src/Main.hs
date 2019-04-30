@@ -92,10 +92,12 @@ ambigReportingTest = do
 parseToHTMLDebug :: FilePath -> FilePath -> FilePath -> IO ()
 parseToHTMLDebug defFile sourceFile outFile = do
   defSource <- readFile defFile
+  putStrLn @Text "Parsing definition file"
   tops <- LD.parseFile defFile >>= dataOrError defSource
   df <- LD.mkDefinitionFile tops & dataOrError defSource
   parseFile <- Parser.parseSingleLanguage df & dataOrError defSource
   fileSource <- readFile sourceFile
+  putStrLn @Text "Parsing source file"
   setOfNodes <- parseFile sourceFile >>= dataOrError fileSource
   source <- readFile sourceFile
   case Parser.report setOfNodes of
@@ -129,7 +131,7 @@ dataOrError' (Error e) = do
   compErr "Main.dataOrError" "Got error"
 
 test :: IO ()
-test = parseToHTMLDebug "examples/ocaml.syncon" "examples/fizzbuzz.ml" "out.html"
+test = parseToHTMLDebug "examples/bootstrap.syncon" "examples/bootstrap.syncon" "out.html"
 
 main :: IO ()
 main = getArgs >>= \case

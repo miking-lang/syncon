@@ -160,6 +160,7 @@ generateSyncon markings isSyTy nts Syncon{s_name = n, s_syntaxDescription} = par
       SDNamedF _ sdname sd -> sd <&> first (Seq.singleton >>> M.singleton sdname >>> Struct)
       SDRepF _ rep sd -> repF rep sd <&> (unzip >>> (combineMany *** mconcat))
       SDSeqF _ sds -> toList sds & sequenceA & fmap (unzip >>> (combineMany *** mconcat))
+      SDAltF _ sds -> toList sds & asum
     repF RepStar = many
     repF RepPlus = some
     repF RepQuestion = optional >>> fmap toList

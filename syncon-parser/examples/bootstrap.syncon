@@ -76,12 +76,20 @@ postfix sdStar: SyntaxDescription = "*" { builtin }
 postfix sdPlus: SyntaxDescription = "+" { builtin }
 postfix sdQuestion: SyntaxDescription = "?" { builtin }
 
+syncon sdAlt: SyntaxDescription = l:SyntaxDescription+ ("|" r:SyntaxDescription+)+ { builtin }
+
 prefix sdName: SyntaxDescription = name:Name ":" { builtin }
 
 precedence {
   sdName;
   sdStar sdPlus sdQuestion;
 }
+forbid sdAlt.l = sdAlt
+forbid sdAlt.r = sdAlt
+forbid sdStar.left = sdAlt
+forbid sdPlus.left = sdAlt
+forbid sdQuestion.left = sdAlt
+forbid sdName.right = sdAlt
 
 syncon sdLitToken: SyntaxDescription = tok:String { builtin }
 syncon sdSyTy: SyntaxDescription = name:TypeName { builtin }
@@ -90,7 +98,7 @@ syncon sdSyTy: SyntaxDescription = name:TypeName { builtin }
 // === Disambiguation ===
 
 syncon forbidDef: Top =
-  "forbid" syName:Name "." sdName:Name "=" syName2:Name
+  "forbid" syName:Name "." sdName:(Name | "left" | "right") "=" syName2:Name
 { builtin }
 
 syncon precedenceList: Top =

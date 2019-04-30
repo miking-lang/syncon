@@ -75,7 +75,7 @@ synconTokens = Lexer.LanguageTokens
   -- Literal tokens
   [ "token", "=", "syncon", ":", "{", ";", "}", "prefix", "postfix", "infix", "#assoc"
   , "(", ")", "*", "+", "?", ".", "comment", "left", "right", "precedence", "except"
-  , "type", "builtin", "forbid" ]
+  , "type", "builtin", "forbid", "|" ]
   -- Regex tokens
   [ (NameTok, (Nowhere, "[[:lower:]][[:word:]]*"))
   , (TypeNameTok, (Nowhere, "[[:upper:]][[:word:]]*"))
@@ -232,12 +232,12 @@ syntaxDescription :: Grammar r (Prod r SyntaxDescription)
 syntaxDescription = mdo
   let sdsequence = do
         start <- lit "("
-        descrs <- fmap Seq.fromList $ (:) <$> repped <*> some repped
+        descrs <- fmap Seq.fromList $ (:) <$> alted <*> some alted
         end <- lit ")"
         return $ SDSeq (range start <> range end) descrs
   let sdlit = uncurry SDToken <$> string
   let sdsyty = uncurry SDSyTy <$> tyName
-  let atom = sdsequence <|> sdlit <|> sdsyty
+  let atom = sdsequence <|> sdlit <|> sdsyty <|> (lit "(" *> alted <* lit ")")
   let named = do
         ~(r, Name n) <- name <* lit ":"
         inner <- atom
@@ -245,10 +245,19 @@ syntaxDescription = mdo
   let rep = ((,) <$> lit "*" <*> pure RepStar)
             <|> ((,) <$> lit "+" <*> pure RepPlus)
             <|> ((,) <$> lit "?" <*> pure RepQuestion)
-  repped <- rule $ (mkRep <$> repped <*> rep) <|> named <|> atom <?> "syntax description"
+  let repped = (mkRep <$> (named <|> atom) <*> rep) <|> named <|> atom
+  let alts = mkAlt <$> some repped <*> some (lit "|" *> some repped)
+  alted <- rule $ repped <|> alts <?> "syntax description"
   return repped
   where
     mkRep descr (tok, rep) = SDRep (range descr <> range tok) rep descr
+    mkSeq [sd] = sd
+    mkSeq sds = SDSeq (foldMap range sds) $ Seq.fromList sds
+    mkAlt headAlt tailAlts =
+      SDAlt (range headAlt' <> foldMap range tailAlts') $ Seq.fromList (headAlt' : tailAlts')
+      where
+        headAlt' = mkSeq headAlt
+        tailAlts' = mkSeq <$> tailAlts
 
 -- |
 -- = Helpers

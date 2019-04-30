@@ -72,6 +72,7 @@ data Comment = Comment
 -- | A syntax description present in a syncon (or an operator)
 data SyntaxDescription
   = SDSeq Range (Seq SyntaxDescription)
+  | SDAlt Range (Seq SyntaxDescription)
   | SDRep Range Repetition SyntaxDescription
   | SDNamed Range SDName SyntaxDescription
   | SDSyTy Range TypeName
@@ -146,6 +147,7 @@ instance Ranged Comment where
 
 instance Ranged SyntaxDescription where
   range (SDSeq r _) = r
+  range (SDAlt r _) = r
   range (SDRep r _ _) = r
   range (SDNamed r _ _) = r
   range (SDSyTy r _) = r
