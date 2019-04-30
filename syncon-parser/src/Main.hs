@@ -105,6 +105,7 @@ parseToHTMLDebug defFile sourceFile outFile = do
       & annotate source
       & putInTemplate "resources/htmlTemplate.html"
       & (>>= writeFile outFile)
+      & (>> putStrLn @Text "Done")
     Error errs -> formatError <$> errs
       & formatErrors fileSource
       & putStrLn
