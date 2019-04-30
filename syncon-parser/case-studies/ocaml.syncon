@@ -282,5 +282,28 @@ precedence {
 // TODO: write out forbids for ",", "if", "match", "function", and "try"
 
 type Argument
-type Parameter
+syncon expArgument: Argument = e:Exp { builtin }
+syncon punArgument: Argument = "~" l:LabelName { builtin }
+syncon labelArgument: Argument = "~" l:LabelName ":" e:Exp { builtin }
+syncon optPunArgument: Argument = "?" l:LabelName { builtin }
+syncon optArgument: Argument = "?" l:LabelName ":" e:Exp { builtin }
+
 type LetBinding
+syncon patBinding: LetBinding = p:Pat "=" e:Exp { builtin }
+syncon funcBinding: LetBinding = v:ValueName p:Parameter+ (":" ty:TypExpr)? "=" e:Exp { builtin }
+syncon polyBinding: LetBinding = v:ValueName ":" (("'" i:Ident)+ ".")? ty:TypExpr { builtin }
+
+type Parameter
+syncon patParam: Parameter = p:Pat { builtin }
+syncon simpLabelParam: Parameter = "~" l:LabelName { builtin }
+syncon tyLabelParam: Parameter = "~" "(" l:LabelName (":" ty:TypExpr)? ")" { builtin }
+syncon labelPatParam: Parameter = "~" l:LabelName ":" p:Pat { builtin }
+syncon simpOptParam: Parameter = "?" l:LabelName { builtin }
+syncon tyOptParam: Parameter = "?" "(" l:LabelName (":" ty:TypExpr)? ("=" def:Exp)? ")" { builtin }
+syncon optPatParam: Parameter = "?" l:LabelName ":" p:Pat { builtin }
+syncon optPatTyParam: Parameter = "?" l:LabelName ":" "(" p:Pat (":" ty:TypExpr)? ("=" def:Exp)? ")" { builtin }
+
+// === 7.8 Type and exception definitions ===
+
+syncon typeDef: Top =
+  "type" n:"nonrec"? typ:TypeParams tyn:TypeConstrName
