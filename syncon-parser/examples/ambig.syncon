@@ -3,8 +3,8 @@ type Expression
 
 token Int = "\\d+"
 
-syncon print: Top = "print" e:Expression { builtin }
+syncon print: Top = "print" e:Expression
 
-infix plus: Expression = "+" { builtin }
-infix times: Expression = "*" { builtin }
-syncon intLit: Expression = num:Int { builtin }
+infix plus: Expression = "+"
+infix times: Expression = "*"
+syncon intLit: Expression = num:Int

@@ -149,17 +149,17 @@ precedenceDef = rule . (<?> "precedence disambiguation list") $ do
 
 -- | A basic syncon definition
 synconDef :: Grammar r (Prod r Syncon)
-synconDef = syntaxDescription >>= \description -> rule . (<?> "syncon definition") $ do
+synconDef = syntaxDescription >>= \description -> synconBody >>= \body -> rule . (<?> "syncon definition") $ do
   start <- lit "syncon"
   ~(_, n) <- name <* lit ":"
   tyn <- tyName <* lit "="
-  descrs <- Seq.fromList <$> some description <* lit "{" <* lit "builtin"
-  end <- lit "}" -- TODO: parse body appropriately
+  descrs <- Seq.fromList <$> some description
+  mEnd <- body
   pure $ Syncon
     { s_name = n
     , s_syntaxType = tyn
     , s_syntaxDescription = SDSeq (foldMap range descrs) descrs
-    , s_range = range start <> range end
+    , s_range = range start <> foldMap range descrs <> fold mEnd
     }
 
 sdleft :: SyntaxDescription
@@ -169,41 +169,41 @@ sdright = SDNamed Nowhere (SDName "right") (SDRec Nowhere RRec)
 
 -- | A prefix syncon definition. The argument will be named 'SDRight'.
 prefixDef :: Grammar r (Prod r Syncon)
-prefixDef = syntaxDescription >>= \description -> rule . (<?> "prefix operator definition") $ do
+prefixDef = syntaxDescription >>= \description -> synconBody >>= \body -> rule . (<?> "prefix operator definition") $ do
   start <- lit "prefix"
   ~(_, n) <- name <* lit ":"
   ~(tyn_r, tyn) <- tyName <* lit "="
-  descrs <- Seq.fromList <$> some description <* lit "{" <* lit "builtin"
-  end <- lit "}" -- TODO: parse body appropriately
+  descrs <- Seq.fromList <$> some description
+  mEnd <- body
   pure $ Syncon
     { s_name = n
     , s_syntaxType = (tyn_r, tyn)
     , s_syntaxDescription = SDSeq
       (foldMap range descrs)
       (descrs Seq.|> sdright)
-    , s_range = range start <> range end
+    , s_range = range start <> foldMap range descrs <> fold mEnd
     }
 
 -- | A postfix syncon definition. The argument will be named 'SDLeft'.
 postfixDef :: Grammar r (Prod r Syncon)
-postfixDef = syntaxDescription >>= \description -> rule . (<?> "postfix operator definition") $ do
+postfixDef = syntaxDescription >>= \description -> synconBody >>= \body -> rule . (<?> "postfix operator definition") $ do
   start <- lit "postfix"
   ~(_, n) <- name <* lit ":"
   ~(tyn_r, tyn) <- tyName <* lit "="
-  descrs <- Seq.fromList <$> some description <* lit "{" <* lit "builtin"
-  end <- lit "}" -- TODO: parse body appropriately
+  descrs <- Seq.fromList <$> some description
+  mEnd <- body
   pure $ Syncon
     { s_name = n
     , s_syntaxType = (tyn_r, tyn)
     , s_syntaxDescription = SDSeq
       (foldMap range descrs)
       (sdleft Seq.<| descrs)
-    , s_range = range start <> range end
+    , s_range = range start <> foldMap range descrs <> fold mEnd
     }
 
 -- | An infix syncon definition. The arguments will be named 'SDLeft' and 'SDRight', respectively.
 infixDef :: Grammar r (Prod r (Syncon, Maybe Forbid))
-infixDef = syntaxDescription >>= \description -> rule . (<?> "infix operator definition") $ do
+infixDef = syntaxDescription >>= \description -> synconBody >>= \body -> rule . (<?> "infix operator definition") $ do
   start <- lit "infix"
   mForbid <- optional $ do
     ~(re, r) <- ((const RRec &&& range) <$> lit "left")  -- NOTE: this inversion is intentional
@@ -212,16 +212,20 @@ infixDef = syntaxDescription >>= \description -> rule . (<?> "infix operator def
       ForbidRec r (r, n') (r, re) (r, n')
   ~(_, n) <- name <* lit ":"
   ~(tyn_r, tyn) <- tyName <* lit "="
-  descrs <- Seq.fromList <$> many description <* lit "{"
-  end <- lit "builtin" *> lit "}"  -- TODO: body appropriately
+  descrs <- Seq.fromList <$> many description
+  mEnd <- body
   pure $ (, mForbid <*> pure n) $ Syncon
     { s_name = n
     , s_syntaxType = (tyn_r, tyn)
     , s_syntaxDescription = SDSeq
       (foldMap range descrs)
       (sdleft Seq.<| (descrs Seq.|> sdright))
-    , s_range = range start <> range end
+    , s_range = range start <> foldMap range descrs <> fold mEnd
     }
+
+synconBody :: Grammar r (Prod r (Maybe Range))
+synconBody = pure $ optional $
+  lit "{" *> lit "builtin" *> lit "}" <&> range
 
 -- |
 -- == Syntax Descriptions

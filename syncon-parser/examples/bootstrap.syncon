@@ -13,44 +13,36 @@ comment "//[^\\n]*(\\n|$)"
 
 // === Syntax Types ===
 
-syncon typeDef: Top =
-  "type" syType:TypeName
-{ builtin }
+syncon typeDef: Top = "type" syType:TypeName
 
 // === Token Definitions ===
 
-syncon tokenDef: Top =
-  "token" syType:TypeName "=" regex:String
-{ builtin }
+syncon tokenDef: Top = "token" syType:TypeName "=" regex:String
 
 // === Comment Definitions ===
 
-syncon commentDef: Top =
-  "comment" regex:String
-{ builtin }
+syncon commentDef: Top = "comment" regex:String
 
 // === Syncon Definitions (including operators) ===
 
 syncon synconDef: Top =
   "syncon" name:Name ":" syType:TypeName "="
-  descr:SyntaxDescription+ "{" (Property ";")* "builtin" "}"
-{ builtin }
+  descr:SyntaxDescription+ ("{" body:SynconBody "}")?
 
 syncon prefixDef: Top =
   "prefix" name:Name ":" syType:TypeName "="
-  descr:SyntaxDescription+ "{" (Property ";")* "builtin" "}"
-{ builtin }
+  descr:SyntaxDescription+ ("{" body:SynconBody "}")?
 
 syncon postfixDef: Top =
   "postfix" name:Name ":" syType:TypeName "="
-  descr:SyntaxDescription+ "{" (Property ";")* "builtin" "}"
-{ builtin }
+  descr:SyntaxDescription+ ("{" body:SynconBody "}")?
 
 syncon infixDef: Top =
   "infix" assoc:("left" | "right")? name:Name ":" syType:TypeName "="
-  descr:SyntaxDescription* "{" (Property ";")* "builtin" "}"
-{ builtin }
+  descr:SyntaxDescription* ("{" body:SynconBody "}")?
 
+type SynconBody
+syncon builtinBody: SynconBody = "builtin"
 
 // === Properties ===
 
@@ -64,17 +56,16 @@ type SyntaxDescription
 // TODO: This might be problematic?
 syncon sdSeq: SyntaxDescription =
   "(" head:SyntaxDescription tail:SyntaxDescription+ ")"
-{ builtin }
 
-postfix sdStar: SyntaxDescription = "*" { builtin }
-postfix sdPlus: SyntaxDescription = "+" { builtin }
-postfix sdQuestion: SyntaxDescription = "?" { builtin }
+postfix sdStar: SyntaxDescription = "*"
+postfix sdPlus: SyntaxDescription = "+"
+postfix sdQuestion: SyntaxDescription = "?"
 
-syncon sdAlt: SyntaxDescription = left:rec+ ("|" right:rec+)+ { builtin }
+syncon sdAlt: SyntaxDescription = left:rec+ ("|" right:rec+)+
 forbid sdAlt.left = sdAlt
 forbid sdAlt.right = sdAlt
 
-prefix sdName: SyntaxDescription = name:(Name | "left" | "right") ":" { builtin }
+prefix sdName: SyntaxDescription = name:(Name | "left" | "right") ":"
 
 precedence {
   sdName;
@@ -82,18 +73,17 @@ precedence {
   sdAlt;
 }
 
-syncon sdLitToken: SyntaxDescription = tok:String { builtin }
-syncon sdSyTy: SyntaxDescription = name:TypeName { builtin }
-syncon sdRec: SyntaxDescription = "rec" { builtin }
+syncon sdLitToken: SyntaxDescription = tok:String
+syncon sdSyTy: SyntaxDescription = name:TypeName
+syncon sdRec: SyntaxDescription = "rec"
 
 
 // === Disambiguation ===
 
 syncon forbidDef: Top =
   "forbid" syName:Name "." sdName:(Name | "left" | "right") "=" syName2:Name
-{ builtin }
+
 
 syncon precedenceList: Top =
   "precedence" "{" line:(name:Name+ ";")+ "}"
   ("except" "{" eLine:(eName:Name+ ";")+ "}")?
-{ builtin }

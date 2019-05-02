@@ -10,44 +10,38 @@ token String = "\"(\\\\.|[^\"\\\\])*\""
 syncon topLet: Top =
   "let" x:Ident args:Pat*
   "=" e:Exp ";;"?
-{ builtin }
 
 syncon topLetRec: Top =
   "let" "rec" x:Ident args:Pat*
   "=" e:Exp
   more:("and" x2:Ident args2:Pat*
         "=" e2:Exp)* ";;"?
-{ builtin }
 
 syncon letExp: Exp =
   "let" x:Ident args:Pat*
   "=" e:Exp "in" body:Exp
-{ builtin }
 
 syncon letRecExp: Exp =
   "let" "rec" x:Ident args:Pat*
   "=" e:Exp "in" body:Exp
-{ builtin }
 
 syncon match: Exp =
   "match" e:Exp "with"
   arm:("|" p:Pat "->" body:Exp)+
-{ builtin }
 
 // For "infix", the name can be preceeded by "left" or "right" to
 // specify associativity
 // The default is no associativity i.e., always group explicitly
-infix left sum:Exp = "+" { builtin }
-infix left difference:Exp = "-" { builtin }
-infix left product:Exp = "*" { builtin }
-infix equal:Exp = "=" { builtin }
-infix leq:Exp = "<=" { builtin }
+infix left sum:Exp = "+"
+infix left difference:Exp = "-"
+infix left product:Exp = "*"
+infix equal:Exp = "="
+infix leq:Exp = "<="
 
 infix left funApp: Exp = // Intentionally left blank
-{ builtin }
 
-infix right cons:Exp = "::" { builtin }
-infix right seqComp:Exp = ";" { builtin }
+infix right cons:Exp = "::"
+infix right seqComp:Exp = ";"
 
 // Totally define precedence for certain operators. Those on the
 // same line get the same precedence, those on higher lines have
@@ -80,16 +74,15 @@ precedence {
 // defines total precedence amongst 'a', 'b', 'c', and 'd', except
 // 'a' and 'd' get no defined precedence.
 
-syncon variable: Exp = v:Ident { builtin }
-syncon unitLit: Exp = "()" { builtin }
-syncon trueLit: Exp = "true" { builtin }
-syncon falseLit: Exp = "false" { builtin }
-syncon intLit: Exp = i:Integer { builtin }
-syncon stringLit: Exp = s:String { builtin }
+syncon variable: Exp = v:Ident
+syncon unitLit: Exp = "()"
+syncon trueLit: Exp = "true"
+syncon falseLit: Exp = "false"
+syncon intLit: Exp = i:Integer
+syncon stringLit: Exp = s:String
 
 syncon list: Exp =
   "[" (head: Exp (";" tail: Exp)*)? "]"
-{ builtin }
 
 // A specific occurence of a syntax-type can be restricted to
 // not be a specific syncon. This is the one underlying
@@ -100,18 +93,17 @@ forbid list.tail = seqComp
 
 syncon function: Exp =
   "fun" args:Pat+ "->" body:Exp
-{ builtin }
 
-syncon intPat: Pat = i:Integer { builtin }
-syncon stringPat: Pat = s:String { builtin }
-syncon truePat: Pat = "true" { builtin }
-syncon falsePat: Pat = "false" { builtin }
-syncon bindPat: Pat = id:Ident { builtin }
-syncon wildcardPat: Pat = "_" { builtin }
+syncon intPat: Pat = i:Integer
+syncon stringPat: Pat = s:String
+syncon truePat: Pat = "true"
+syncon falsePat: Pat = "false"
+syncon bindPat: Pat = id:Ident
+syncon wildcardPat: Pat = "_"
 syncon listPat: Pat =
   "[" (p:Pat (";" ps:Pat)*)? "]"
-{ builtin }
-infix right consPat: Pat = "::" { builtin }
+
+infix right consPat: Pat = "::"
 
 
 forbid funApp.left = match

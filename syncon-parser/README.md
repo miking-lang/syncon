@@ -47,6 +47,14 @@ The string on the right hand side is a (PCRE) regex.
 
 ------
 
+A comment, i.e., a terminal that is ignored, is defined as follows:
+
+```
+comment "//[^\\n]*(\\n|$)"
+```
+
+------
+
 A syncon is defined as follows:
 
 ```
@@ -62,29 +70,39 @@ The right hand side, between `=` and `{`, is the syntax description, which descr
 
 The body (between `{` and `}`) is unspecified at the moment, since this project only considers parsing for now. Thus every syncon must be declared as `builtin`.
 
+As a convenience, if the body is merely `{ builtin }`, it may be omitted, like so:
+
+```
+syncon topLetRec: Top =
+  "let" "rec" x:Ident args:Pat*
+  "=" e:Exp
+  more:("and" x2:Ident args2:Pat*
+        "=" e2:Exp)* ";;"?
+```
+
 ------
 
 An operator is defined similarly, but using `infix`, `prefix`, or `postfix` instead of `syncon`. For example:
 
 ```
-infix sum: Exp = "+" { builtin }
-prefix not: Exp = "!" { builtin }
-postfix question: Exp = "?" { builtin }
+infix sum: Exp = "+"
+prefix not: Exp = "!"
+postfix question: Exp = "?"
 ```
 
 These are more or less syntax sugar for :
 
 ```
-syncon sum: Exp = left:Exp "+" right:Exp { builtin }
-syncon not: Exp = "!" right:Exp { builtin }
-syncon question: Exp = left:Exp "?" { builtin }
+syncon sum: Exp = left:Exp "+" right:Exp
+syncon not: Exp = "!" right:Exp
+syncon question: Exp = left:Exp "?"
 ```
 
 `infix` in particular can have associativity, specified by adding `left` or `right` before the name:
 
 ```
-syncon left prod: Exp = "*" { builtin }
-syncon right funcType: Type = "->" { builtin }
+syncon left prod: Exp = "*"
+syncon right funcType: Type = "->"
 ```
 
 ------
@@ -112,9 +130,8 @@ You can also specify that a given syncon cannot be the direct child of another w
 ```
 syncon list: Exp =
   "[" (head: Exp (";" tail: Exp)*)? "]"
-{ builtin }
 
-infix right seqComp:Exp = ";" { builtin }
+infix right seqComp:Exp = ";"
 
 forbid list.head = seqComp
 forbid list.tail = seqComp
@@ -125,13 +142,13 @@ forbid list.tail = seqComp
 Finally, if you have something that doesn't quite look like an operator, but you still want to take advantage of precedence, you can use `rec` as a special syntax type in the syntax description. This behaves mostly the same as just using the same syntax type literally, but interacts slightly differently with precedence lists. For example,
 
 ```
-syncon ocamlTuple: Exp = eh:rec ("," et:rec)+ { builtin }
+syncon ocamlTuple: Exp = eh:rec ("," et:rec)+
 ```
 
 is basically the same as
 
 ```
-syncon ocamlTuple: Exp = eh:Exp ("," et:Exp)+ { builtin }
+syncon ocamlTuple: Exp = eh:Exp ("," et:Exp)+
 ```
 
 except that `rec` interacts with precedence lists. Putting the former syncon in a precedence list is ok and generates forbids for each occurence of `rec`, while the latter would be an error, since it's not an operator.
