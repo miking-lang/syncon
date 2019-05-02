@@ -10,7 +10,6 @@
        "prefix"
        "postfix"
        "infix"
-       "#assoc"
        "comment"
        "left"
        "right"
@@ -24,10 +23,6 @@
 
 (setq syncon-danger-words
      '(
-       "BODY"
-       "EMBED"
-       "END"
-       "unsafe"
        ))
 (setq syncon-constants
      '(
