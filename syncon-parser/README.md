@@ -67,7 +67,7 @@ The body (between `{` and `}`) is unspecified at the moment, since this project 
 An operator is defined similarly, but using `infix`, `prefix`, or `postfix` instead of `syncon`. For example:
 
 ```
-infix sum: Exp = "+" { #assoc left; builtin }
+infix sum: Exp = "+" { builtin }
 prefix not: Exp = "!" { builtin }
 postfix question: Exp = "?" { builtin }
 ```
@@ -78,6 +78,13 @@ These are more or less syntax sugar for :
 syncon sum: Exp = left:Exp "+" right:Exp { builtin }
 syncon not: Exp = "!" right:Exp { builtin }
 syncon question: Exp = left:Exp "?" { builtin }
+```
+
+`infix` in particular can have associativity, specified by adding `left` or `right` before the name:
+
+```
+syncon left prod: Exp = "*" { builtin }
+syncon right funcType: Type = "->" { builtin }
 ```
 
 ------
@@ -107,7 +114,7 @@ syncon list: Exp =
   "[" (head: Exp (";" tail: Exp)*)? "]"
 { builtin }
 
-infix seqComp:Exp = ";" { #assoc right; builtin }
+infix right seqComp:Exp = ";" { builtin }
 
 forbid list.head = seqComp
 forbid list.tail = seqComp

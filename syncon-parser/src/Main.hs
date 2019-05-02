@@ -30,7 +30,7 @@ import qualified P4Parsing.AmbiguityReporter as Parser
 synconTokens :: Lexer.LanguageTokens Text
 synconTokens = Lexer.LanguageTokens
   -- Literal tokens
-  [ "token", "=", "syncon", ":", "{", ";", "}", "prefix", "postfix", "infix", "#assoc"
+  [ "token", "=", "syncon", ":", "{", ";", "}", "prefix", "postfix", "infix"
   , "(", ")", "*", "+", "?", ".", "comment", "left", "right", "precedence", "except"
   , "type", "builtin", "forbid" ]
   -- Regex tokens
@@ -132,7 +132,7 @@ dataOrError' (Error e) = do
   compErr "Main.dataOrError" "Got error"
 
 test :: IO ()
-test = parseToHTMLDebug "examples/bootstrap.syncon" "examples/bootstrap.syncon" "out.html"
+test = parseToHTMLDebug "examples/bootstrap.syncon" "examples/ocaml.syncon" "out.html"
 
 main :: IO ()
 main = getArgs >>= \case

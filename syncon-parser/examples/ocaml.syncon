@@ -34,20 +34,20 @@ syncon match: Exp =
   arm:("|" p:Pat "->" body:Exp)+
 { builtin }
 
-// For "infix", "#assoc" can be used to specify associativity
-// as "left" or "right".
+// For "infix", the name can be preceeded by "left" or "right" to
+// specify associativity
 // The default is no associativity i.e., always group explicitly
-infix sum:Exp = "+" { #assoc left; builtin }
-infix difference:Exp = "-" { #assoc left; builtin }
-infix product:Exp = "*" { #assoc left; builtin }
+infix left sum:Exp = "+" { builtin }
+infix left difference:Exp = "-" { builtin }
+infix left product:Exp = "*" { builtin }
 infix equal:Exp = "=" { builtin }
 infix leq:Exp = "<=" { builtin }
 
-infix funApp: Exp = // Intentionally left blank
-{ #assoc left; builtin }
+infix left funApp: Exp = // Intentionally left blank
+{ builtin }
 
-infix cons:Exp = "::" { #assoc right; builtin }
-infix seqComp:Exp = ";" { #assoc right; builtin }
+infix right cons:Exp = "::" { builtin }
+infix right seqComp:Exp = ";" { builtin }
 
 // Totally define precedence for certain operators. Those on the
 // same line get the same precedence, those on higher lines have
@@ -111,7 +111,7 @@ syncon wildcardPat: Pat = "_" { builtin }
 syncon listPat: Pat =
   "[" (p:Pat (";" ps:Pat)*)? "]"
 { builtin }
-infix consPat: Pat = "::" { #assoc right; builtin }
+infix right consPat: Pat = "::" { builtin }
 
 
 forbid funApp.left = match

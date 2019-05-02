@@ -47,20 +47,14 @@ syncon postfixDef: Top =
 { builtin }
 
 syncon infixDef: Top =
-  "infix" name:Name ":" syType:TypeName "="
-  descr:SyntaxDescription* "{" (InfixProperty ";")* "builtin" "}"
+  "infix" assoc:("left" | "right")? name:Name ":" syType:TypeName "="
+  descr:SyntaxDescription* "{" (Property ";")* "builtin" "}"
 { builtin }
 
 
 // === Properties ===
 
 type Property
-type InfixProperty // Here I would like to have some form of subtyping or inclusion or something
-
-syncon assoc: InfixProperty = "#assoc" a:Assoc { builtin }
-type Assoc
-syncon assocLeft: Assoc = "left" { builtin }
-syncon assocRight: Assoc = "right" { builtin }
 
 
 // === Syntax Descriptions ===
@@ -76,7 +70,7 @@ postfix sdStar: SyntaxDescription = "*" { builtin }
 postfix sdPlus: SyntaxDescription = "+" { builtin }
 postfix sdQuestion: SyntaxDescription = "?" { builtin }
 
-syncon sdAlt: SyntaxDescription = left:rec ("|" right:rec)+ { builtin }
+syncon sdAlt: SyntaxDescription = left:rec+ ("|" right:rec+)+ { builtin }
 forbid sdAlt.left = sdAlt
 forbid sdAlt.right = sdAlt
 

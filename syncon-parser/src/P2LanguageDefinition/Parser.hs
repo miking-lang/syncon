@@ -73,7 +73,7 @@ parseFile path = lex <&> \getTokens -> do
 synconTokens :: Lexer.LanguageTokens TokenKind
 synconTokens = Lexer.LanguageTokens
   -- Literal tokens
-  [ "token", "=", "syncon", ":", "{", ";", "}", "prefix", "postfix", "infix", "#assoc"
+  [ "token", "=", "syncon", ":", "{", ";", "}", "prefix", "postfix", "infix"
   , "(", ")", "*", "+", "?", ".", "comment", "left", "right", "precedence", "except"
   , "type", "builtin", "forbid", "|", "rec" ]
   -- Regex tokens
@@ -205,17 +205,14 @@ postfixDef = syntaxDescription >>= \description -> rule . (<?> "postfix operator
 infixDef :: Grammar r (Prod r (Syncon, Maybe Forbid))
 infixDef = syntaxDescription >>= \description -> rule . (<?> "infix operator definition") $ do
   start <- lit "infix"
+  mForbid <- optional $ do
+    ~(re, r) <- ((const RRec &&& range) <$> lit "left")  -- NOTE: this inversion is intentional
+            <|> ((const LRec &&& range) <$> lit "right")
+    pure $ \n' ->
+      ForbidRec r (r, n') (r, re) (r, n')
   ~(_, n) <- name <* lit ":"
   ~(tyn_r, tyn) <- tyName <* lit "="
   descrs <- Seq.fromList <$> many description <* lit "{"
-  mForbid <- optional $ do
-    start' <- lit "#assoc"
-    lrrec <- (RRec <$ lit "left") -- NOTE: this inversion is intentional
-              <|> (LRec <$ lit "right")
-    end <- lit ";"
-    pure $ \n' ->
-      let r = range start' <> range end
-      in ForbidRec r (r, n') (r, lrrec) (r, n')
   end <- lit "builtin" *> lit "}"  -- TODO: body appropriately
   pure $ (, mForbid <*> pure n) $ Syncon
     { s_name = n
