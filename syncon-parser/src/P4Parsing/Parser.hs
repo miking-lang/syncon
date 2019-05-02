@@ -57,7 +57,7 @@ type SL = SingleLanguage
 type Prod r l a = Earley.Prod r Text (Tok l) a
 type Tok l = Token l TypeName
 
-parseSingleLanguage :: DefinitionFile -> Res SL (FilePath -> IO (Res SL (HashSet [Node SL TypeName])))
+parseSingleLanguage :: DefinitionFile -> Res SL (FilePath -> IO (Res SL (HashSet (Node SL TypeName))))
 parseSingleLanguage df = do
   lexFile <- lexer
   parser <- generateGrammar df
@@ -117,7 +117,7 @@ computeSynconsBySyntaxType syncons = M.fromListWith S.union $ do
   Syncon{s_name, s_syntaxType} <- toList syncons
   pure (snd s_syntaxType, S.singleton s_name)
 
-newtype GrammarQuant l = GrammarQuant {unquant :: forall r. Grammar r (Prod r l [Node l TypeName])}
+newtype GrammarQuant l = GrammarQuant {unquant :: forall r. Grammar r (Prod r l (Node l TypeName))}
 
 generateGrammar :: DefinitionFile -> Res l (GrammarQuant l)
 generateGrammar DefinitionFile{..}
@@ -134,7 +134,6 @@ generateGrammar DefinitionFile{..}
       M.lookup (TypeName "Top", S.empty) nts'
         & compFromJust "P4Parsing.Parser.generateGrammar" "Top somehow vanished during generation"
         & fmap fst
-        & many
         & return
   where
     elaboration = elaborate syncons forbids precedences

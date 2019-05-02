@@ -20,7 +20,6 @@ import P4Parsing.Types
 
 data Error l n
   = Ambiguity Range (HashSet (Node l n))
-  | TopAmbiguity (HashSet [Node l n])
   deriving (Show)
 
 instance FormatError (Error l n) where
@@ -32,27 +31,15 @@ instance FormatError (Error l n) where
       formatChildren = sortBy (compare `on` range) >>> foldMap formatNode
       formatNode n@Node{n_name = Name n'} =
         printf "\n - %- 20s %s" n' (textualRange $ range n) & Text.pack
-  formatError (TopAmbiguity trees) = simpleErrorMessage mempty $
-    "The top level is ambiguous. Here are the alternatives:\n"
-    <> foldMap (foldMap formatNode >>> (<> "\n\n")) trees
-    where
-      formatNode n@Node{n_name = Name n'} =
-        printf "- %- 20s %s" n' (textualRange $ range n) & Text.pack
 
 report :: (Eq l, Hashable l, Eq n, Hashable n)
-       => HashSet [Node l n] -> Result [Error l n] [Node l n]
-report treeSet = case toList treeSet of
-  [] -> compErr "P4Parsing.AmbiguityReporter.report" "Got an empty set of toplists"
-  [tree] -> Data tree
-  forest
-    | equalBy length forest
-    , let subforests = transpose forest
-    , all (equalBy range) subforests
-      -> concatMap localizeAmbiguities subforests
-         <&> ((head >>> foldMap range) &&& S.fromList)
-         <&> uncurry Ambiguity
-         & Error
-  _ -> Error [TopAmbiguity treeSet]
+       => HashSet (Node l n) -> Result [Error l n] (Node l n)
+report = toList >>> \case
+  [top] -> Data top
+  forest -> localizeAmbiguities forest
+    <&> ((head >>> foldMap range) &&& S.fromList)
+    <&> uncurry Ambiguity
+    & Error
 
 localizeAmbiguities :: (Eq l, Eq n) => [Node l n] -> [[Node l n]]
 localizeAmbiguities forest

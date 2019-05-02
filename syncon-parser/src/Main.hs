@@ -87,7 +87,6 @@ ambigReportingTest = do
     Error errs -> pPrint $ errs <&> \case
       -- Parser.Ambiguity r alts -> (r, fmap (project >>> fmap (project >>> void)) $ toList alts)
       Parser.Ambiguity r alts -> (r, fmap (project >>> void) $ toList alts)
-      Parser.TopAmbiguity _ -> (Nowhere, [])
 
 parseToHTMLDebug :: FilePath -> FilePath -> FilePath -> IO ()
 parseToHTMLDebug defFile sourceFile outFile = do
@@ -101,7 +100,7 @@ parseToHTMLDebug defFile sourceFile outFile = do
   setOfNodes <- parseFile sourceFile >>= dataOrError fileSource
   source <- readFile sourceFile
   case Parser.report setOfNodes of
-    Data nodes -> nodes >>= universe >>= nodeAnnotation
+    Data node -> universe node >>= nodeAnnotation
       & annotate source
       & putInTemplate "resources/htmlTemplate.html"
       & (>>= writeFile outFile)
@@ -132,7 +131,7 @@ dataOrError' (Error e) = do
   compErr "Main.dataOrError" "Got error"
 
 test :: IO ()
-test = parseToHTMLDebug "examples/bootstrap.syncon" "examples/ocaml.syncon" "out.html"
+test = parseToHTMLDebug "examples/ocaml.syncon" "examples/fizzbuzz.ml" "out.html"
 
 main :: IO ()
 main = getArgs >>= \case

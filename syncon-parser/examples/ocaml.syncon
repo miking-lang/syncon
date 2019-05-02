@@ -6,11 +6,14 @@ token Ident = "[[:lower:]][[:word:]]*"
 token Integer = "[0-9]+"
 token String = "\"(\\\\.|[^\"\\\\])*\""
 
-syncon topLet: Top =
+type Decl
+syncon decls: Top = d:Decl*
+
+syncon topLet: Decl =
   "let" x:Ident args:Pat*
   "=" e:Exp ";;"?
 
-syncon topLetRec: Top =
+syncon topLetRec: Decl =
   "let" "rec" x:Ident args:Pat*
   "=" e:Exp
   more:("and" x2:Ident args2:Pat*

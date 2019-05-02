@@ -30,7 +30,7 @@ type Exp
 type Pattern
 ```
 
-One syntax type is pre-defined: `Top`, the syntax type of a top-level element. A file is zero or more `Top`s.
+One syntax type is pre-defined: `Top`, the syntax type of a top-level element. A source file is parsed as exactly one `Top`.
 
 ------
 

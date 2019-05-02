@@ -9,33 +9,36 @@ token String = "\"(\\\\.|[^\"\\\\])*\""
 
 comment "//[^\\n]*(\\n|$)"
 
+type Decl
+syncon decls: Top = d:Decl*
+
 // === Syntax Types ===
 
-syncon typeDef: Top = "type" syType:TypeName
+syncon typeDef: Decl = "type" syType:TypeName
 
 // === Token Definitions ===
 
-syncon tokenDef: Top = "token" syType:TypeName "=" regex:String
+syncon tokenDef: Decl = "token" syType:TypeName "=" regex:String
 
 // === Comment Definitions ===
 
-syncon commentDef: Top = "comment" regex:String
+syncon commentDef: Decl = "comment" regex:String
 
 // === Syncon Definitions (including operators) ===
 
-syncon synconDef: Top =
+syncon synconDef: Decl =
   "syncon" name:Name ":" syType:TypeName "="
   descr:SyntaxDescription+ ("{" body:SynconBody "}")?
 
-syncon prefixDef: Top =
+syncon prefixDef: Decl =
   "prefix" name:Name ":" syType:TypeName "="
   descr:SyntaxDescription+ ("{" body:SynconBody "}")?
 
-syncon postfixDef: Top =
+syncon postfixDef: Decl =
   "postfix" name:Name ":" syType:TypeName "="
   descr:SyntaxDescription+ ("{" body:SynconBody "}")?
 
-syncon infixDef: Top =
+syncon infixDef: Decl =
   "infix" assoc:("left" | "right")? name:Name ":" syType:TypeName "="
   descr:SyntaxDescription* ("{" body:SynconBody "}")?
 
@@ -78,10 +81,10 @@ syncon sdRec: SyntaxDescription = "rec"
 
 // === Disambiguation ===
 
-syncon forbidDef: Top =
+syncon forbidDef: Decl =
   "forbid" syName:Name "." sdName:(Name | "left" | "right") "=" syName2:Name
 
 
-syncon precedenceList: Top =
+syncon precedenceList: Decl =
   "precedence" "{" line:(name:Name+ ";")+ "}"
   ("except" "{" eLine:(eName:Name+ ";")+ "}")?
