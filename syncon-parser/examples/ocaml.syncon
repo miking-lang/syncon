@@ -1,4 +1,3 @@
-type Top  // Top-level things
 type Exp  // Expressions
 type Pat  // Patterns
 

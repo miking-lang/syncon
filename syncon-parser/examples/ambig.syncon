@@ -1,4 +1,3 @@
-type Top
 type Expression
 
 token Int = "\\d+"

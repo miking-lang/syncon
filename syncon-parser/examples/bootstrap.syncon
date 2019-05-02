@@ -2,8 +2,6 @@
 // language definition, using a syncon language definition. Note that
 // it does not cover bindings nor spliced syntax in the body
 
-type Top
-
 // Posix character classes in token definitions
 token Name = "[[:lower:]][[:word:]]*"
 token TypeName = "[[:upper:]][[:word:]]*"

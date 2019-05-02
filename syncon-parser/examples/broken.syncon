@@ -1,5 +1,3 @@
-type Top
-
 // === Duplicate syncon definition ===
 syncon duplicateSyncon: Top =
   "type" syType:TypeName

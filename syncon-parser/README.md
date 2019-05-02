@@ -26,12 +26,11 @@ At present, a language definition is a single file containing various definition
 A syntax type is declared as follows:
 
 ```
-type Top
 type Exp
 type Pattern
 ```
 
-`Top` in particular is required; a source code file will be expected to consist of zero or more things with syntax type `Top`.
+One syntax type is pre-defined: `Top`, the syntax type of a top-level element. A file is zero or more `Top`s.
 
 ------
 

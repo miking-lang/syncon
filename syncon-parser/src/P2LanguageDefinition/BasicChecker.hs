@@ -71,6 +71,9 @@ instance FormatError Error where
         & M.toList
         & foldMap (\(tyn, syncons) -> coerce tyn <> ":\n  " <> syncons <> "\n")
 
+addImplicits :: [Top] -> [Top]
+addImplicits tops = SyntaxTypeTop (SyntaxType (TypeName "Top") mempty) : tops
+
 -- | This will coalesce all the top-level declarations, make sure that each of them
 -- is valid. This validity includes things like checking that regexes are correct,
 -- that nothing is defined twice, that no syntax type used is undefined, etc.
@@ -78,7 +81,7 @@ instance FormatError Error where
 --
 -- NOTE: this will not check the validity of regular expressions
 mkDefinitionFile :: [Top] -> Res DefinitionFile
-mkDefinitionFile (Seq.fromList -> tops) = do
+mkDefinitionFile (addImplicits >>> Seq.fromList -> tops) = do
   findDuplicates s_name synconTops
   findDuplicates getTypeName typeTops
   traverse_ (checkSyncon typeNames) synconTops
