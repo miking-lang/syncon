@@ -31,25 +31,35 @@ class FormatError a where
 instance {-# OVERLAPPABLE #-} Show e => FormatError e where
   formatError e = ErrorMessage { e_message = ppShow e & toS, e_range = Nowhere, e_ranges = mempty }
 
+-- | A simpler constructor for error messages that pertain to a single 'Range'.
 simpleErrorMessage :: Range -> Text -> ErrorMessage
 simpleErrorMessage r t = ErrorMessage { e_message = t, e_range = r, e_ranges = [(r, "")] }
 
 -- TODO: add underline highlighting if the range only covers one line, since that is likely to be a really common case
 -- TODO: omit parts of the code if it's a large number of lines
+-- | Produce (colored) output suitable for printing the errors. Will extract source code and highlight the
+-- relevant section.
 formatErrors :: Foldable f => Text -> f ErrorMessage -> Text
 formatErrors source messages = sortedMessages <&> formatSingle & Text.intercalate "\n--------------------\n\n"
   where
+    sortedMessages :: [ErrorMessage]
     sortedMessages = toList messages & sortBy (compare `on` range)
+    firstLine :: Int
     firstLine = line firstPosition
+    lines :: Seq (Int, Text)
     lines = [firstLine..] `zip` split (== '\n') source & Seq.fromList
 
     -- Format a single ErrorMessage
+    formatSingle :: ErrorMessage -> Text
     formatSingle ErrorMessage{..} = ensureLn e_message <> foldMap formatRange e_ranges
 
     -- Format code extracts
+    formatRange :: (Range, Text) -> Text
     formatRange (Nowhere, "") = ""
     formatRange (r, "") = "\n" <> extractRange r
     formatRange (r, t) = "\n" <> ensureLn t <> extractRange r
+
+    extractRange :: Range -> Text
     extractRange Nowhere = ""
     extractRange pos@(Range (Position l1 _) (Position l2 _))
       | l1 == l2 = Seq.lookup (l1-firstLine) lines
@@ -61,6 +71,8 @@ formatErrors source messages = sortedMessages <&> formatSingle & Text.intercalat
         & toList
         & foldMap (<> "\n")
       | otherwise = compErr "ErrorMessage.formatErrors.extractRange" $ "Backwards range: " <> show pos
+
+    formatLine :: Range -> (Int, Text) -> Text
     formatLine Nowhere _ = compErr "ErrorMessage.formatErrors.formatLine" "Unexpected Nowhere"
     formatLine (Range (Position l1 c1) (Position l2 c2)) (lnum, lcontents)
       | lnum == l1 && lnum == l2 = formatNumber lnum <> ": " <> highlightBetween c1 c2 lcontents

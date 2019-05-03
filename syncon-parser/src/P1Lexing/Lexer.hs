@@ -64,6 +64,8 @@ data Lexer l n = Lexer
   , languages :: !(HashMap l (LanguageInternal n))
   }
 
+-- | Run a previously compiled regex. Assumes the foreign call will succeed, e.g., that there
+-- is enough memory, uses 'compErr' otherwise.
 runRegex :: Regex -> ByteString -> Maybe ByteString
 runRegex reg str = case unsafePerformIO (execute reg str) of
   Left err -> compErr "P1Lexing.Lexer.runRegex" $ show err
@@ -71,12 +73,15 @@ runRegex reg str = case unsafePerformIO (execute reg str) of
   Right (Just arr) -> case arr Array.! fst (Array.bounds arr) of
     (start, len) -> str & ByteString.drop start & ByteString.take len & Just
 
+-- | Compile a regex, then get either a column and error message or a compiled regex.
 compileRegex :: Text -> Either (Int, Text) Regex
 compileRegex t = unsafePerformIO (compile compOpts execOpts (encodeUtf8 ("(*UCP)^" <> t))) & first (second toS)
   where
     compOpts = compUTF8 .|. compNoAutoCapture
     execOpts = 0
 
+-- | Wrapper around 'compileRegex' that produces a nice 'Error' for regexes where we have a 'Range'
+-- where they were defined.
 compileRegex' :: l -> Range -> Text -> Result [Error l n] Regex
 compileRegex' l r t = case compileRegex t of
   Left (errColumn, message) -> case r of
@@ -85,7 +90,7 @@ compileRegex' l r t = case compileRegex t of
   Right regex -> Data regex
 
 -- | Construct a new lexer, capable of lexing multiple languages
-mkLexer :: (Eq l, Hashable l) => [(l, LanguageTokens n)] -> Result [Error l n] (Lexer l n)
+mkLexer :: forall l n. (Eq l, Hashable l) => [(l, LanguageTokens n)] -> Result [Error l n] (Lexer l n)
 mkLexer langs = do
   langs' <- traverse mkLang langs
   return $ Lexer
@@ -93,6 +98,7 @@ mkLexer langs = do
     , position = Position 1 1
     , languages = M.fromList langs' }
   where
+    mkLang :: (l, LanguageTokens n) -> Result [Error l n] (l, LanguageInternal n)
     mkLang (l, LanguageTokens lits others comments) = do
       let lits' = Seq.fromList $ encodeUtf8 <$> lits
       others' <- Seq.fromList <$> traverse (mkRegex l) others
@@ -101,7 +107,8 @@ mkLexer langs = do
         { literals = lits'
         , tokenRegexes = others'
         , whitespaceRegex = whitespace }
-    mkRegex l (n, (r, t)) = (n,) <$> compileRegex' l r t
+
+    -- Produce a regex that parses whitespace
     mkWhitespace _ [] = case compileRegex "\\s*" of
       Left err -> compErr "P1Lexing.Lexer.mkLexer.mkWhitespace" $ show err
       Right reg -> Data reg
@@ -110,10 +117,11 @@ mkLexer langs = do
         Left err -> compErr "P1Lexing.Lexer.mkLexer.mkWhitespace" $ show err
         Right reg -> Data reg
 
+    mkRegex l (n, (r, t)) = (n,) <$> compileRegex' l r t
     paren s = "(" <> s <> ")"
 
 -- TODO: catch file not found stuff and put in 'Result'
--- | Construct a new 'Lexer' positioned at the beginning of the given file
+-- | Construct a new 'Lexer' positioned at the beginning of the given file.
 startFileLex :: FilePath -> Lexer l n -> IO (Result [Error l n] (Lexer l n))
 startFileLex path lexer = do
   source <- ByteString.readFile path

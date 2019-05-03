@@ -32,6 +32,8 @@ instance FormatError (Error l n) where
       formatNode n@Node{n_name = Name n'} =
         printf "\n - %- 20s %s" n' (textualRange $ range n) & Text.pack
 
+-- | If the argument is a singleton set, return the element, otherwise produce
+-- one or more localized ambiguity errors.
 report :: (Eq l, Hashable l, Eq n, Hashable n)
        => HashSet (Node l n) -> Result [Error l n] (Node l n)
 report = toList >>> \case

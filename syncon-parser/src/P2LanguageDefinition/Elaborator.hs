@@ -37,6 +37,7 @@ elaborate syncons forbids (PrecedenceMatrix mat) = elaboratedForbids : assocEntr
     -- Figure out associativity for all operator syncons. There is no entry if there is no associativity.
     assocs :: HashMap Name Assoc
     assocs = recs & M.mapMaybeWithKey getAssoc
+    getAssoc :: Name -> HashSet Rec -> Maybe Assoc
     getAssoc name recs' = case (LRec `S.member` recs', RRec `S.member` recs') of
       (False, False) -> Nothing  -- not an operator
       (True, False) -> Just AssocLeft  -- unary postfix
@@ -46,6 +47,7 @@ elaborate syncons forbids (PrecedenceMatrix mat) = elaboratedForbids : assocEntr
         (True, False) -> Just AssocRight  -- binary right associative
         (False, True) -> Just AssocLeft  -- binary right associative
         (True, True) -> compErr "P2LanguageDefinition.Elaborator.elaborate.getAssoc" $ show name <> " has forbids for both SDLeft and SDRight."
+    hasAssocForbid :: Name -> Rec -> Bool
     hasAssocForbid name r = M.lookup (name, Left r) elaboratedForbids & fold & S.member name
 
     -- NOTE: (<>) is ok here because we know that their keySets are disjoint
@@ -57,8 +59,10 @@ elaborate syncons forbids (PrecedenceMatrix mat) = elaboratedForbids : assocEntr
     processEntry (n1, n2) LT = forbid n2 LRec n1 <> forbid n2 RRec n1 <> forbid n2 Rec n1
     processEntry (n1, n2) GT = forbid n1 LRec n2 <> forbid n1 RRec n2 <> forbid n1 Rec n2
 
+    assocEntries :: [Elaboration]
     assocEntries = mat <&> fst & M.mapWithKey processEntry & toList
 
+    forbid :: Name -> Rec -> Name -> Elaboration
     forbid n1 r n2 = if M.lookup n1 recs & fold & S.member r
       then M.singleton (n1, Left r) (S.singleton n2)
       else M.empty

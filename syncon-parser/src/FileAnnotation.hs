@@ -29,6 +29,7 @@ annotate source annotations = flip evalState initState $ do
   return $ toS $ Builder.toLazyText $ start <> source' <> extras
   where
     initState = AnnotationState { position = firstPosition, commands }
+    commands :: [(Position, Maybe Text)]
     commands = sortBy (compare `on` fst) $ do
       (Range start end, annotation) <- annotations
       [(start, Just annotation), (end, Nothing)]

@@ -71,6 +71,7 @@ instance FormatError Error where
         & M.toList
         & foldMap (\(tyn, syncons) -> coerce tyn <> ":\n  " <> syncons <> "\n")
 
+-- | Add the implicitly defined things.
 addImplicits :: [Top] -> [Top]
 addImplicits tops = SyntaxTypeTop (SyntaxType (TypeName "Top") mempty) : tops
 
@@ -94,7 +95,9 @@ mkDefinitionFile (addImplicits >>> Seq.fromList -> tops) = do
     forbids = Seq.fromList [f | ForbidTop f <- toList tops]
     comments = Seq.fromList [c | CommentTop c <- toList tops]
 
+    typeNames :: HashSet TypeName
     typeNames = void syntaxTypes & S.fromMap
+    synconAndSDNames :: HashMap Name (TypeName, HashSet Rec, HashMap SDName (Maybe TypeName))
     synconAndSDNames = (\syn -> (snd $ s_syntaxType syn, getSDRecs syn, getSDNames syn)) <$> syncons
 
     syncons = mkMap s_name synconTops
@@ -106,7 +109,7 @@ mkDefinitionFile (addImplicits >>> Seq.fromList -> tops) = do
     getTypeName (Left SyntaxType{st_name}) = st_name
     getTypeName (Right TokenType{t_name}) = t_name
 
--- | Find all errors local to a single syncon
+-- | Find all errors local to a single syncon.
 checkSyncon :: HashSet TypeName -> Syncon -> Res ()
 checkSyncon types Syncon{..} = do
   unless (snd s_syntaxType `S.member` types) $
@@ -116,7 +119,7 @@ checkSyncon types Syncon{..} = do
   findDuplicates fst [(t, r) | SDNamed r (SDName t) _ <- universe s_syntaxDescription]
   pure ()
 
--- | Check that forbids refer to actually defined things, and that the syntax types agree
+-- | Check that forbids refer to actually defined things, and that the syntax types agree.
 checkForbid :: HashMap Name (TypeName, HashSet Rec, HashMap SDName (Maybe TypeName)) -> Forbid -> Res ()
 checkForbid names = \case
   Forbid _ n1 (sdr, sdname) n2 -> do
@@ -141,7 +144,7 @@ checkForbid names = \case
     toText (SDName t) = t
 
 -- | Check that precedence is consistent, and that a single precedence list only defines
--- precedence for a single syntax type
+-- precedence for a single syntax type.
 checkPrecedences :: Foldable t
                  => HashMap Name (TypeName, HashSet Rec, HashMap SDName (Maybe TypeName))
                  -> t Top
@@ -151,6 +154,7 @@ checkPrecedences names tops = consistentTypes *> matrix
     precedences = Seq.fromList [pl | PrecedenceTop pl <- toList tops]
 
     consistentTypes = traverse_ operatorTypes precedences
+    operatorTypes :: PrecedenceList -> Res ()
     operatorTypes (PrecedenceList r pList eList) = foldMap toList pList <> foldMap toList eList
       & S.fromList & S.toList
       & traverse (operatorType r)
@@ -158,26 +162,32 @@ checkPrecedences names tops = consistentTypes *> matrix
       & (>>= \types -> case M.toList types of
                  [_] -> pure ()
                  _ -> Error [NotAllSameSyntaxType types r])
+    operatorType :: Range -> Name -> Res (TypeName, HashSet Name)
     operatorType r n@(Name t) = case M.lookup n names of
       Nothing -> Error [Undefined t r]
       Just (_, recs, _) | S.null recs -> Error [NotAnOperator n r]
       Just (ty, _, _) -> Data (ty, S.singleton n)
 
+    matrix :: Res PrecedenceMatrix
     matrix = precedences
       & fmap mat
       & foldl' mergePreMatrices M.empty
       & M.traverseWithKey checkEntry
       & fmap (M.mapMaybe identity >>> PrecedenceMatrix)
+    mat :: PrecedenceList -> HashMap (Name, Name) (HashMap Ordering (HashSet Range))
     mat (PrecedenceList r pList eList) =
       mergePreMatrices gtPrecedences eqPrecedences `M.difference` exceptions
       where
+        gtPrecedences, eqPrecedences :: HashMap (Name, Name) (HashMap Ordering (HashSet Range))
         gtPrecedences = ((toList <$> pList & orderedPairs)
           >>= uncurry (liftA2 $ mkEntry GT))
           & foldl' mergePreMatrices M.empty
         eqPrecedences = (toList pList >>= orderedPairs)
           & fmap (uncurry $ mkEntry EQ)
           & foldl' mergePreMatrices M.empty
+        exceptions :: HashMap (Name, Name) ()
         exceptions = foldMap orderedPairs eList & S.fromList & S.toMap
+        mkEntry :: Ordering -> Name -> Name -> HashMap (Name, Name) (HashMap Ordering (HashSet Range))
         mkEntry ordering n1@(Name t1) n2@(Name t2)
           | t1 <= t2 = M.singleton (n1, n2) $ M.singleton ordering $ S.singleton r
           | otherwise = M.singleton (n2, n1) $ M.singleton (reverseOrdering ordering) $ S.singleton r

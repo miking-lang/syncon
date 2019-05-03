@@ -162,12 +162,11 @@ synconDef = syntaxDescription >>= \description -> synconBody >>= \body -> rule .
     , s_range = range start <> foldMap range descrs <> fold mEnd
     }
 
-sdleft :: SyntaxDescription
+sdleft, sdright :: SyntaxDescription
 sdleft = SDNamed Nowhere (SDName "left") (SDRec Nowhere LRec)
-sdright :: SyntaxDescription
 sdright = SDNamed Nowhere (SDName "right") (SDRec Nowhere RRec)
 
--- | A prefix syncon definition. The argument will be named 'SDRight'.
+-- | A prefix syncon definition. The argument will be 'sdright'.
 prefixDef :: Grammar r (Prod r Syncon)
 prefixDef = syntaxDescription >>= \description -> synconBody >>= \body -> rule . (<?> "prefix operator definition") $ do
   start <- lit "prefix"
@@ -184,7 +183,7 @@ prefixDef = syntaxDescription >>= \description -> synconBody >>= \body -> rule .
     , s_range = range start <> foldMap range descrs <> fold mEnd
     }
 
--- | A postfix syncon definition. The argument will be named 'SDLeft'.
+-- | A postfix syncon definition. The argument will be 'sdleft'.
 postfixDef :: Grammar r (Prod r Syncon)
 postfixDef = syntaxDescription >>= \description -> synconBody >>= \body -> rule . (<?> "postfix operator definition") $ do
   start <- lit "postfix"
@@ -201,7 +200,7 @@ postfixDef = syntaxDescription >>= \description -> synconBody >>= \body -> rule 
     , s_range = range start <> foldMap range descrs <> fold mEnd
     }
 
--- | An infix syncon definition. The arguments will be named 'SDLeft' and 'SDRight', respectively.
+-- | An infix syncon definition. The arguments will be 'sdleft' and 'sdright', respectively.
 infixDef :: Grammar r (Prod r (Syncon, Maybe Forbid))
 infixDef = syntaxDescription >>= \description -> synconBody >>= \body -> rule . (<?> "infix operator definition") $ do
   start <- lit "infix"
@@ -223,6 +222,7 @@ infixDef = syntaxDescription >>= \description -> synconBody >>= \body -> rule . 
     , s_range = range start <> foldMap range descrs <> fold mEnd
     }
 
+-- NOTE: this is a 'Grammar' instead of just a 'Prod' to accomodate for actually useful bodies later.
 synconBody :: Grammar r (Prod r (Maybe Range))
 synconBody = pure $ optional $
   lit "{" *> lit "builtin" *> lit "}" <&> range
@@ -277,6 +277,7 @@ tyName = (<?> "type name") . terminal $ \case
   OtherTok r _ TypeNameTok n -> Just (r, TypeName n)
   _ -> Nothing
 
+-- | Parse an 'SDName', plus its 'Range'
 sdName :: Prod r (Range, SDName)
 sdName = (<?> "name") . terminal $ \case
   OtherTok r _ NameTok n -> Just (r, SDName n)
