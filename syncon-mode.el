@@ -62,7 +62,7 @@
  (setq mode-name "syncon")
  )
 
-;; Open “*.enc” in syncon-mode
+;; Open “*.syncon” in syncon-mode
 (add-to-list 'auto-mode-alist '("\\.syncon\\'" . syncon-mode))
 
 (provide 'syncon-mode)
