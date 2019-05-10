@@ -34,6 +34,11 @@ iterateInductivelyM f s = recur S.empty s
 iterateInductively :: (Eq s, Hashable s) => (s -> HashSet s) -> HashSet s -> HashSet s
 iterateInductively f s = runIdentity $ iterateInductivelyOptM (f >>> return) s
 
+repeatUntilStable :: (Monad m, Eq a) => m a -> m a
+repeatUntilStable action = action >>= recur
+  where
+    recur prev = action >>= \new -> if prev == new then return new else recur new
+
 flipMap :: forall a b c. (Eq a, Hashable a, Eq b, Hashable b, Eq c, Hashable c)
         => HashMap a (HashMap b c)
         -> HashMap c (HashMap b (HashSet a))

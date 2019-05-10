@@ -21,7 +21,8 @@ executable vpl-ambiguity
                , Automaton.NFA
                , Automaton.EpsilonNFA
                , Automaton.DFA
-               , ParenAutomaton
+               , Automaton.NVA
+               , Automaton.DVA
                , Regex
                , Util
                , GraphViz
