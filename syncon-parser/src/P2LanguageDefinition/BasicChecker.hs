@@ -17,6 +17,7 @@ import qualified Data.HashSet as S
 
 import ErrorMessage (ErrorMessage(..), FormatError(..), simpleErrorMessage)
 
+import Data.Functor.Foldable (cataA)
 import Data.Generics.Uniplate.Data (universe)
 
 import P1Lexing.Types (Range, range, Ranged)
@@ -32,6 +33,7 @@ data Error
   | WrongSyntaxType Name SDName TypeName Name TypeName Range  -- ^ name.sdname : syntaxtype, but name : typename
   | NotASyntaxTypeOccurrence Name SDName Range
   | NotAllSameSyntaxType (HashMap TypeName (HashSet Name)) Range
+  | UnnamedSyntaxTypeOccurrence Range
   deriving (Show, Eq)
 
 instance FormatError Error where
@@ -70,6 +72,8 @@ instance FormatError Error where
       formatted = typePartitions <&> (toList >>> fmap coerce >>> Text.intercalate ", ")
         & M.toList
         & foldMap (\(tyn, syncons) -> coerce tyn <> ":\n  " <> syncons <> "\n")
+  formatError (UnnamedSyntaxTypeOccurrence r) = simpleErrorMessage r $
+    "A syntax type occurence in a syntax description must be named, it cannot be discarded."
 
 -- | Add the implicitly defined things.
 addImplicits :: [Top] -> [Top]
@@ -85,7 +89,7 @@ mkDefinitionFile :: [Top] -> Res DefinitionFile
 mkDefinitionFile (addImplicits >>> Seq.fromList -> tops) = do
   findDuplicates s_name synconTops
   findDuplicates getTypeName typeTops
-  traverse_ (checkSyncon typeNames) synconTops
+  traverse_ (checkSyncon isSyTy typeNames) synconTops
   traverse_ (checkForbid synconAndSDNames) forbids
   precedences <- checkPrecedences synconAndSDNames tops
   pure $ DefinitionFile{..}
@@ -100,6 +104,8 @@ mkDefinitionFile (addImplicits >>> Seq.fromList -> tops) = do
     synconAndSDNames :: HashMap Name (TypeName, HashSet Rec, HashMap SDName (Maybe TypeName))
     synconAndSDNames = (\syn -> (snd $ s_syntaxType syn, getSDRecs syn, getSDNames syn)) <$> syncons
 
+    isSyTy tyn = M.lookup tyn syntaxTypes & maybe False isLeft
+
     syncons = mkMap s_name synconTops
     syntaxTypes = mkMap getTypeName typeTops
 
@@ -110,13 +116,18 @@ mkDefinitionFile (addImplicits >>> Seq.fromList -> tops) = do
     getTypeName (Right TokenType{t_name}) = t_name
 
 -- | Find all errors local to a single syncon.
-checkSyncon :: HashSet TypeName -> Syncon -> Res ()
-checkSyncon types Syncon{..} = do
+checkSyncon :: (TypeName -> Bool) -> HashSet TypeName -> Syncon -> Res ()
+checkSyncon isSyTy types Syncon{..} = do
   unless (snd s_syntaxType `S.member` types) $
     Error [Undefined (coerce $ snd s_syntaxType) $ fst s_syntaxType]
   for_ [(r, tyn) | SDSyTy r tyn <- universe s_syntaxDescription] $ \(r, tyn) ->
     unless (tyn `S.member` types) $ Error [Undefined (coerce tyn) r]
   findDuplicates fst [(t, r) | SDNamed r (SDName t) _ <- universe s_syntaxDescription]
+  join . (`cataA` s_syntaxDescription) $ \case
+    SDSyTyF r tyn | isSyTy tyn  -> pure $ Error [UnnamedSyntaxTypeOccurrence r]
+    SDRecF r _ -> pure $ Error [UnnamedSyntaxTypeOccurrence r]
+    SDNamedF _ _ sd -> Data () <$ sd
+    other -> Data () <$ traverse join other
   pure ()
 
 -- | Check that forbids refer to actually defined things, and that the syntax types agree.

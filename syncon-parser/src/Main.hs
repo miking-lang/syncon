@@ -131,7 +131,7 @@ dataOrError' (Error e) = do
   compErr "Main.dataOrError" "Got error"
 
 test :: IO ()
-test = parseToHTMLDebug "examples/ocaml.syncon" "examples/fizzbuzz.ml" "out.html"
+test = parseToHTMLDebug "examples/broken.syncon" "examples/fizzbuzz.ml" "out.html"
 
 main :: IO ()
 main = getArgs >>= \case

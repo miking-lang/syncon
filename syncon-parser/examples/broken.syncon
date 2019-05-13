@@ -65,3 +65,8 @@ infix op4:NewType = "/"
 precedence {
   op1 op4;
 }
+
+// === Unnamed syntax type occurrence ===
+
+token TokType = "Tok"
+syncon foo: Top = a:NewType NewType b:(NewType | "blub") TokType
