@@ -36,3 +36,10 @@ instance Semigroup e => Monad (Result e) where
 instance Bifunctor Result where
   bimap f _ (Error e) = Error $ f e
   bimap _ f (Data a) = Data $ f a
+
+instance (Semigroup e, Semigroup a) => Semigroup (Result e a) where
+  (<>) = liftA2 (<>)
+
+instance (Semigroup e, Monoid a) => Monoid (Result e a) where
+  mempty = Data mempty
+  mappend = (<>)
