@@ -82,7 +82,7 @@ ambigReportingTest = do
   df <- LD.mkDefinitionFile tops & dataOrError'
   parseFile <- Parser.parseSingleLanguage df & dataOrError'
   setOfNodes <- parseFile "examples/ambig.test" >>= dataOrError'
-  case Parser.report setOfNodes of
+  case Parser.report (LD.syncons df) setOfNodes of
     Data nodes -> pPrint nodes
     Error errs -> pPrint $ errs <&> \case
       -- Parser.Ambiguity r alts -> (r, fmap (project >>> fmap (project >>> void)) $ toList alts)
@@ -99,7 +99,7 @@ parseToHTMLDebug defFile sourceFile outFile = do
   putStrLn @Text "Parsing source file"
   setOfNodes <- parseFile sourceFile >>= dataOrError fileSource
   source <- readFile sourceFile
-  case Parser.report setOfNodes of
+  case Parser.report (LD.syncons df) setOfNodes of
     Data node -> universe node >>= nodeAnnotation
       & annotate source
       & putInTemplate "resources/htmlTemplate.html"
@@ -131,7 +131,7 @@ dataOrError' (Error e) = do
   compErr "Main.dataOrError" "Got error"
 
 test :: IO ()
-test = parseToHTMLDebug "examples/broken.syncon" "examples/fizzbuzz.ml" "out.html"
+test = parseToHTMLDebug "examples/bootstrap.syncon" "examples/bootstrap.syncon" "out.html"
 
 main :: IO ()
 main = getArgs >>= \case

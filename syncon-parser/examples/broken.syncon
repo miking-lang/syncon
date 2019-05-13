@@ -70,3 +70,27 @@ precedence {
 
 token TokType = "Tok"
 syncon foo: Top = a:NewType NewType b:(NewType | "blub") TokType
+
+// === Undefined name in grouping ===
+
+// grouping BlubTok UndefType BlobTok
+
+// === Inconsistent groupings ===
+
+// grouping "a" NewType "a"
+// grouping "b" NewType "c"
+// grouping "d" NewType "b"
+
+// === Unbalanced syntax description ===
+
+grouping "(" NewType ")"
+grouping TokType NewType ")"
+
+syncon unbalanced1: NewType = "("
+syncon unbalanced2: NewType = ")" "(" ")" "("
+syncon unbalanced3: NewType = "(" ("(" TokType)* ")"
+syncon balanced1: NewType = ("(" | TokType) ")"
+
+// === Unequal alts ===
+
+syncon unequal1: NewType = ("(" | "blub")

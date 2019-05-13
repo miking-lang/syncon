@@ -25,6 +25,7 @@ data DefinitionFile = DefinitionFile
   , forbids :: !(Seq Forbid)
   , precedences :: !PrecedenceMatrix
   , comments :: !(Seq Comment)
+  , groupings :: !(HashMap TypeName (Seq (Either Text TypeName, Either Text TypeName)))
   } deriving (Show)
 
 -- | A big sum type of all the top-level declarations
@@ -35,6 +36,7 @@ data Top
   | SynconTop Syncon
   | ForbidTop Forbid
   | PrecedenceTop PrecedenceList
+  | GroupingTop Grouping
   deriving (Show, Data, Typeable)
 
 -- |
@@ -67,6 +69,14 @@ data TokenType = TokenType
 data Comment = Comment
   { c_regex :: !(Range, Text)
   , c_range :: !Range
+  } deriving (Show, Data, Typeable)
+
+-- | A grouping declaration
+data Grouping = Grouping
+  { g_open :: !(Range, Either Text TypeName)
+  , g_close :: !(Range, Either Text TypeName)
+  , g_syntaxType :: !(Range, TypeName)
+  , g_range :: !Range
   } deriving (Show, Data, Typeable)
 
 -- |

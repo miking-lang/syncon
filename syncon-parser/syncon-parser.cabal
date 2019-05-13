@@ -27,8 +27,16 @@ executable syncon-parser
   main-is: Main.hs
   other-modules: Pre
                , Result
+               , Util
                , FileAnnotation
                , ErrorMessage
+               , Data.Automaton
+               , Data.Automaton.EpsilonNFA
+               , Data.Automaton.NFA
+               , Data.Automaton.DFA
+               , Data.Automaton.DVA
+               , Data.Automaton.NVA
+               , Data.Automaton.Regex
                , P1Lexing.Types
                , P1Lexing.Lexer
                , P2LanguageDefinition.Types

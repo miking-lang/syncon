@@ -26,6 +26,7 @@ module Pre
 , Compose(..)
 
 , HashMap
+, mapFromFoldable
 , HashSet
 ) where
 
@@ -37,6 +38,7 @@ import Data.Coerce (coerce)
 
 import Data.HashMap.Lazy (HashMap)
 import Data.HashSet (HashSet)
+import qualified Data.HashMap.Lazy as M
 
 import Data.Functor.Compose (Compose(..))
 
@@ -58,6 +60,10 @@ isEqual _ = False
 
 equalBy :: (Foldable f, Eq b) => (a -> b) -> f a -> Bool
 equalBy f = foldMap (f >>> equal) >>> isEqual
+
+-- | Make a 'HashMap' given a function to generate a key and a collection of values
+mapFromFoldable :: (Eq b, Hashable b, Foldable t) => (a -> b) -> t a -> HashMap b [a]
+mapFromFoldable getName = toList >>> fmap (getName &&& pure) >>> M.fromListWith (<>)
 
 instance Eq a => Semigroup (Equal a) where
   NotEqual <> _ = NotEqual

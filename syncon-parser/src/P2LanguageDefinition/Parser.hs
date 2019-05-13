@@ -75,7 +75,7 @@ synconTokens = Lexer.LanguageTokens
   -- Literal tokens
   [ "token", "=", "syncon", ":", "{", ";", "}", "prefix", "postfix", "infix"
   , "(", ")", "*", "+", "?", ".", "comment", "left", "right", "precedence", "except"
-  , "type", "builtin", "forbid", "|", "rec" ]
+  , "type", "builtin", "forbid", "|", "rec", "grouping" ]
   -- Regex tokens
   [ (NameTok, (Nowhere, "[[:lower:]][[:word:]]*"))
   , (TypeNameTok, (Nowhere, "[[:upper:]][[:word:]]*"))
@@ -94,11 +94,12 @@ tops = mdo
   c <- fmap (CommentTop >>> pure) <$> commentDef
   f <- fmap (ForbidTop >>> pure) <$> forbidDef
   pl <- fmap (PrecedenceTop >>> pure) <$> precedenceDef
+  g <- fmap (GroupingTop >>> pure) <$> groupingDef
   syn <- fmap (SynconTop >>> pure) <$> synconDef
   pre <- fmap (SynconTop >>> pure) <$> prefixDef
   post <- fmap (SynconTop >>> pure) <$> postfixDef
   inf <- fmap (\(s, f') -> foldr (:) [SynconTop s] $ ForbidTop <$> f') <$> infixDef
-  return . fmap concat . many $ st <|> tt <|> c <|> syn <|> pre <|> post <|> inf <|> f <|> pl
+  return . fmap concat . many $ st <|> tt <|> c <|> syn <|> pre <|> post <|> inf <|> f <|> pl <|> g
 
 -- | Parse a syntax type declaration
 syntaxTypeDef :: Grammar r (Prod r SyntaxType)
@@ -143,6 +144,19 @@ precedenceDef = rule . (<?> "precedence disambiguation list") $ do
     (foldMap snd mExcept)
   where
     innerList = Seq.fromList <$> some (Seq.fromList <$> some (snd <$> name) <* lit ";")
+
+groupingDef :: Grammar r (Prod r Grouping)
+groupingDef = rule . (<?> "grouping disambiguation") $ do
+  start <- lit "grouping"
+  open <- (fmap Left <$> string) <|> (fmap Right <$> tyName)
+  tyn <- tyName
+  close <- (fmap Left <$> string) <|> (fmap Right <$> tyName)
+  pure $ Grouping
+    { g_open = open
+    , g_close = close
+    , g_syntaxType = tyn
+    , g_range = range start <> fst close
+    }
 
 -- |
 -- == Syncon definitions

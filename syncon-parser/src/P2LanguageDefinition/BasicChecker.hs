@@ -17,7 +17,7 @@ import qualified Data.HashSet as S
 
 import ErrorMessage (ErrorMessage(..), FormatError(..), simpleErrorMessage)
 
-import Data.Functor.Foldable (cataA)
+import Data.Functor.Foldable (cataA, para)
 import Data.Generics.Uniplate.Data (universe)
 
 import P1Lexing.Types (Range, range, Ranged)
@@ -34,6 +34,11 @@ data Error
   | NotASyntaxTypeOccurrence Name SDName Range
   | NotAllSameSyntaxType (HashMap TypeName (HashSet Name)) Range
   | UnnamedSyntaxTypeOccurrence Range
+  | UnexpectedSyntaxType TypeName Range
+  | UnexpectedTokenType TypeName Range
+  | InconsistentBracketKinds (Either Text TypeName) [(TokenKind, HashSet Range)]
+  | UnequalAltDescriptions Range [((Int, Int), HashSet Range)]
+  | UnbalancedDescription Range [Range] [Range]  -- ^ unpaired closing bracket locations, unpaired opening bracket locations
   deriving (Show, Eq)
 
 instance FormatError Error where
@@ -50,7 +55,7 @@ instance FormatError Error where
   formatError (InconsistentPrecedence (n1, n2) defs) = ErrorMessage
     { e_message = coerce n1 <> " and " <> coerce n2 <> " have inconsistent precedences."
     , e_range = foldMap (snd >>> fold) defs
-    , e_ranges = defs >>= \(ordering, rs) -> (, fmt ordering) <$> toList rs
+    , e_ranges = defs >>= \(ordering, rs) -> (, fmt ordering) <$> sort (toList rs)
     }
     where
       fmt LT = coerce n1 <> " < " <> coerce n2
@@ -74,6 +79,40 @@ instance FormatError Error where
         & foldMap (\(tyn, syncons) -> coerce tyn <> ":\n  " <> syncons <> "\n")
   formatError (UnnamedSyntaxTypeOccurrence r) = simpleErrorMessage r $
     "A syntax type occurence in a syntax description must be named, it cannot be discarded."
+  formatError (UnexpectedSyntaxType tyn r) = simpleErrorMessage r $
+    "Expected a token type, but " <> coerce tyn <> " is a syntax type."
+  formatError (UnexpectedTokenType tyn r) = simpleErrorMessage r $
+    "Expected a syntax type, but " <> coerce tyn <> " is a token type."
+  formatError (InconsistentBracketKinds tok defs) = ErrorMessage
+    { e_message = either identity coerce tok <> " is used both as both an opening bracket and a closing bracket (it may only be one of those)."
+    , e_range = foldMap (snd >>> fold) defs
+    , e_ranges = defs >>= \(kind, rs) -> (, fmt kind) <$> sort (toList rs)
+    }
+    where
+      fmt OpenTok = "Open bracket:"
+      fmt InnerTok = "Non-bracket:"
+      fmt CloseTok = "Close bracket:"
+  formatError (UnequalAltDescriptions r alts) = ErrorMessage
+    { e_message = "The alternatives of this description do not have the same amount of unpaired brackets."
+    , e_range = r
+    , e_ranges = concatMap (\(bal, rs) -> (, fmt bal) <$> sort (toList rs)) alts
+      & sortBy (compare `on` fst)
+      & ((r, "") :)
+    }
+    where
+      fmt (0, 0) = "No unpaired brackets"
+      fmt (closing, opening) = innerFmt closing "closing bracket" <> ", " <> innerFmt opening "opening bracket" <> ":"
+      innerFmt 0 str = "No " <> str <> "s"
+      innerFmt 1 str = "1 " <> str
+      innerFmt n str = show n <> " " <> str <> "s"
+  formatError (UnbalancedDescription r closing opening) = ErrorMessage
+    { e_message = "This syntax description must be balanced; all brackets must be paired (though not necessarily with the same kind of bracket)."
+    , e_range = r
+    , e_ranges = fmap (, "Unpaired closing bracket:") closing
+      & mappend (fmap (, "Unpaired opening bracket:") opening)
+      & sortBy (compare `on` fst)
+      & ((r, "") :)
+    }
 
 -- | Add the implicitly defined things.
 addImplicits :: [Top] -> [Top]
@@ -89,7 +128,8 @@ mkDefinitionFile :: [Top] -> Res DefinitionFile
 mkDefinitionFile (addImplicits >>> Seq.fromList -> tops) = do
   findDuplicates s_name synconTops
   findDuplicates getTypeName typeTops
-  traverse_ (checkSyncon isSyTy typeNames) synconTops
+  (tokKind, Groupings groupings) <- checkGroupings syntaxTypes tops
+  traverse_ (checkSyncon syntaxTypes tokKind) synconTops
   traverse_ (checkForbid synconAndSDNames) forbids
   precedences <- checkPrecedences synconAndSDNames tops
   pure $ DefinitionFile{..}
@@ -99,12 +139,8 @@ mkDefinitionFile (addImplicits >>> Seq.fromList -> tops) = do
     forbids = Seq.fromList [f | ForbidTop f <- toList tops]
     comments = Seq.fromList [c | CommentTop c <- toList tops]
 
-    typeNames :: HashSet TypeName
-    typeNames = void syntaxTypes & S.fromMap
     synconAndSDNames :: HashMap Name (TypeName, HashSet Rec, HashMap SDName (Maybe TypeName))
     synconAndSDNames = (\syn -> (snd $ s_syntaxType syn, getSDRecs syn, getSDNames syn)) <$> syncons
-
-    isSyTy tyn = M.lookup tyn syntaxTypes & maybe False isLeft
 
     syncons = mkMap s_name synconTops
     syntaxTypes = mkMap getTypeName typeTops
@@ -115,20 +151,55 @@ mkDefinitionFile (addImplicits >>> Seq.fromList -> tops) = do
     getTypeName (Left SyntaxType{st_name}) = st_name
     getTypeName (Right TokenType{t_name}) = t_name
 
+-- | A syntax description is balanced iff its 'BalancedDescription' is
+-- BalancedDescription [] [] (i.e., 'mempty'). The first element is the
+-- locations of the unpaired closing brackets, while the latter is the
+-- locations of the unpaired opening brackets.
+data BalancedDescription = BalancedDescription (Seq Range) (Seq Range)
+instance Semigroup BalancedDescription where
+  BalancedDescription c1 o1 <> BalancedDescription c2 o2
+    | Seq.length o1 < Seq.length c2 = BalancedDescription (c1 <> Seq.drop (Seq.length o1) c2) o2
+    | otherwise = BalancedDescription c1 (Seq.drop (Seq.length c2) o1 <> o2)
+instance Monoid BalancedDescription where
+  mempty = BalancedDescription Seq.empty Seq.empty
+  mappend = (<>)
+
 -- | Find all errors local to a single syncon.
-checkSyncon :: (TypeName -> Bool) -> HashSet TypeName -> Syncon -> Res ()
-checkSyncon isSyTy types Syncon{..} = do
-  unless (snd s_syntaxType `S.member` types) $
-    Error [Undefined (coerce $ snd s_syntaxType) $ fst s_syntaxType]
-  for_ [(r, tyn) | SDSyTy r tyn <- universe s_syntaxDescription] $ \(r, tyn) ->
-    unless (tyn `S.member` types) $ Error [Undefined (coerce tyn) r]
+checkSyncon :: HashMap TypeName (Either SyntaxType TokenType) -> (Either Text TypeName -> TokenKind) -> Syncon -> Res ()
+checkSyncon types tokKind Syncon{..} = do
+  checkIsSyTy types s_syntaxType
   findDuplicates fst [(t, r) | SDNamed r (SDName t) _ <- universe s_syntaxDescription]
   join . (`cataA` s_syntaxDescription) $ \case
     SDSyTyF r tyn | isSyTy tyn  -> pure $ Error [UnnamedSyntaxTypeOccurrence r]
     SDRecF r _ -> pure $ Error [UnnamedSyntaxTypeOccurrence r]
     SDNamedF _ _ sd -> Data () <$ sd
     other -> Data () <$ traverse join other
+  checkBalanced s_syntaxDescription $ (`para` s_syntaxDescription) $ \case
+    SDSyTyF r tyn -> pure $ baseDescr r $ Right tyn
+    SDTokenF r t -> pure $ baseDescr r $ Left t
+    SDAltF r sds -> do
+      sds' <- forM sds $ \(sd, rBalanced) -> do
+        balanced <- rBalanced
+        pure (toLenTup balanced, [(balanced, range sd)])
+      case M.toList $ M.fromListWith (<>) $ toList sds' of
+        [(_, balances)] -> head balances & foldMap fst & pure
+        balances -> Error [UnequalAltDescriptions r $ second (fmap snd >>> S.fromList) <$> balances]
+    SDRepF _ _ (original, sd) -> checkBalanced original sd
+    other -> foldMap snd other
   pure ()
+  where
+    isSyTy tyn = M.lookup tyn types & maybe False isLeft
+    toLenTup (BalancedDescription l r) = (Seq.length l, Seq.length r)
+    checkBalanced :: SyntaxDescription -> Res BalancedDescription -> Res BalancedDescription
+    checkBalanced original sd = sd >>= \case
+      BalancedDescription Seq.Empty Seq.Empty ->
+        pure mempty
+      BalancedDescription closes opens ->
+        Error [UnbalancedDescription (range original) (toList closes) (toList opens)]
+    baseDescr r = tokKind >>> \case
+      OpenTok -> BalancedDescription Seq.empty (Seq.singleton r)
+      InnerTok -> mempty
+      CloseTok -> BalancedDescription (Seq.singleton r) Seq.empty
 
 -- | Check that forbids refer to actually defined things, and that the syntax types agree.
 checkForbid :: HashMap Name (TypeName, HashSet Rec, HashMap SDName (Maybe TypeName)) -> Forbid -> Res ()
@@ -224,8 +295,61 @@ checkPrecedences names tops = consistentTypes *> matrix
            >>> fmap (first pure >>> bisequence)
            >>> fold)
 
+data TokenKind = OpenTok | InnerTok | CloseTok deriving (Show, Eq, Generic)
+instance Hashable TokenKind
+
+newtype Groupings = Groupings (HashMap TypeName (Seq (Either Text TypeName, Either Text TypeName)))
+
+instance Semigroup Groupings where
+  Groupings a <> Groupings b = Groupings $ M.unionWith (<>) a b
+instance Monoid Groupings where
+  mempty = Groupings M.empty
+  mappend = (<>)
+
+newtype TokenClassifications = TokenClassifications (HashMap (Either Text TypeName) (HashMap TokenKind (HashSet Range)))
+instance Semigroup TokenClassifications where
+  TokenClassifications a <> TokenClassifications b = TokenClassifications $ M.unionWith (M.unionWith S.union) a b
+instance Monoid TokenClassifications where
+  mempty = TokenClassifications M.empty
+  mappend = (<>)
+
+checkGroupings :: Foldable t => HashMap TypeName (Either SyntaxType TokenType) -> t Top -> Res (Either Text TypeName -> TokenKind, Groupings)
+checkGroupings types tops = do
+  (groupings, TokenClassifications classifications) <-
+    foldMap groupingPair [g | GroupingTop g <- toList tops]
+  classMap <- (`M.traverseWithKey` classifications) $ \tok kinds ->
+    case M.toList kinds of
+      [(kind, _)] -> pure kind
+      kinds' -> Error [InconsistentBracketKinds tok kinds']
+  pure (\tok -> M.lookupDefault InnerTok tok classMap, groupings)
+  where
+    groupingPair :: Grouping -> Res (Groupings, TokenClassifications)
+    groupingPair Grouping{..} = do
+      openClass <- checkTokTy OpenTok g_open
+      checkIsSyTy types g_syntaxType
+      closeClass <- checkTokTy CloseTok g_close
+      pure (Groupings $ M.singleton (snd g_syntaxType) $ Seq.singleton (snd g_open, snd g_close), openClass <> closeClass)
+
+    checkTokTy :: TokenKind -> (Range, Either Text TypeName) -> Res TokenClassifications
+    checkTokTy kind (r, t@Left{}) = pure $ TokenClassifications $ M.singleton t $ M.singleton kind $ S.singleton r
+    checkTokTy kind (r, t@(Right tyn)) = do
+      checkIsTokTy types (r, tyn)
+      pure $ TokenClassifications $ M.singleton t $ M.singleton kind $ S.singleton r
+
 -- |
 -- = Helpers
+
+checkIsSyTy :: HashMap TypeName (Either SyntaxType TokenType) -> (Range, TypeName) -> Res ()
+checkIsSyTy types (r, tyn) = case M.lookup tyn types of
+  Nothing -> Error [Undefined (coerce tyn) r]
+  Just Left{} -> Data ()
+  Just Right{} -> Error [UnexpectedTokenType tyn r]
+
+checkIsTokTy :: HashMap TypeName (Either SyntaxType TokenType) -> (Range, TypeName) -> Res ()
+checkIsTokTy types (r, tyn) = case M.lookup tyn types of
+  Nothing -> Error [Undefined (coerce tyn) r]
+  Just Left{} -> Error [UnexpectedSyntaxType tyn r]
+  Just Right{} -> Data ()
 
 -- | Find all duplicate definitions, given a name function and a collection of definitions
 findDuplicates :: (Ranged a, Coercible b Text, Eq b, Hashable b, Foldable t) => (a -> b) -> t a -> Res ()
@@ -254,6 +378,5 @@ getSDRecs = s_syntaxDescription >>> inner >>> S.fromList
   where
     inner descr = [r | SDRec _ r <- universe descr]
 
--- | Make a 'HashMap' given a function to generate a key and a collection of values
 mkMap :: (Eq b, Hashable b, Foldable t) => (a -> b) -> t a -> HashMap b a
 mkMap getName = toList >>> fmap (getName &&& identity) >>> M.fromList

@@ -75,13 +75,16 @@ parseSingleLanguage df = do
 
 -- | Look up keywords, comment syntax, etc., to produce the parameters for the lexer.
 dfToLanguageTokens :: DefinitionFile -> LanguageTokens TypeName
-dfToLanguageTokens DefinitionFile{syncons, syntaxTypes, comments} =
-  LanguageTokens (S.fromList literals & S.toList) tokens $ c_regex <$> toList comments
+dfToLanguageTokens DefinitionFile{syncons, syntaxTypes, comments, groupings} =
+  LanguageTokens (literals <> groupLits & S.fromList & S.toList) tokens $ c_regex <$> toList comments
   where
-    literals = "(" : ")" : do
+    literals = do
       Syncon{s_syntaxDescription = descr} <- toList syncons
       SDToken _ t <- universe descr
       pure t
+    groupLits = do
+      (open, close) <- toList groupings >>= toList
+      either pure (const []) open <> either pure (const []) close
     tokens = do
       Right TokenType{t_name, t_regex} <- toList syntaxTypes
       pure $ (t_name, t_regex)
@@ -131,7 +134,7 @@ computeSynconsBySyntaxType syncons = M.fromListWith S.union $ do
 newtype GrammarQuant l = GrammarQuant {unquant :: forall r. Grammar r (Prod r l (Node l TypeName))}
 
 -- | The top level generation function.
-generateGrammar :: DefinitionFile -> Res l (GrammarQuant l)
+generateGrammar :: forall l. DefinitionFile -> Res l (GrammarQuant l)
 generateGrammar DefinitionFile{..}
   | not $ (TypeName "Top", S.empty) `S.member` nts = Error [MissingTop]
   | otherwise = Data $ GrammarQuant $ do
@@ -139,7 +142,7 @@ generateGrammar DefinitionFile{..}
       -- i.e., a mapping from high-level non-terminals to their productions, and then produces
       -- that map.
       nts' <- mfix $ \nts' -> do
-        parens <- M.traverseWithKey (mkParenRule nts') syTyToSyncon
+        parens <- M.traverseWithKey (mkGroupingRule nts') syTyToSyncon
         syncons' <- mapM (generateSyncon markings isSyTy nts' >>> rule) syncons
         return $ forWithKey (S.toMap nts) $ \(tyn, excludes) _ ->
           syncons'
@@ -155,10 +158,11 @@ generateGrammar DefinitionFile{..}
     markings = mkMarkings syncons isSyTy elaboration
     nts = computeNonTerminals syntaxTypes markings
     syTyToSyncon = computeSynconsBySyntaxType syncons
-    mkParenRule nts' tyn _ = rule $ do
-      start <- lit "("
+    mkGroupingRule :: HashMap (TypeName, HashSet Name) (Prod r l (a, Range)) -> TypeName -> b -> Grammar r (Prod r l (a, Range))
+    mkGroupingRule nts' tyn _ = rule $ asum $ foreach (M.lookup tyn groupings & fold) $ \(open, close) -> do
+      start <- either lit othertok open
       ~(val, _) <- lookupEmpty (tyn, S.empty) nts'
-      end <- lit ")"
+      end <- either lit othertok close
       pure $ (val, range start <> range end)
     isSyTy :: TypeName -> Bool
     isSyTy tyn = M.lookup tyn syntaxTypes <&> isLeft & fromMaybe False

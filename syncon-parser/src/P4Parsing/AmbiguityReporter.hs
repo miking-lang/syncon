@@ -1,6 +1,6 @@
 module P4Parsing.AmbiguityReporter
 ( report
-  , Error(..)
+, Error(..)
 ) where
 
 import Pre
@@ -15,7 +15,7 @@ import Data.Functor.Foldable (project)
 import ErrorMessage (FormatError(..), simpleErrorMessage)
 
 import P1Lexing.Types (Range, range, textualRange)
-import P2LanguageDefinition.Types (Name(..))
+import P2LanguageDefinition.Types (Name(..), Syncon)
 import P4Parsing.Types
 
 data Error l n
@@ -35,8 +35,9 @@ instance FormatError (Error l n) where
 -- | If the argument is a singleton set, return the element, otherwise produce
 -- one or more localized ambiguity errors.
 report :: (Eq l, Hashable l, Eq n, Hashable n)
-       => HashSet (Node l n) -> Result [Error l n] (Node l n)
-report = toList >>> \case
+       => HashMap Name Syncon -> HashSet (Node l n) -> Result [Error l n] (Node l n)
+report _syncons = toList >>> \case
+  [] -> compErr "P4Parsing.AmbiguityReporter.report" "Expected one or more parse trees, got zero."
   [top] -> Data top
   forest -> localizeAmbiguities forest
     <&> ((head >>> foldMap range) &&& S.fromList)
@@ -50,3 +51,13 @@ localizeAmbiguities forest
   , all (equalBy range) subforests
     = concatMap localizeAmbiguities subforests
   | otherwise = [forest]
+
+-- |
+-- = Parse-time resolvability
+
+-- data Token l n
+--   = LitTok l Text
+--   | OtherTokInstance l n Text
+--   | OtherTok l n
+
+-- mkLanguage :: HashMap Name Syncon -> Node l n -> DVA

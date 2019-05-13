@@ -24,6 +24,11 @@ syncon tokenDef: Decl = "token" syType:TypeName "=" regex:String
 
 syncon commentDef: Decl = "comment" regex:String
 
+// === Grouping Definitions ===
+
+syncon groupingDef: Decl =
+  "grouping" (oStr:String | oTy:TypeName) ty:TypeName (cStr:String | cTy:TypeName)
+
 // === Syncon Definitions (including operators) ===
 
 syncon synconDef: Decl =
@@ -53,6 +58,7 @@ type Property
 // === Syntax Descriptions ===
 
 type SyntaxDescription
+grouping "(" SyntaxDescription ")"
 
 // TODO: This might be problematic?
 syncon sdSeq: SyntaxDescription =
