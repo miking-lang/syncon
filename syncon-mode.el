@@ -21,6 +21,7 @@
        "syncon"
        "token"
        "type"
+       "grouping"
       ))
 
 (setq syncon-operators
