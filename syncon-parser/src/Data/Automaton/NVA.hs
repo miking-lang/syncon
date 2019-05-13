@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Automaton.NVA where
+module Data.Automaton.NVA where
 
 import Pre hiding (product, reverse, reduce, all, from, to, sym, check)
 

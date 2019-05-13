@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Regex
+module Data.Automaton.Regex
 ( Regex(..)
 , RegexF(..)
 , concat
@@ -20,8 +20,8 @@ import qualified Data.HashSet as S
 import Data.Functor.Foldable (cata)
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 
-import qualified Automaton as FA
-import qualified Automaton.EpsilonNFA as E
+import qualified Data.Automaton as FA
+import qualified Data.Automaton.EpsilonNFA as E
 
 data Regex alphabet = Terminal alphabet
                     | Concat (Regex alphabet) (Regex alphabet)

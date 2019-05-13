@@ -1,4 +1,4 @@
-module Automaton.NFA
+module Data.Automaton.NFA
 ( NFA(..)
 , addEdges
 , merge
@@ -16,7 +16,7 @@ import qualified Data.HashSet as S
 
 import Util (iterateInductively)
 
-import Automaton (FiniteAutomaton(..), EpsNFA(EpsNFA))
+import Data.Automaton (FiniteAutomaton(..), EpsNFA(EpsNFA))
 
 data NFA state alphabet = NFA
   { initial :: state

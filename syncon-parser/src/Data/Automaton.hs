@@ -1,4 +1,4 @@
-module Automaton where
+module Data.Automaton where
 
 import Pre
 

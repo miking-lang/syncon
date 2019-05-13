@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Automaton.DVA where
+module Data.Automaton.DVA where
 
 import Pre
 
@@ -9,8 +9,8 @@ import qualified Data.HashSet as S
 
 import Util (iterateInductivelyOptM, repeatUntilStable)
 
-import Automaton.NVA (NVA(NVA))
-import qualified Automaton.NVA as NVA
+import Data.Automaton.NVA (NVA(NVA))
+import qualified Data.Automaton.NVA as NVA
 
 data DVA s sta i o c = DVA
   { initial :: s

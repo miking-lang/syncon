@@ -1,4 +1,4 @@
-module Automaton.EpsilonNFA
+module Data.Automaton.EpsilonNFA
 ( edge
 , addEdge
 , mergeTransitions
@@ -14,9 +14,9 @@ import qualified Data.HashSet as S
 
 import Util (iterateInductivelyOptM, iterateInductively)
 
-import Automaton (EpsNFA(..))
-import Automaton.DFA (DFA(DFA))
-import qualified Automaton.DFA as D
+import Data.Automaton (EpsNFA(..))
+import Data.Automaton.DFA (DFA(DFA))
+import qualified Data.Automaton.DFA as D
 
 edge :: (Hashable s, Hashable a) => s -> Maybe a -> s -> HashMap s (HashMap (Maybe a) (HashSet s))
 edge s a e = M.singleton s $ M.singleton a (S.singleton e)

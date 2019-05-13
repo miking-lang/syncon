@@ -1,4 +1,4 @@
-module Automaton.DFA
+module Data.Automaton.DFA
 ( DFA(..)
 , renumber
 , minimize
@@ -10,8 +10,8 @@ import Pre
 import qualified Data.HashMap.Lazy as M
 import qualified Data.HashSet as S
 
-import Automaton (FiniteAutomaton(..), EpsNFA(EpsNFA))
-import qualified Automaton.NFA as N
+import Data.Automaton (FiniteAutomaton(..), EpsNFA(EpsNFA))
+import qualified Data.Automaton.NFA as N
 
 import Util (flipMap)
 
