@@ -111,7 +111,7 @@ determinize NVA
         , closes = M.empty }
 
       staSyms <- gets stackSyms
-      forM_ staSyms $ \staSym@(invBotTrans', o) -> do
+      cEnds <- forM (toList staSyms) $ \staSym@(invBotTrans', o) -> do
         -- NOTE: using names from the optimized version by Van Tang, arrows are HashMaps
             -- haveOpen :: q1 -> gamma -> set q
         let haveOpen = M.intersectionWith (,) invBotTrans' (M.mapMaybe (M.lookup o) otMap)
@@ -132,8 +132,9 @@ determinize NVA
           { inners = M.empty
           , opens = M.empty
           , closes = M.singleton invBotTrans cs }
+        return $ toList cs >>= toList
 
-      undefined
+      return $ S.fromList $ concat cEnds <> (toList os <&> snd) <> toList is
 
     idQ :: HashSet s -> HashMap s (HashSet s)
     idQ = S.toMap >>> M.mapWithKey (\s _ -> S.singleton s)
