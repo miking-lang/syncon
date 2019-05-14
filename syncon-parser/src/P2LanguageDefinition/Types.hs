@@ -25,8 +25,12 @@ data DefinitionFile = DefinitionFile
   , forbids :: !(Seq Forbid)
   , precedences :: !PrecedenceMatrix
   , comments :: !(Seq Comment)
+  , bracketKind :: !((Either Text TypeName) -> BracketKind)
   , groupings :: !(HashMap TypeName (Seq (Either Text TypeName, Either Text TypeName)))
-  } deriving (Show)
+  }
+
+data BracketKind = OpenBracket | NonBracket | CloseBracket deriving (Show, Eq, Generic)
+instance Hashable BracketKind
 
 -- | A big sum type of all the top-level declarations
 data Top
@@ -106,7 +110,7 @@ data Repetition = RepStar | RepQuestion | RepPlus deriving (Show, Data, Typeable
 -- | In the syncon with the first name, forbid the syntax-type appearing in the
 --   syntax description with the second name, from parsing as the syncon with
 --   the third name (without parens surrounding it). This is the most basic
---   disambiguation tool, which all other disambiguations eventually translate to
+--   disambiguation tool, which all other disambiguations eventually translate to.
 data Forbid
   = Forbid !Range !(Range, Name) !(Range, SDName) !(Range, Name)
   | ForbidRec !Range !(Range, Name) !(Range, Rec) !(Range, Name)

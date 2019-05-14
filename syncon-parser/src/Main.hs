@@ -50,17 +50,17 @@ parseTest = do
   res <- LD.parseFile "examples/bootstrap.syncon"
   pPrint res
 
-checkFailTest :: IO ()
-checkFailTest = do
-  tops <- LD.parseFile "examples/broken.syncon" >>= dataOrError'
-  df <- LD.mkDefinitionFile tops & dataOrError'
-  pPrint df
+-- checkFailTest :: IO ()
+-- checkFailTest = do
+--   tops <- LD.parseFile "examples/broken.syncon" >>= dataOrError'
+--   df <- LD.mkDefinitionFile tops & dataOrError'
+--   pPrint df
 
-checkSuccessTest :: IO ()
-checkSuccessTest = do
-  tops <- LD.parseFile "examples/bootstrap.syncon" >>= dataOrError'
-  df <- LD.mkDefinitionFile tops & dataOrError'
-  pPrint df
+-- checkSuccessTest :: IO ()
+-- checkSuccessTest = do
+--   tops <- LD.parseFile "examples/bootstrap.syncon" >>= dataOrError'
+--   df <- LD.mkDefinitionFile tops & dataOrError'
+--   pPrint df
 
 elaborationTest :: IO ()
 elaborationTest = do
@@ -76,17 +76,17 @@ parse4Test = do
   setOfNodes <- parseFile "examples/bootstrap.syncon" >>= dataOrError'
   pPrint setOfNodes
 
-ambigReportingTest :: IO ()
-ambigReportingTest = do
-  tops <- LD.parseFile "examples/ambig.syncon" >>= dataOrError'
-  df <- LD.mkDefinitionFile tops & dataOrError'
-  parseFile <- Parser.parseSingleLanguage df & dataOrError'
-  setOfNodes <- parseFile "examples/ambig.test" >>= dataOrError'
-  case Parser.report (LD.syncons df) setOfNodes of
-    Data nodes -> pPrint nodes
-    Error errs -> pPrint $ errs <&> \case
-      -- Parser.Ambiguity r alts -> (r, fmap (project >>> fmap (project >>> void)) $ toList alts)
-      Parser.Ambiguity r alts -> (r, fmap (project >>> void) $ toList alts)
+-- ambigReportingTest :: IO ()
+-- ambigReportingTest = do
+--   tops <- LD.parseFile "examples/ambig.syncon" >>= dataOrError'
+--   df <- LD.mkDefinitionFile tops & dataOrError'
+--   parseFile <- Parser.parseSingleLanguage df & dataOrError'
+--   setOfNodes <- parseFile "examples/ambig.test" >>= dataOrError'
+--   case Parser.report (LD.syncons df) setOfNodes of
+--     Data nodes -> pPrint nodes
+--     Error errs -> pPrint $ errs <&> \case
+--       -- Parser.Ambiguity r alts -> (r, fmap (project >>> fmap (project >>> void)) $ toList alts)
+--       Parser.Ambiguity r alts -> (r, fmap (project >>> void) $ toList alts)
 
 parseToHTMLDebug :: FilePath -> FilePath -> FilePath -> IO ()
 parseToHTMLDebug defFile sourceFile outFile = do
@@ -99,7 +99,7 @@ parseToHTMLDebug defFile sourceFile outFile = do
   putStrLn @Text "Parsing source file"
   setOfNodes <- parseFile sourceFile >>= dataOrError fileSource
   source <- readFile sourceFile
-  case Parser.report (LD.syncons df) setOfNodes of
+  case Parser.report (LD.bracketKind df) (LD.syncons df) setOfNodes of
     Data node -> universe node >>= nodeAnnotation
       & annotate source
       & putInTemplate "resources/htmlTemplate.html"

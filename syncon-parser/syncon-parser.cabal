@@ -34,8 +34,9 @@ executable syncon-parser
                , Data.Automaton.EpsilonNFA
                , Data.Automaton.NFA
                , Data.Automaton.DFA
-               , Data.Automaton.DVA
+               , Data.Automaton.EpsilonNVA
                , Data.Automaton.NVA
+               , Data.Automaton.DVA
                , Data.Automaton.Regex
                , P1Lexing.Types
                , P1Lexing.Lexer

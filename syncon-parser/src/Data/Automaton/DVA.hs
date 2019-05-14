@@ -9,6 +9,7 @@ import qualified Data.HashSet as S
 
 import Util (iterateInductivelyOptM, repeatUntilStable)
 
+import Data.Automaton.EpsilonNVA (TaggedTerminal(..))
 import Data.Automaton.NVA (NVA(NVA))
 import qualified Data.Automaton.NVA as NVA
 
@@ -155,10 +156,30 @@ determinize NVA
                      => HashSet a -> HashSet b -> HashSet (a, b)
     cartesianProduct as bs = (,) <$> S.toList as <*> S.toList bs & S.fromList
 
-
 states :: (Eq s, Hashable s) => DVA s sta i o c -> HashSet s
 states DVA{..} = final <> S.fromList (is <> os <> cs)
   where
     is = M.keys innerTransitions <> (toList innerTransitions >>= toList)
     os = M.keys openTransitions <> (toList openTransitions >>= fmap snd . toList)
     cs = M.keys closeTransitions <> (toList closeTransitions >>= toList >>= toList)
+
+dvaOp :: (Bool -> Bool -> Bool) -> DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (s1, s2) (sta1, sta2) i o c
+dvaOp = undefined
+
+product :: DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (s1, s2) (sta1, sta2) i o c
+product = dvaOp (&&)
+
+difference :: DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (s1, s2) (sta1, sta2) i o c
+difference = dvaOp (\a b -> a && not b)
+
+renumberStates :: DVA s sta i o c -> DVA Int sta i o c
+renumberStates = undefined
+
+renumberStack :: DVA s sta i o c -> DVA s Int i o c
+renumberStack = undefined
+
+renumber :: DVA s sta i o c -> DVA Int Int i o c
+renumber = renumberStates >>> renumberStack
+
+shortestWord :: DVA s sta i o c -> Maybe [TaggedTerminal i o c]
+shortestWord = undefined

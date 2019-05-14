@@ -2,10 +2,13 @@
 
 module Data.Automaton.NVA where
 
-import Pre hiding (product, reverse, reduce, all, from, to, sym, check)
+import Pre hiding (product, reverse, reduce, all, from, to, sym, check, concat)
 
 import qualified Data.HashMap.Lazy as M
 import qualified Data.HashSet as S
+
+import Data.Automaton.EpsilonNVA (EpsNVA)
+import qualified Data.Automaton.EpsilonNVA as EpsNVA
 
 import Util (iterateInductivelyOptM, iterateInductively)
 
@@ -22,7 +25,7 @@ data NVA s sta i o c = NVA
   , closeTransitions :: HashMap s (HashMap c (HashSet (sta, s)))
   , final :: HashSet s }
 
--- | Retrieve all the states mentioned in a NVA
+-- | Retrieve all the states mentioned in an NVA
 states :: (Eq s, Hashable s) => NVA s sta i o c -> HashSet s
 states NVA{..} = initial `S.union` final `S.union` S.fromList (inners ++ opens ++ closes)
   where
@@ -208,3 +211,6 @@ trivialCoReduce nva@NVA{..} = nva
     isCoReachable (s1, _, s2) = S.member s1 coReachable && S.member s2 coReachable
     isCoReachable' :: forall x y. (s, x, (y, s)) -> Bool
     isCoReachable' (s1, _, (_, s2)) = S.member s1 coReachable && S.member s2 coReachable
+
+fromEpsNVA :: EpsNVA s sta i o c -> NVA (HashSet s) sta i o c
+fromEpsNVA = undefined
