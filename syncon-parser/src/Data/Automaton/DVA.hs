@@ -9,7 +9,6 @@ import qualified Data.HashSet as S
 
 import Util (iterateInductivelyOptM, repeatUntilStable)
 
-import Data.Automaton.EpsilonNVA (TaggedTerminal(..))
 import Data.Automaton.NVA (NVA(NVA))
 import qualified Data.Automaton.NVA as NVA
 
@@ -83,7 +82,7 @@ determinize NVA
   where
     startState = idQ ini
     adjustFinal dva = dva
-      { final = S.filter (fold >>> S.intersection fin >>> S.null >>> not) (states dva) }
+      { final = S.filter (M.keys >>> S.fromList >>> S.intersection fin >>> S.null >>> not) (states dva) }
 
     allEdges = execState discoverAll mempty
     discoverAll = discoverOnce >> gets stackSyms & repeatUntilStable
@@ -163,23 +162,135 @@ states DVA{..} = final <> S.fromList (is <> os <> cs)
     os = M.keys openTransitions <> (toList openTransitions >>= fmap snd . toList)
     cs = M.keys closeTransitions <> (toList closeTransitions >>= toList >>= toList)
 
-dvaOp :: (Bool -> Bool -> Bool) -> DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (s1, s2) (sta1, sta2) i o c
-dvaOp = undefined
+mapStates :: (Eq s2, Hashable s2) => (s1 -> s2) -> DVA s1 sta i o c -> DVA s2 sta i o c
+mapStates convert DVA{..} = DVA
+  { initial = convert initial
+  , final = S.map convert final
+  , openTransitions = mapKeys convert openTransitions
+    <&> fmap (second convert)
+  , innerTransitions = mapKeys convert innerTransitions
+    <&> fmap convert
+  , closeTransitions = mapKeys convert closeTransitions
+    <&> fmap (fmap convert) }
 
-product :: DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (s1, s2) (sta1, sta2) i o c
+stackSymbols :: (Eq sta, Hashable sta) => DVA s sta i o c -> HashSet sta
+stackSymbols DVA{openTransitions,closeTransitions} =
+  (toList openTransitions >>= toList <&> fst & S.fromList)
+  <> (toList closeTransitions >>= toList >>= M.keys & S.fromList)
+
+mapSta :: (Eq sta2, Hashable sta2) => (sta1 -> sta2) -> DVA s sta1 i o c -> DVA s sta2 i o c
+mapSta convert dva@DVA{openTransitions,closeTransitions} = dva
+  { openTransitions = openTransitions <&> fmap (first convert)
+  , closeTransitions = closeTransitions <&> fmap (mapKeys convert) }
+
+-- TODO: this assumes that the transitions of the operands are total, but determinize above does not produce total transitions. Make this work without them (add a dummy fail state to each automaton, use it when an edge is missing)
+dvaOp :: ( Eq s1, Hashable s1
+         , Eq s2, Hashable s2
+         , Eq sta1, Hashable sta1
+         , Eq sta2, Hashable sta2
+         , Eq i, Hashable i
+         , Eq o, Hashable o
+         , Eq c, Hashable c )
+      => (Bool -> Bool -> Bool) -> DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (s1, s2) (sta1, sta2) i o c
+dvaOp op dva1 dva2 = DVA
+  { initial = newInitial
+  , innerTransitions = inners foundTransitions
+  , openTransitions = opens foundTransitions
+  , closeTransitions = closes foundTransitions
+  , final = S.empty }
+  & adjustFinal
+  where
+    newInitial = (initial dva1, initial dva2)
+    adjustFinal dva = dva
+      { final = states dva
+        & S.filter (\(s1, s2) -> S.member s1 (final dva1) `op` S.member s2 (final dva2)) }
+
+    foundTransitions = execState
+      (iterateInductivelyOptM findTransitions $ S.singleton newInitial)
+      mempty
+
+    findTransitions (s1, s2) = do
+      let is = M.intersectionWith (,)
+            (M.lookupDefault M.empty s1 (innerTransitions dva1))
+            (M.lookupDefault M.empty s2 (innerTransitions dva2))
+          os = M.intersectionWith (\(sta1, d1) (sta2, d2) -> ((sta1, sta2), (d1, d2)))
+            (M.lookupDefault M.empty s1 (openTransitions dva1))
+            (M.lookupDefault M.empty s2 (openTransitions dva2))
+          cs = M.intersectionWith cartesianProduct'
+            (M.lookupDefault M.empty s1 (closeTransitions dva1))
+            (M.lookupDefault M.empty s2 (closeTransitions dva2))
+          newStates = S.fromList (toList is)
+            <> S.fromList (toList os <&> snd)
+            <> S.fromList (toList cs >>= toList)
+
+      addTransitions $ DeterminizeState
+        { inners = M.singleton (s1, s2) is
+        , opens = M.singleton (s1, s2) os
+        , closes = M.singleton (s1, s2) cs }
+
+      return newStates
+
+    addTransitions transitions = modify $ mappend transitions
+
+    cartesianProduct' :: (Eq a, Hashable a, Eq c, Hashable c)
+                      => HashMap a b -> HashMap c d -> HashMap (a, c) (b, d)
+    cartesianProduct' ab cd = (\(a, b) (c, d) -> ((a, c), (b, d))) <$> M.toList ab <*> M.toList cd
+      & M.fromList
+
+product :: ( Eq s1, Hashable s1
+           , Eq s2, Hashable s2
+           , Eq sta1, Hashable sta1
+           , Eq sta2, Hashable sta2
+           , Eq i, Hashable i
+           , Eq o, Hashable o
+           , Eq c, Hashable c )
+        => DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (s1, s2) (sta1, sta2) i o c
 product = dvaOp (&&)
 
-difference :: DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (s1, s2) (sta1, sta2) i o c
+difference :: ( Eq s1, Hashable s1
+              , Eq s2, Hashable s2
+              , Eq sta1, Hashable sta1
+              , Eq sta2, Hashable sta2
+              , Eq i, Hashable i
+              , Eq o, Hashable o
+              , Eq c, Hashable c )
+           => DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (s1, s2) (sta1, sta2) i o c
 difference = dvaOp (\a b -> a && not b)
 
-renumberStates :: DVA s sta i o c -> DVA Int sta i o c
-renumberStates = undefined
+renumberStates :: (Eq s, Hashable s) => DVA s sta i o c -> DVA Int sta i o c
+renumberStates dva = mapStates oldToNew dva
+  where
+    oldToNew s = M.lookup s newStates
+      & compFromJust "Data.Automaton.DVA.renumberStates" "missing state"
+    newStates = evalState computeNewStates 0
+    computeNewStates = states dva & S.toMap & traverse (\_ -> get <* modify (+1))
 
-renumberStack :: DVA s sta i o c -> DVA s Int i o c
-renumberStack = undefined
+renumberStack :: (Eq sta, Hashable sta) => DVA s sta i o c -> DVA s Int i o c
+renumberStack dva = mapSta oldToNew dva
+  where
+    oldToNew sta = M.lookup sta newSymbols
+      & compFromJust "Data.Automaton.EpsilonDVA.renumberStack" "missing symbol"
+    newSymbols = evalState computeNewSymbols 0
+    computeNewSymbols = stackSymbols dva & S.toMap & traverse (\_ -> get <* modify (+1))
 
-renumber :: DVA s sta i o c -> DVA Int Int i o c
+renumber :: (Eq s, Hashable s, Eq sta, Hashable sta) => DVA s sta i o c -> DVA Int Int i o c
 renumber = renumberStates >>> renumberStack
 
-shortestWord :: DVA s sta i o c -> Maybe [TaggedTerminal i o c]
-shortestWord = undefined
+mapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
+mapKeys convert = M.toList >>> fmap (first convert) >>> M.fromList
+-- data NVA s sta i o c = NVA
+--   { initial :: HashSet s
+--   , innerTransitions :: HashMap s (HashMap i (HashSet s))
+--   , openTransitions :: HashMap s (HashMap o (HashSet (sta, s)))
+--   , closeTransitions :: HashMap s (HashMap c (HashSet (sta, s)))
+--   , final :: HashSet s }
+
+asNVA :: ( Eq s, Hashable s
+         , Eq sta, Hashable sta)
+      => DVA s sta i o c -> NVA s sta i o c
+asNVA DVA{..} = NVA
+  { NVA.initial = S.singleton initial
+  , NVA.innerTransitions = innerTransitions <&> fmap S.singleton
+  , NVA.openTransitions = openTransitions <&> fmap S.singleton
+  , NVA.closeTransitions = closeTransitions <&> fmap (M.toList >>> S.fromList)
+  , NVA.final = final }

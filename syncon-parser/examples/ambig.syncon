@@ -1,8 +1,14 @@
+type Decl
 type Expression
+grouping "(" Expression ")"
+
+comment "//[^\\n]*(\\n|$)"
 
 token Int = "\\d+"
 
-syncon print: Top = "print" e:Expression
+syncon decls: Top = d:Decl*
+
+syncon print: Decl = "print" e:Expression
 
 infix plus: Expression = "+"
 infix times: Expression = "*"

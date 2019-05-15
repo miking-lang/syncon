@@ -38,6 +38,7 @@ executable syncon-parser
                , Data.Automaton.NVA
                , Data.Automaton.DVA
                , Data.Automaton.Regex
+               , Data.Automaton.GraphViz
                , P1Lexing.Types
                , P1Lexing.Lexer
                , P2LanguageDefinition.Types

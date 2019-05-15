@@ -8,7 +8,7 @@ import Pre hiding (concat)
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
 
-import Data.Automaton (EpsNFA)
+import Data.Automaton (EpsNFA(EpsNFA))
 import qualified Data.Automaton as EpsNFA
 
 -- | A visibly pushdown automaton with
@@ -28,14 +28,42 @@ data TaggedTerminal i o c
   = Open o
   | Inner i
   | Close c
+  deriving (Eq, Generic)
+instance (Hashable i, Hashable o, Hashable c) => Hashable (TaggedTerminal i o c)
 
 untag :: (o -> a) -> (i -> a) -> (c -> a) -> TaggedTerminal i o c -> a
 untag f _ _ (Open o) = f o
 untag _ f _ (Inner i) = f i
 untag _ _ f (Close c) = f c
 
-fromNFA :: (a -> TaggedTerminal i o c) -> EpsNFA s a -> EpsNVA s () i o c
-fromNFA = undefined
+partitionTagged :: Foldable f => f (TaggedTerminal i o c) -> ([i], [o], [c])
+partitionTagged = toList >>> recur
+  where
+    recur [] = ([], [], [])
+    recur (Open o : rest) = let (is, os, cs) = recur rest in (is, o : os, cs)
+    recur (Inner i : rest) = let (is, os, cs) = recur rest in (i : is, os, cs)
+    recur (Close c : rest) = let (is, os, cs) = recur rest in (is, os, c : cs)
+
+fromNFA :: ( Eq s, Hashable s
+           , Eq i, Hashable i
+           , Eq o, Hashable o
+           , Eq c, Hashable c )
+        => (a -> TaggedTerminal i o c) -> EpsNFA s a -> EpsNVA s () i o c
+fromNFA tag EpsNFA{EpsNFA.initial, EpsNFA.transitions, EpsNFA.final} = EpsNVA
+  { initial = S.singleton initial
+  , innerTransitions = fromTriples iTrip
+  , openTransitions = fromTriples oTrip
+  , closeTransitions = fromTriples cTrip
+  , final = final }
+  where
+    (iTrip, oTrip, cTrip) = toTriples transitions
+      <&> (\(s1, ma, s2) ->
+            case tag <$> ma of
+              Nothing -> Inner (s1, Nothing, s2)
+              Just (Inner i) -> Inner (s1, Just i, s2)
+              Just (Open o) -> Open (s1, o, ((), s2))
+              Just (Close c) -> Close (s1, c, ((), s2)))
+      & partitionTagged
 
 -- | Retrieve all the states mentioned in an EpsNVA
 states :: (Eq s, Hashable s) => EpsNVA s sta i o c -> HashSet s
@@ -67,6 +95,10 @@ mapStates convert EpsNVA{..} = EpsNVA
     & fromTriples
   , final = S.map convert final }
 
+stackSymbols :: (Eq sta, Hashable sta) => EpsNVA s sta i o c -> HashSet sta
+stackSymbols EpsNVA{openTransitions,closeTransitions} =
+  foldMap (foldMap $ S.map fst) openTransitions <> foldMap (foldMap $ S.map fst) closeTransitions
+
 mapSta :: (Eq s, Hashable s, Eq stb, Hashable stb)
        => (sta -> stb) -> EpsNVA s sta i o c -> EpsNVA s stb i o c
 mapSta convert nva@EpsNVA{openTransitions, closeTransitions} = nva
@@ -88,8 +120,15 @@ renumberStates nva = mapStates oldToNew nva
     newStates = evalState computeNewStates 0
     computeNewStates = states nva & S.toMap & traverse (\_ -> get <* modify (+1))
 
-renumberStack :: EpsNVA s sta i o c -> EpsNVA s Int i o c
-renumberStack = undefined
+renumberStack :: ( Eq s, Hashable s
+                 , Eq sta, Hashable sta )
+              => EpsNVA s sta i o c -> EpsNVA s Int i o c
+renumberStack nva = mapSta oldToNew nva
+  where
+    oldToNew sta = M.lookup sta newSymbols
+      & compFromJust "Data.Automaton.EpsilonNVA.renumberStack" "missing symbol"
+    newSymbols = evalState computeNewSymbols 0
+    computeNewSymbols = stackSymbols nva & S.toMap & traverse (\_ -> get <* modify (+1))
 
 renumber :: ( Eq s, Hashable s
             , Eq sta, Hashable sta
@@ -111,8 +150,11 @@ concat (mapStates Left >>> mapSta Left -> a) (mapStates Right >>> mapSta Right -
   { initial = initial a
   , final = final b
   , innerTransitions = innerTransitions a <> innerTransitions b
+    & M.unionWith (M.unionWith S.union) (fromTriples bridges)
   , openTransitions = openTransitions a <> openTransitions b
   , closeTransitions = closeTransitions a <> closeTransitions b }
+  where
+    bridges = (, Nothing, ) <$> toList (final a) <*> toList (initial b)
 
 instance
   ( Eq i, Hashable i

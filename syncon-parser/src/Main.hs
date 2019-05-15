@@ -99,7 +99,7 @@ parseToHTMLDebug defFile sourceFile outFile = do
   putStrLn @Text "Parsing source file"
   setOfNodes <- parseFile sourceFile >>= dataOrError fileSource
   source <- readFile sourceFile
-  case Parser.report (LD.bracketKind df) (LD.syncons df) setOfNodes of
+  case Parser.report df setOfNodes of
     Data node -> universe node >>= nodeAnnotation
       & annotate source
       & putInTemplate "resources/htmlTemplate.html"
@@ -131,7 +131,7 @@ dataOrError' (Error e) = do
   compErr "Main.dataOrError" "Got error"
 
 test :: IO ()
-test = parseToHTMLDebug "examples/bootstrap.syncon" "examples/bootstrap.syncon" "out.html"
+test = parseToHTMLDebug "examples/ambig.syncon" "examples/ambig.test" "out.html"
 
 main :: IO ()
 main = getArgs >>= \case

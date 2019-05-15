@@ -15,19 +15,23 @@ import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
 import qualified Data.Sequence as Seq
 
+import Data.Generics.Uniplate.Data (universe)
 import Data.Functor.Foldable (project)
 
-import Data.Automaton.NVA (fromEpsNVA)
+import Data.Automaton.NVA (fromEpsNVA, shortestWord, trim, ppFakeEdge, asNFA)
 import Data.Automaton.EpsilonNVA (EpsNVA(..), untag, fromNFA, renumberStack, TaggedTerminal(..))
-import Data.Automaton.DVA (DVA(..), determinize, renumber, difference, shortestWord)
+import qualified Data.Automaton.EpsilonNVA as EpsNVA
+import Data.Automaton.DVA (DVA(..), determinize, renumber, difference, asNVA)
 import Data.Automaton.Regex (Regex(..))
 import qualified Data.Automaton.Regex as Regex
+import Data.Automaton.GraphViz (debugWriteFile)
 
 import ErrorMessage (FormatError(..), simpleErrorMessage)
 
 import P1Lexing.Types (Range, range, textualRange)
 import qualified P1Lexing.Types as P1
-import P2LanguageDefinition.Types (Name(..), SDName(..), TypeName(..), Syncon(..), SyntaxDescription(..), BracketKind(..))
+import P2LanguageDefinition.Types (Name(..), SDName(..), TypeName(..), Syncon(..), SyntaxDescription(..), BracketKind(..), DefinitionFile(..))
+import P2LanguageDefinition.Elaborator (elaborate)
 import P4Parsing.Types (pattern Node, n_name, n_contents, NodeInternals(..))
 import qualified P4Parsing.Types as P4
 import P4Parsing.Parser (SingleLanguage(..))
@@ -58,13 +62,13 @@ instance FormatError Error where
 
 -- | If the argument is a singleton set, return the element, otherwise produce
 -- one or more localized ambiguity errors.
-report :: (Either Text TypeName -> BracketKind) -> HashMap Name Syncon -> HashSet Node -> Result [Error] Node
-report bracketKind syncons = toList >>> \case
+report :: DefinitionFile -> HashSet Node -> Result [Error] Node
+report df = toList >>> \case
   [] -> compErr "P4Parsing.AmbiguityReporter.report" "Expected one or more parse trees, got zero."
   [top] -> Data top
   forest -> localizeAmbiguities forest
     <&> ((head >>> foldMap range) &&& S.fromList)
-    <&> uncurry (resolvability bracketKind syncons)
+    <&> uncurry (resolvability df)
     & Error
 
 localizeAmbiguities :: (Eq l, Eq n) => [P4.Node l n] -> [[P4.Node l n]]
@@ -80,10 +84,10 @@ localizeAmbiguities forest
 
 type ResLang = DVA Int Int Token Token Token
 
-resolvability :: (Either Text TypeName -> BracketKind) -> HashMap Name Syncon -> Range -> HashSet Node -> Error
-resolvability bracketKind syncons r nodes = M.toList unambigLanguages
+resolvability :: DefinitionFile -> Range -> HashSet Node -> Error
+resolvability df r nodes = M.toList unambigLanguages
   <&> (\(node, lang) ->
-         case shortestWord lang of
+         case asNVA lang & trim & shortestWord of
            Nothing -> Left node
            Just w -> untag identity identity identity <$> w
              & fmap textualToken
@@ -95,15 +99,52 @@ resolvability bracketKind syncons r nodes = M.toList unambigLanguages
     (unresolvable, resolvable) -> Unresolvable r resolvable unresolvable
   where
     info :: HashMap Name (SyntaxDescription, HashMap (SavedPoint ()) Path, HashSet Path)
-    info = syncons <&> \Syncon{..} ->
+    info = syncons df <&> \Syncon{..} ->
       let sd = s_syntaxDescription
           sps = discoverSavePoints (snd s_syntaxType) sd
           paths = S.fromList $ toList sps
       in (sd, sps, paths)
 
+    elaboration = elaborate (syncons df) (forbids df) (precedences df)
+    elaborationWithRecs :: HashMap (Name, SDName) (HashSet Name)
+    elaborationWithRecs = M.unionWith S.union fixedOriginals recAdditions
+      where
+        fixedOriginals = M.toList elaboration
+          & mapMaybe (\case
+                         ((n1, Right sdname), names) -> Just ((n1, sdname), names)
+                         _ -> Nothing)
+          & M.fromList
+        recAdditions = M.fromListWith S.union $ do
+          (n, syncon) <- M.toList $ syncons df
+          universe (s_syntaxDescription syncon) >>= \case
+            SDNamed _ sdname (SDRec _ sdrec) ->
+              pure ((n, sdname), M.lookupDefault S.empty (n, Left sdrec) elaboration)
+            _ -> []
+
+    isForbidden :: Name -> SDName -> Name -> Bool
+    isForbidden n1 sdname n2 = M.lookup (n1, sdname) elaborationWithRecs
+      & fold
+      & S.member n2
+
+    tokGroupings :: HashMap TypeName (Seq (Token, Token))
+    tokGroupings = groupings df <&> fmap (mkTok *** mkTok)
+    getGrouping :: TypeName -> Seq (Token, Token)
+    getGrouping tyn = M.lookup tyn tokGroupings & fold
+
     languages :: HashMap Node ResLang
     languages = S.toMap nodes
-      & M.mapWithKey (\node _ -> mkLanguage bracketKind getSyTy info node & fromEpsNVA & determinize & renumber)
+      & M.mapWithKey (\node _ -> mkLanguage isForbidden (bracketKind df) getSyTy getGrouping info node
+                       & fromEpsNVA
+                       & determinize
+                       & renumber)
+
+    _debugTraceThingEarly node nva =
+      debugWriteFile ("out/nva_" <> show (abs $ hash node) <> toS @Text (coerce $ n_name node) <> ".dot") show ppFakeEdge (asNFA nva) nva
+    _debugTraceThing node dva =
+      debugWriteFile ("out/" <> show (abs $ hash node) <> toS @Text (coerce $ n_name node) <> ".dot") show ppFakeEdge (asNFA $ asNVA dva) dva
+    _debugWrap node f nva = debugWriteFile ("out/before" <> show (abs $ hash node) <> toS @Text (coerce $ n_name node) <> ".dot") show ppFakeEdge (asNFA nva) nva
+      & f
+      & \nva' -> debugWriteFile ("out/after" <> show (abs $ hash node) <> toS @Text (coerce $ n_name node) <> ".dot") show ppFakeEdge (asNFA nva') nva'
 
     unambigLanguages :: HashMap Node ResLang
     unambigLanguages = M.mapWithKey mkUnambig languages
@@ -117,7 +158,7 @@ resolvability bracketKind syncons r nodes = M.toList unambigLanguages
     langDiff a b = difference a b & renumber
 
     getSyTy :: Name -> TypeName
-    getSyTy n = M.lookup n syncons
+    getSyTy n = M.lookup n (syncons df)
       & compFromJust "P4Parsing.AmbiguityReporter.nodePoints.getSyTy" "Syncon without a type"
       & s_syntaxType
       & snd
@@ -126,6 +167,7 @@ data Token
   = LitTok Text
   | OtherTokInstance TypeName Text
   | OtherTok TypeName
+  deriving (Show)
 
 eitherRepr :: Token -> Either Text TypeName
 eitherRepr (LitTok t) = Left t
@@ -137,6 +179,10 @@ textualToken (LitTok t) = t
 textualToken (OtherTokInstance _ t) = t
 textualToken (OtherTok tyn) = coerce tyn  -- TODO: make this more distinct somehow
 
+mkTok :: Either Text TypeName -> Token
+mkTok (Left t) = LitTok t
+mkTok (Right n) = OtherTok n
+
 instance Eq Token where
   (==) = (==) `on` eitherRepr
 instance Hashable Token where
@@ -146,17 +192,20 @@ instance Hashable Token where
 -- The NVA will push and pop 'Nothing' for opening and closing brackets internal
 -- to a syncon, and Just n for the nth paren location, to ensure that grouping
 -- parens are paired appropriately. (TODO: update documentation comment)
-mkLanguage :: (Either Text TypeName -> BracketKind)
+mkLanguage :: (Name -> SDName -> Name -> Bool)  -- ^ True if forbidden
+           -> (Either Text TypeName -> BracketKind)
            -> (Name -> TypeName)
+           -> (TypeName -> Seq (Token, Token))
            -> HashMap Name ( SyntaxDescription
                            , HashMap (SavedPoint ()) Path
                            , HashSet Path )
            -> Node
            -> EpsNVA Int Int Token Token Token
-mkLanguage bracketKind getSyTy syncons n@Node{n_name} =
+mkLanguage isForbidden bracketKind getSyTy getGroupings syncons n@Node{n_name} =
   zipWith genSegment (toList points) (tail $ fst <$> toList points)
   & mconcat
   where
+    groupings = getGroupings $ getSyTy n_name
     (sd, pointToPathMap, paths) = M.lookup n_name syncons
       & compFromJust "P4Parsing.AmbiguityReporter.mkLanguage" "Missing syncon"
     pointToPath point = M.lookup (void point) pointToPathMap
@@ -172,7 +221,17 @@ mkLanguage bracketKind getSyTy syncons n@Node{n_name} =
 
     genPoint :: SavedPoint Node -> EpsNVA Int Int Token Token Token
     genPoint (TokPoint _ tok) = regexToEpsNVA $ Terminal tok
-    genPoint (NodePoint _ _ node) = mkLanguage bracketKind getSyTy syncons node
+    genPoint (NodePoint _sdname _ node@Node{n_name=_innerName}) = withOpt -- TODO: generate mandatory surrounding parens
+      where
+        withOpt = innerLang
+          { EpsNVA.openTransitions = M.unionWith (M.unionWith S.union) (EpsNVA.openTransitions innerLang) optOpens
+          , EpsNVA.closeTransitions = M.unionWith (M.unionWith S.union) (EpsNVA.closeTransitions innerLang) optCloses }
+        optOpens = mkOptEdge <$> toList (EpsNVA.initial innerLang) <*> (fst <$> toList groupings)
+          & EpsNVA.fromTriples
+        optCloses = mkOptEdge <$> toList (EpsNVA.final innerLang) <*> (snd <$> toList groupings)
+          & EpsNVA.fromTriples
+        mkOptEdge s o = (s, o, (-1, s))
+        innerLang = mkLanguage isForbidden bracketKind getSyTy getGroupings syncons node
 
     regexToEpsNVA :: Regex Token -> EpsNVA Int Int Token Token Token
     regexToEpsNVA = Regex.toAutomaton >>> fromNFA tag >>> renumberStack
@@ -240,5 +299,5 @@ discoverSavePoints selftyn = recur Nothing []
     recur (Just name) path (SDToken _ t) = M.singleton (TokPoint name (LitTok t)) (Path $ Seq.fromList path)
     recur _ _ _ = M.empty
 
-regexIntermission :: SyntaxDescription -> Path -> Path -> HashSet Path -> Regex Token
-regexIntermission sd start end (S.delete start . S.delete end -> others) = undefined
+regexIntermission :: SyntaxDescription -> Path -> Path -> HashSet Path -> Regex Token -- TODO: make something real here
+regexIntermission _sd start end (S.delete start . S.delete end -> _others) = Eps
