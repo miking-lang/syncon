@@ -6,7 +6,7 @@ module P4Parsing.AmbiguityReporter
 , Error(..)
 ) where
 
-import Pre
+import Pre hiding (reduce)
 import Result (Result(..))
 
 import Text.Printf (printf)
@@ -18,13 +18,12 @@ import qualified Data.Sequence as Seq
 import Data.Generics.Uniplate.Data (universe)
 import Data.Functor.Foldable (project)
 
-import Data.Automaton.NVA (fromEpsNVA, shortestWord, trim, ppFakeEdge, asNFA)
+import Data.Automaton.NVA (fromEpsNVA, shortestWord, trim)
 import Data.Automaton.EpsilonNVA (EpsNVA(..), untag, fromNFA, renumberStack, TaggedTerminal(..))
 import qualified Data.Automaton.EpsilonNVA as EpsNVA
 import Data.Automaton.DVA (DVA(..), determinize, renumber, difference, asNVA)
 import Data.Automaton.Regex (Regex(..))
 import qualified Data.Automaton.Regex as Regex
-import Data.Automaton.GraphViz (debugWriteFile)
 
 import ErrorMessage (FormatError(..), simpleErrorMessage)
 
@@ -138,14 +137,6 @@ resolvability df r nodes = M.toList unambigLanguages
                        & determinize
                        & renumber)
 
-    _debugTraceThingEarly node nva =
-      debugWriteFile ("out/nva_" <> show (abs $ hash node) <> toS @Text (coerce $ n_name node) <> ".dot") show ppFakeEdge (asNFA nva) nva
-    _debugTraceThing node dva =
-      debugWriteFile ("out/" <> show (abs $ hash node) <> toS @Text (coerce $ n_name node) <> ".dot") show ppFakeEdge (asNFA $ asNVA dva) dva
-    _debugWrap node f nva = debugWriteFile ("out/before" <> show (abs $ hash node) <> toS @Text (coerce $ n_name node) <> ".dot") show ppFakeEdge (asNFA nva) nva
-      & f
-      & \nva' -> debugWriteFile ("out/after" <> show (abs $ hash node) <> toS @Text (coerce $ n_name node) <> ".dot") show ppFakeEdge (asNFA nva') nva'
-
     unambigLanguages :: HashMap Node ResLang
     unambigLanguages = M.mapWithKey mkUnambig languages
     mkUnambig node lang = S.delete node nodes
@@ -155,7 +146,7 @@ resolvability df r nodes = M.toList unambigLanguages
       & foldl' langDiff lang
 
     langDiff :: ResLang -> ResLang -> ResLang
-    langDiff a b = difference a b & renumber
+    langDiff a b = difference a b & asNVA & trim & determinize & renumber
 
     getSyTy :: Name -> TypeName
     getSyTy n = M.lookup n (syncons df)

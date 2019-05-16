@@ -1,11 +1,15 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Data.Automaton.DVA where
 
-import Pre
+import Pre hiding (reverse)
 
-import qualified Data.HashMap.Lazy as M
+import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
+
+import Data.Align (align, padZip)
+import Data.These (fromThese)
 
 import Util (iterateInductivelyOptM, repeatUntilStable)
 
@@ -13,11 +17,11 @@ import Data.Automaton.NVA (NVA(NVA))
 import qualified Data.Automaton.NVA as NVA
 
 data DVA s sta i o c = DVA
-  { initial :: s
-  , innerTransitions :: HashMap s (HashMap i s)
-  , openTransitions :: HashMap s (HashMap o (sta, s))
-  , closeTransitions :: HashMap s (HashMap c (HashMap sta s))
-  , final :: HashSet s }
+  { initial :: !s
+  , innerTransitions :: !(HashMap s (HashMap i s))
+  , openTransitions :: !(HashMap s (HashMap o (sta, s)))
+  , closeTransitions :: !(HashMap s (HashMap c (HashMap sta s)))
+  , final :: !(HashSet s) }
 
 data DeterminizeState s sta i o c = DeterminizeState
   { inners :: HashMap s (HashMap i s)
@@ -155,6 +159,61 @@ determinize NVA
                      => HashSet a -> HashSet b -> HashSet (a, b)
     cartesianProduct as bs = (,) <$> S.toList as <*> S.toList bs & S.fromList
 
+reverse :: ( Eq s, Hashable s
+           , Eq sta, Hashable sta
+           , Eq i, Hashable i
+           , Eq o, Hashable o
+           , Eq c, Hashable c )
+        => DVA s sta i o c -> NVA s sta i c o
+reverse DVA{..} = NVA
+  { NVA.initial = final
+  , NVA.final = S.singleton initial
+  , NVA.innerTransitions = innerTransitions
+    <&> fmap S.singleton
+    & NVA.toTriples
+    <&> (\(a, b, c) -> (c, b, a))
+    & NVA.fromTriples
+  , NVA.openTransitions = closeTransitions
+    <&> fmap (M.toList >>> S.fromList)
+    & NVA.toTriples
+    <&> (\(a, b, (sta, c)) -> (c, b, (sta, a)))
+    & NVA.fromTriples
+  , NVA.closeTransitions = openTransitions
+    <&> fmap S.singleton
+    & NVA.toTriples
+    <&> (\(a, b, (sta, c)) -> (c, b, (sta, a)))
+    & NVA.fromTriples }
+
+-- TODO: BUG: The trimming paper suggests that this should work (more or less anyway), but it doesn't, look into why
+determinizeAndTrim :: ( Eq s, Hashable s
+                      , Eq sta, Hashable sta
+                      , Eq i, Hashable i
+                      , Eq o, Hashable o
+                      , Eq c, Hashable c )
+                   => NVA s sta i o c -> DVA Int Int i o c
+determinizeAndTrim =
+  NVA.reduce >>> determinize >>> reverse >>> NVA.reduce >>> NVA.trivialCoReduce >>> NVA.reverse >>> asDVA >>> \case
+    Nothing -> compErr "Data.Automaton.DVA.determinizeAndTrim" "reduce did not preserve co-determinism"
+    Just dva -> renumber dva
+
+asDVA :: forall s sta i o c.
+         (Eq s, Hashable s, Eq sta, Hashable sta)
+      => NVA s sta i o c -> Maybe (DVA s sta i o c)
+asDVA nva = do
+  initial <- setToSingle $ NVA.initial nva
+  innerTransitions <- traverse (traverse setToSingle) $ NVA.innerTransitions nva
+  openTransitions <- traverse (traverse setToSingle) $ NVA.openTransitions nva
+  closeTransitions <- traverse (traverse $ juggle >>> traverse setToSingle) $ NVA.closeTransitions nva
+  let final = NVA.final nva
+  return DVA{..}
+  where
+    juggle :: HashSet (sta, s) -> HashMap sta (HashSet s)
+    juggle = toList >>> fmap (second S.singleton) >>> M.fromListWith S.union
+    setToSingle :: HashSet a -> Maybe a
+    setToSingle = toList >>> \case
+      [a] -> Just a
+      _ -> Nothing
+
 states :: (Eq s, Hashable s) => DVA s sta i o c -> HashSet s
 states DVA{..} = final <> S.fromList (is <> os <> cs)
   where
@@ -191,7 +250,7 @@ dvaOp :: ( Eq s1, Hashable s1
          , Eq i, Hashable i
          , Eq o, Hashable o
          , Eq c, Hashable c )
-      => (Bool -> Bool -> Bool) -> DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (s1, s2) (sta1, sta2) i o c
+      => (Bool -> Bool -> Bool) -> DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (Maybe s1, Maybe s2) (Maybe sta1, Maybe sta2) i o c
 dvaOp op dva1 dva2 = DVA
   { initial = newInitial
   , innerTransitions = inners foundTransitions
@@ -200,25 +259,34 @@ dvaOp op dva1 dva2 = DVA
   , final = S.empty }
   & adjustFinal
   where
-    newInitial = (initial dva1, initial dva2)
+    newInitial = (Just $ initial dva1, Just $ initial dva2)
     adjustFinal dva = dva
       { final = states dva
-        & S.filter (\(s1, s2) -> S.member s1 (final dva1) `op` S.member s2 (final dva2)) }
+        & S.filter (\(s1, s2) -> maybe False (`S.member` final dva1) s1 `op` maybe False (`S.member` final dva2) s2) }
 
     foundTransitions = execState
       (iterateInductivelyOptM findTransitions $ S.singleton newInitial)
       mempty
 
+    dva1close = stackSymbols dva1 & S.map Just & S.toMap & fmap (const Nothing)
+    dva2close = stackSymbols dva2 & S.map Just & S.toMap & fmap (const Nothing)
+
     findTransitions (s1, s2) = do
-      let is = M.intersectionWith (,)
-            (M.lookupDefault M.empty s1 (innerTransitions dva1))
-            (M.lookupDefault M.empty s2 (innerTransitions dva2))
-          os = M.intersectionWith (\(sta1, d1) (sta2, d2) -> ((sta1, sta2), (d1, d2)))
-            (M.lookupDefault M.empty s1 (openTransitions dva1))
-            (M.lookupDefault M.empty s2 (openTransitions dva2))
-          cs = M.intersectionWith cartesianProduct'
-            (M.lookupDefault M.empty s1 (closeTransitions dva1))
-            (M.lookupDefault M.empty s2 (closeTransitions dva2))
+      let it1 = s1 >>= (`M.lookup` innerTransitions dva1) & fromMaybe M.empty
+          it2 = s2 >>= (`M.lookup` innerTransitions dva2) & fromMaybe M.empty
+          ot1 = s1 >>= (`M.lookup` openTransitions dva1) & fromMaybe M.empty
+          ot2 = s2 >>= (`M.lookup` openTransitions dva2) & fromMaybe M.empty
+          ct1 = s1 >>= (`M.lookup` closeTransitions dva1) & fromMaybe M.empty
+          ct2 = s2 >>= (`M.lookup` closeTransitions dva2) & fromMaybe M.empty
+      let is = padZip it1 it2
+          os = align ot1 ot2
+            <&> bimap (Just *** Just) (Just *** Just)
+            <&> fromThese (Nothing, Nothing) (Nothing, Nothing)
+            <&> (\((sta1, d1), (sta2, d2)) -> ((sta1, sta2), (d1, d2)))
+          cs = align ct1 ct2
+            <&> bimap (mapKeys Just >>> fmap Just >>> flip M.union dva1close) (mapKeys Just >>> fmap Just >>> flip M.union dva2close)
+            <&> fromThese dva1close dva2close
+            <&> uncurry cartesianProduct'
           newStates = S.fromList (toList is)
             <> S.fromList (toList os <&> snd)
             <> S.fromList (toList cs >>= toList)
@@ -244,7 +312,7 @@ product :: ( Eq s1, Hashable s1
            , Eq i, Hashable i
            , Eq o, Hashable o
            , Eq c, Hashable c )
-        => DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (s1, s2) (sta1, sta2) i o c
+        => DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (Maybe s1, Maybe s2) (Maybe sta1, Maybe sta2) i o c
 product = dvaOp (&&)
 
 difference :: ( Eq s1, Hashable s1
@@ -254,7 +322,7 @@ difference :: ( Eq s1, Hashable s1
               , Eq i, Hashable i
               , Eq o, Hashable o
               , Eq c, Hashable c )
-           => DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (s1, s2) (sta1, sta2) i o c
+           => DVA s1 sta1 i o c -> DVA s2 sta2 i o c -> DVA (Maybe s1, Maybe s2) (Maybe sta1, Maybe sta2) i o c
 difference = dvaOp (\a b -> a && not b)
 
 renumberStates :: (Eq s, Hashable s) => DVA s sta i o c -> DVA Int sta i o c

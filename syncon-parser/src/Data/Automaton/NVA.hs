@@ -5,7 +5,7 @@ module Data.Automaton.NVA where
 import Pre hiding (product, reverse, reduce, all, from, to, sym, check, concat)
 import qualified Pre
 
-import qualified Data.HashMap.Lazy as M
+import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
 
 import qualified Data.Automaton.NFA as N
@@ -21,11 +21,12 @@ import Util (iterateInductivelyOptM, iterateInductively)
 -- * 'o' as the alphabet for call transitions (mnemonic "open")
 -- * 'c' as the alphabet for return transitions (mnemonic "close")
 data NVA s sta i o c = NVA
-  { initial :: HashSet s
-  , innerTransitions :: HashMap s (HashMap i (HashSet s))
-  , openTransitions :: HashMap s (HashMap o (HashSet (sta, s)))
-  , closeTransitions :: HashMap s (HashMap c (HashSet (sta, s)))
-  , final :: HashSet s }
+  { initial :: !(HashSet s)
+  , innerTransitions :: !(HashMap s (HashMap i (HashSet s)))
+  , openTransitions :: !(HashMap s (HashMap o (HashSet (sta, s))))
+  , closeTransitions :: !(HashMap s (HashMap c (HashSet (sta, s))))
+  , final :: !(HashSet s) }
+  deriving (Show)
 
 -- | Retrieve all the states mentioned in an NVA
 states :: (Eq s, Hashable s) => NVA s sta i o c -> HashSet s
@@ -290,7 +291,7 @@ reduce nfa@NVA{..} = NVA
                  (\a' b' -> (,) <$> toList a' <*> toList b')
                  (openBefore s1)
                  (closeAfter s2)
-             & fold
+            & fold
       return $ after <> before <> inner <> wm
 
     wellMatched = states nfa
@@ -319,22 +320,24 @@ reduce nfa@NVA{..} = NVA
       <&> fmap (toList >>> fmap (second onlyP) >=> mkIntermediate)
       <&> fmap S.fromList
       where
-        onlyP p = S.filter (fst >>> (== p)) wellMatched
+        pTopq = toList wellMatched <&> (fst &&& S.singleton) & M.fromListWith S.union
+        onlyP p = M.lookupDefault S.empty p pTopq
         mkIntermediate (gamma, pq) = toList pq
           <&> \(p, q) -> ((gamma, q), (p, q))
 
     -- This (plus the intermediate results above) kinda screams relational algebra
     findTransitions (p, q) = do
       let os = M.lookupDefault M.empty p pcgammap'
-            <&> M.intersectionWith cartesianProduct (M.lookupDefault M.empty q qgammaq')
-            <&> fmap (S.intersection wellMatched)
-            <&> ((M.toList >=> ((,q) *** toList >>> sequenceA)) >>> S.fromList)
+            <&> M.intersectionWith (flip cartesianProduct) (M.lookupDefault M.empty q qgammaq') -- have a cgamma(p',q')
+            <&> fmap (S.intersection wellMatched)  -- have a cgamma(p',q') where (p', q') are in wellMatched
+            <&> (M.toList >=> (\(sta, pqs) -> ((sta, q),) <$> toList pqs))
+            <&> S.fromList
           is = M.lookupDefault M.empty p innerTransitions
             <&> S.map (,q)
             <&> S.intersection wellMatched
           cs | p /= q = M.empty
              | otherwise = M.lookupDefault M.empty p q'rgammapq
-          newStates = fold is
+          newStates = fold is <> foldMap (S.map snd) os <> foldMap (S.map snd) cs
       addTransitions $ ProductState
         { inners = M.singleton (p, q) is
         , opens = M.singleton (p, q) os

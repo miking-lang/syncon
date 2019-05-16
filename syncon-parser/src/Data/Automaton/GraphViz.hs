@@ -41,9 +41,14 @@ toDotText sToStrOriginal aToStrOriginal originalFA = "digraph {\n"
         edge (a, ss) = "  " <> show s <> " -> {" <> (S.toList ss & fmap show & intersperse ", " & mconcat)
           <> "} [label=\"" <> maybe "eps" aToStr a <> "\"];\n"
 
-debugWriteFile :: (Eq s, Hashable s, Eq a, Hashable a, FiniteAutomaton fa) => FilePath -> (s -> Text) -> (a -> Text) -> fa s a -> b -> b
-debugWriteFile path sToStr aToStr fa b = unsafePerformIO $ do
+writeDotFile :: (Eq s, Hashable s, Eq a, Hashable a, FiniteAutomaton fa)
+          => FilePath -> (s -> Text) -> (a -> Text) -> fa s a -> IO ()
+writeDotFile path sToStr aToStr fa = do
   writeFile path (toDotText sToStr aToStr fa)
+
+debugWriteDotFile :: (Eq s, Hashable s, Eq a, Hashable a, FiniteAutomaton fa) => FilePath -> (s -> Text) -> (a -> Text) -> fa s a -> b -> b
+debugWriteDotFile path sToStr aToStr fa b = unsafePerformIO $ do
+  writeDotFile path sToStr aToStr fa
   return b
 
 escape :: Text -> Text

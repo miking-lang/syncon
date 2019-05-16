@@ -9,6 +9,8 @@ import FileAnnotation (annotate, putInTemplate)
 import ErrorMessage (FormatError, formatErrors, formatError)
 
 import Data.Data (Data)
+import qualified Data.HashSet as S
+import qualified Data.HashMap.Lazy as M
 
 import Data.Generics.Uniplate.Data (universe, universeBi)
 import Data.Functor.Foldable (project, cata)
@@ -26,6 +28,9 @@ import qualified P2LanguageDefinition.Elaborator as LD
 import qualified P4Parsing.Types as Parser
 import qualified P4Parsing.Parser as Parser
 import qualified P4Parsing.AmbiguityReporter as Parser
+
+import qualified Data.Automaton.NVA as NVA
+import qualified Data.Automaton.GraphViz as GraphViz
 
 synconTokens :: Lexer.LanguageTokens Text
 synconTokens = Lexer.LanguageTokens
@@ -129,6 +134,26 @@ dataOrError' (Data a) = return a
 dataOrError' (Error e) = do
   pPrint e
   compErr "Main.dataOrError" "Got error"
+
+testReduce :: IO ()
+testReduce = do
+  GraphViz.writeDotFile "out/pre.dot" show NVA.ppFakeEdge (NVA.asNFA nva)
+  GraphViz.writeDotFile "out/post.dot" show NVA.ppFakeEdge (NVA.asNFA post)
+  where
+    nva :: NVA.NVA Int Text Text Text Text
+    nva = NVA.NVA
+      { NVA.initial = S.singleton 1
+      , NVA.final = S.singleton 1
+      , NVA.openTransitions = NVA.fromTriples
+        [ (1, "c", ("gamma1", 2))
+        , (2, "c1", ("gamma2", 2))
+        , (2, "c2", ("gamma3", 2)) ]
+      , NVA.closeTransitions = NVA.fromTriples
+        [ (2, "r", ("gamma3", 3))
+        , (3, "r", ("gamma2", 2))
+        , (2, "r", ("gamma1", 1)) ]
+      , NVA.innerTransitions = M.empty }
+    post = NVA.reduce nva
 
 test :: IO ()
 test = parseToHTMLDebug "examples/ambig.syncon" "examples/ambig.test" "out.html"
