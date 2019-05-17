@@ -13,3 +13,8 @@ syncon print: Decl = "print" e:Expression
 infix plus: Expression = "+"
 infix times: Expression = "*"
 syncon intLit: Expression = num:Int
+
+precedence {
+  times;
+  plus;
+}

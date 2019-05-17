@@ -196,7 +196,10 @@ mkLanguage isForbidden bracketKind getSyTy getGroupings syncons n@Node{n_name} =
   zipWith genSegment (toList points) (tail $ fst <$> toList points)
   & mconcat
   where
-    groupings = getGroupings $ getSyTy n_name
+    groupings = getGroupings (getSyTy n_name)
+      & toList
+      & zip [-1,-2..]
+      & Seq.fromList
     (sd, pointToPathMap, paths) = M.lookup n_name syncons
       & compFromJust "P4Parsing.AmbiguityReporter.mkLanguage" "Missing syncon"
     pointToPath point = M.lookup (void point) pointToPathMap
@@ -212,16 +215,28 @@ mkLanguage isForbidden bracketKind getSyTy getGroupings syncons n@Node{n_name} =
 
     genPoint :: SavedPoint Node -> EpsNVA Int Int Token Token Token
     genPoint (TokPoint _ tok) = regexToEpsNVA $ Terminal tok
-    genPoint (NodePoint _sdname _ node@Node{n_name=_innerName}) = withOpt -- TODO: generate mandatory surrounding parens
+    genPoint (NodePoint sdname _ node@Node{n_name=innerName})
+      | isForbidden n_name sdname innerName = withOpt
+        { EpsNVA.initial = S.singleton (-1)
+        , EpsNVA.final = S.singleton (-2)
+        , EpsNVA.openTransitions = mkMandEdge (-1) <$> toList (EpsNVA.initial withOpt) <*> (second fst <$> toList groupings)
+          & EpsNVA.fromTriples
+          & addTransitions (EpsNVA.openTransitions withOpt)
+        , EpsNVA.closeTransitions = mkMandEdge <$> toList (EpsNVA.final withOpt) <*> pure (-2) <*> (second snd <$> toList groupings)
+          & EpsNVA.fromTriples
+          & addTransitions (EpsNVA.closeTransitions withOpt) }
+      | otherwise = withOpt
       where
         withOpt = innerLang
-          { EpsNVA.openTransitions = M.unionWith (M.unionWith S.union) (EpsNVA.openTransitions innerLang) optOpens
-          , EpsNVA.closeTransitions = M.unionWith (M.unionWith S.union) (EpsNVA.closeTransitions innerLang) optCloses }
-        optOpens = mkOptEdge <$> toList (EpsNVA.initial innerLang) <*> (fst <$> toList groupings)
+          { EpsNVA.openTransitions = addTransitions (EpsNVA.openTransitions innerLang) optOpens
+          , EpsNVA.closeTransitions = addTransitions (EpsNVA.closeTransitions innerLang) optCloses }
+        optOpens = mkOptEdge <$> toList (EpsNVA.initial innerLang) <*> (second fst <$> toList groupings)
           & EpsNVA.fromTriples
-        optCloses = mkOptEdge <$> toList (EpsNVA.final innerLang) <*> (snd <$> toList groupings)
+        optCloses = mkOptEdge <$> toList (EpsNVA.final innerLang) <*> (second snd <$> toList groupings)
           & EpsNVA.fromTriples
-        mkOptEdge s o = (s, o, (-1, s))
+        mkOptEdge s (sta, o) = (s, o, (sta, s))
+        mkMandEdge s1 s2 (sta, o) = (s1, o, (sta, s2))
+        addTransitions = M.unionWith $ M.unionWith S.union
         innerLang = mkLanguage isForbidden bracketKind getSyTy getGroupings syncons node
 
     regexToEpsNVA :: Regex Token -> EpsNVA Int Int Token Token Token
