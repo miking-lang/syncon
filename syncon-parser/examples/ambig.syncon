@@ -14,7 +14,11 @@ infix plus: Expression = "+"
 infix times: Expression = "*"
 syncon intLit: Expression = num:Int
 
+syncon list: Expression = "[" (e:Expression (";" e2:Expression)*)? "]"
+infix left seqComp: Expression = ";"
+
 precedence {
   times;
   plus;
+  seqComp;
 }

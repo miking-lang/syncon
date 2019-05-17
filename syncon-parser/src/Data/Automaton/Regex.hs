@@ -28,6 +28,14 @@ data Regex alphabet = Terminal alphabet
                     | Choice (Regex alphabet) (Regex alphabet)
                     | Eps
                     | Kleene (Regex alphabet)
+                    deriving (Show)
+instance Semigroup (Regex a) where
+  Eps <> b = b
+  a <> Eps = a
+  a <> b = Concat a b
+instance Monoid (Regex a) where
+  mappend = (<>)
+  mempty = Eps
 
 makeBaseFunctor ''Regex
 

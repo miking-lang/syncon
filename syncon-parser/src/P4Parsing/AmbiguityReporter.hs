@@ -14,6 +14,7 @@ import qualified Data.Text as Text
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
 import qualified Data.Sequence as Seq
+import Data.Sequence (pattern Empty, pattern (:<|), pattern (:|>))
 
 import Data.Generics.Uniplate.Data (universe)
 import Data.Functor.Foldable (project)
@@ -29,7 +30,7 @@ import ErrorMessage (FormatError(..), simpleErrorMessage)
 
 import P1Lexing.Types (Range, range, textualRange)
 import qualified P1Lexing.Types as P1
-import P2LanguageDefinition.Types (Name(..), SDName(..), TypeName(..), Syncon(..), SyntaxDescription(..), BracketKind(..), DefinitionFile(..))
+import P2LanguageDefinition.Types (Name(..), SDName(..), TypeName(..), Syncon(..), SyntaxDescription(..), BracketKind(..), DefinitionFile(..), Repetition(..))
 import P2LanguageDefinition.Elaborator (elaborate)
 import P4Parsing.Types (pattern Node, n_name, n_contents, NodeInternals(..))
 import qualified P4Parsing.Types as P4
@@ -42,10 +43,12 @@ data Error
 
 type Node = P4.Node SingleLanguage TypeName
 
+-- TODO: pluralize the text below appropriately
 instance FormatError Error where
   formatError (Unresolvable r resolvable trees) = simpleErrorMessage r $
     "Unresolvable ambiguity error with " <> show (length trees + length resolvable) <> " alternatives.\n" <>
     formattedResolvable <> "\n" <>
+    "Unresolvable alternatives:\n" <>
     foldMap ((n_name &&& (project >>> toList)) >>> format) trees
     where
       format (name, children) = "  " <> coerce name <> formatChildren children <> "\n"
@@ -56,7 +59,7 @@ instance FormatError Error where
         | null resolvable = ""
         | otherwise = "\nResolvable alternatives:\n" <> foldMap (\t -> "  " <> t <> "\n") resolvable
   formatError (Ambiguity r resolvable) = simpleErrorMessage r $
-    "Ambiguity error with " <> show (length resolvable) <> " alternatives:\n" <>
+    "Ambiguity error with " <> show (length resolvable) <> " alternatives:\n\n" <>
     foldMap (\t -> "  " <> t <> "\n") resolvable
 
 -- | If the argument is a singleton set, return the element, otherwise produce
@@ -100,7 +103,7 @@ resolvability df r nodes = M.toList unambigLanguages
     info :: HashMap Name (SyntaxDescription, HashMap (SavedPoint ()) Path, HashSet Path)
     info = syncons df <&> \Syncon{..} ->
       let sd = s_syntaxDescription
-          sps = discoverSavePoints (snd s_syntaxType) sd
+          sps = discoverSavePoints isSyTy (snd s_syntaxType) sd
           paths = S.fromList $ toList sps
       in (sd, sps, paths)
 
@@ -154,6 +157,9 @@ resolvability df r nodes = M.toList unambigLanguages
       & s_syntaxType
       & snd
 
+    isSyTy :: TypeName -> Bool
+    isSyTy tyn = M.lookup tyn (syntaxTypes df) & maybe False isLeft
+
 data Token
   = LitTok Text
   | OtherTokInstance TypeName Text
@@ -196,14 +202,15 @@ mkLanguage isForbidden bracketKind getSyTy getGroupings syncons n@Node{n_name} =
   zipWith genSegment (toList points) (tail $ fst <$> toList points)
   & mconcat
   where
-    groupings = getGroupings (getSyTy n_name)
+    syTy = getSyTy n_name
+    groupings = getGroupings syTy
       & toList
       & zip [-1,-2..]
       & Seq.fromList
     (sd, pointToPathMap, paths) = M.lookup n_name syncons
       & compFromJust "P4Parsing.AmbiguityReporter.mkLanguage" "Missing syncon"
-    pointToPath point = M.lookup (void point) pointToPathMap
-      & compFromJust "P4Parsing.AmbiguityReporter.mkLanguage" "Missing path for point"
+    pointToPath point = M.lookup (asLookupPoint point) pointToPathMap
+      & compFromJust "P4Parsing.AmbiguityReporter.mkLanguage" ("Missing path for point " <> show point <> " in " <> show pointToPathMap)
 
     points = (Start, Nothing) Seq.:<| (((pointToPath &&& Just) <$> nodePoints getSyTy n) Seq.:|> (End, Nothing))
 
@@ -259,8 +266,13 @@ mkLanguage isForbidden bracketKind getSyTy getGroupings syncons n@Node{n_name} =
 data SavedPoint node
   = TokPoint SDName Token
   | NodePoint SDName TypeName node
-  deriving (Functor, Eq, Generic)
+  deriving (Functor, Eq, Generic, Show)
 instance Hashable node => Hashable (SavedPoint node)
+
+asLookupPoint :: SavedPoint node -> SavedPoint ()
+asLookupPoint (TokPoint sdname (OtherTokInstance tyn _)) = TokPoint sdname (OtherTok tyn)
+asLookupPoint (TokPoint sdname tok) = TokPoint sdname tok
+asLookupPoint (NodePoint sdname tyn _) = NodePoint sdname tyn ()
 
 -- | Produce a list of the saved points of a single node, in the order they appeared in
 -- the original source.
@@ -284,26 +296,122 @@ data Path
   = Start
   | Path (Seq Int)
   | End
-  deriving (Eq, Ord, Generic)
+  deriving (Eq, Ord, Generic, Show)
 instance Hashable Path where
   hashWithSalt s Start = s `hashWithSalt` (0::Int)
   hashWithSalt s (Path path) = s `hashWithSalt` (1::Int) `hashWithSalt` toList path
   hashWithSalt s End = s `hashWithSalt` (2::Int)
 
-discoverSavePoints :: TypeName -> SyntaxDescription -> HashMap (SavedPoint ()) Path
-discoverSavePoints selftyn = recur Nothing []
+discoverSavePoints :: (TypeName -> Bool) -> TypeName -> SyntaxDescription -> HashMap (SavedPoint ()) Path
+discoverSavePoints isSyTy selftyn = recur Nothing Empty
   where
-    recur :: Maybe SDName -> [Int] -> SyntaxDescription -> HashMap (SavedPoint ()) Path
+    recur :: Maybe SDName -> Seq Int -> SyntaxDescription -> HashMap (SavedPoint ()) Path
     recur _ path (SDSeq _ sds) =  [0..] `zip` toList sds
-      & foldMap (\(idx, sd) -> recur Nothing (idx:path) sd)
+      & foldMap (\(idx, sd) -> recur Nothing (path :|> idx) sd)
     recur name path (SDAlt _ sds) = [0..] `zip` toList sds
-      & foldMap (\(idx, sd) -> recur name (idx:path) sd)
+      & foldMap (\(idx, sd) -> recur name (path :|> idx) sd)
     recur _ path (SDRep _ _ sd) = recur Nothing path sd
     recur _ path (SDNamed _ name sd) = recur (Just name) path sd
-    recur (Just name) path (SDSyTy _ tyn) = M.singleton (NodePoint name tyn ()) (Path $ Seq.fromList path)
-    recur (Just name) path (SDRec _ _) = M.singleton (NodePoint name selftyn ()) (Path $ Seq.fromList path)
-    recur (Just name) path (SDToken _ t) = M.singleton (TokPoint name (LitTok t)) (Path $ Seq.fromList path)
+    recur (Just name) path (SDSyTy _ tyn)
+      | isSyTy tyn = M.singleton (NodePoint name tyn ()) (Path path)
+      | otherwise = M.singleton (TokPoint name (OtherTok tyn)) (Path path)
+    recur (Just name) path (SDRec _ _) = M.singleton (NodePoint name selftyn ()) (Path path)
+    recur (Just name) path (SDToken _ t) = M.singleton (TokPoint name (LitTok t)) (Path path)
     recur _ _ _ = M.empty
 
-regexIntermission :: SyntaxDescription -> Path -> Path -> HashSet Path -> Regex Token -- TODO: make something real here
-regexIntermission _sd start end (S.delete start . S.delete end -> _others) = Eps
+data IntermissionResult
+  = Done (Regex Token)
+  | Partial (Regex Token)
+  | Fail
+
+instance Semigroup IntermissionResult where
+  a@Done{} <> _ = a
+  a@Fail <> _ = a
+  _ <> b@Fail = b
+  Partial a <> Partial b = Partial $ a <> b
+  Partial a <> Done b = Done $ a <> b
+instance Monoid IntermissionResult where
+  mappend = (<>)
+  mempty = Partial Eps
+
+-- | Extract the part between two 'SavedPoint's, creating a regex for what should be there
+regexIntermission :: SyntaxDescription -> Path -> Path -> HashSet Path -> Regex Token
+regexIntermission fullSd start end (S.delete end -> others) = case (recur fullSd Empty start, end) of
+  (Done reg, _) -> reg
+  (Partial reg, End) -> reg
+  (Partial reg, _) -> compErr "P4Parsing.AmbiguityReporter.RegexIntermission" $
+    "Could not construct a regex intermission between " <> show start <> " and " <> show end <> "\n"
+    <> "but got a partial: " <> show reg
+  (Fail, _) -> compErr "P4Parsing.AmbiguityReporter.RegexIntermission" $
+    "Could not construct a regex intermission between " <> show start <> " and " <> show end
+  where
+    -- | sd -> current (i.e., current prefix, the path taken to get to here) -> target (without prefix) -> result
+    recur :: SyntaxDescription -> Seq Int -> Path -> IntermissionResult
+
+    -- Leaves
+    recur (SDToken _ _) _ (Path Empty) = Partial Eps
+    recur (SDToken _ t) path Start
+      | Path path `S.member` others = Fail
+      | Path path == end = Done Eps
+      | otherwise = Partial $ Terminal $ mkTok $ Left t
+    recur (SDSyTy _ _) _ (Path Empty) = Partial Eps
+    recur (SDSyTy _ tyn) path Start
+      | Path path `S.member` others = Fail
+      | Path path == end = Done Eps
+      | otherwise = Partial $ Terminal $ mkTok $ Right tyn
+    recur (SDRec _ _) _ (Path Empty) = Partial Eps
+    recur (SDRec _ _) path Start
+      | Path path `S.member` others = Fail
+      | Path path == end = Done Eps
+
+    -- Wide nodes
+    recur (SDSeq _ sds) path target
+      | Path (idx :<| contPath) <- target
+      , sd : rest <- drop idx $ toList sds
+      = recur sd (path :|> idx) (Path contPath) <> foldMap restf ([idx+1..] `zip` rest)
+      | Start <- target = foldMap restf ([0..] `zip` toList sds)
+      where
+        restf (idx, sd) = recur sd (path :|> idx) Start
+    recur (SDAlt _ sds) path (Path (idx :<| contPath))
+      | Just sd <- Seq.lookup idx sds = recur sd (path :|> idx) (Path contPath)
+    recur (SDAlt _ sds) path Start
+      | Just res <- find isDone results = res
+      | not $ null partialResults = partialResults & Regex.choice & Partial
+      | otherwise = Fail
+      where
+        results = [0..] `zip` toList sds
+          <&> (\(idx, sd) -> recur sd (path :|> idx) Start)
+          & Seq.fromList
+        partialResults = toList results & mapMaybe fromPartial
+
+    -- Single child nodes
+    recur (SDNamed _ _ sd) path target = recur sd path target
+    recur (SDRep _ RepStar sd) path target@Path{} =
+      recur sd path target <> asNonFail (recur sd path Start)
+    recur (SDRep _ RepStar sd) path Start = case recur sd path Start of
+      Fail -> Partial Eps
+      Partial reg -> Partial $ Kleene reg
+      Done reg -> Done reg
+    recur (SDRep _ RepPlus sd) path target@Path{} =
+      recur sd path target <> asNonFail (recur sd path Start)
+    recur (SDRep _ RepPlus sd) path Start =
+      result <> mapResult Kleene result
+      where
+        result = recur sd path Start
+    recur (SDRep _ RepQuestion sd) path target@Path{} = recur sd path target
+    recur (SDRep _ RepQuestion sd) path Start = recur sd path Start
+      & mapResult (Choice Eps)
+      & asNonFail
+
+    recur sd path target = compErr "P4Parsing.AmbiguityReporter.RegexIntermission.recur" $
+      "Bad case: sd: " <> show sd <> ", path: " <> show path <> ", target: " <> show target
+
+    asNonFail Fail = mempty
+    asNonFail a = a
+    isDone Done{} = True
+    isDone _ = False
+    fromPartial (Partial a) = Just a
+    fromPartial _ = Nothing
+    mapResult f (Done a) = Done $ f a
+    mapResult f (Partial a) = Partial $ f a
+    mapResult _ Fail = Fail
