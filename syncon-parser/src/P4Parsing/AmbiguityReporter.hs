@@ -15,14 +15,14 @@ import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
 import qualified Data.Sequence as Seq
 import Data.Sequence (pattern Empty, pattern (:<|), pattern (:|>))
+import Data.Semigroup (Max(..))
 
 import Data.Generics.Uniplate.Data (universe)
 import Data.Functor.Foldable (project)
 
-import Data.Automaton.NVA (fromEpsNVA, shortestWord, trim)
+import Data.Automaton.NVA (fromEpsNVA, NVA, reduce, shortestUniqueWord, shortestWord, renumber)
 import Data.Automaton.EpsilonNVA (EpsNVA(..), untag, fromNFA, renumberStack, TaggedTerminal(..))
 import qualified Data.Automaton.EpsilonNVA as EpsNVA
-import Data.Automaton.DVA (DVA(..), determinize, renumber, difference, asNVA)
 import Data.Automaton.Regex (Regex(..))
 import qualified Data.Automaton.Regex as Regex
 
@@ -84,12 +84,12 @@ localizeAmbiguities forest
 -- |
 -- = Parse-time resolvability
 
-type ResLang = DVA Int Int Token Token Token
+type ResLang = NVA Int Int Token Token Token
 
 resolvability :: DefinitionFile -> Range -> HashSet Node -> Error
-resolvability df r nodes = M.toList unambigLanguages
+resolvability df r nodes = M.toList languages
   <&> (\(node, lang) ->
-         case asNVA lang & trim & shortestWord of
+         case M.lookup lang shortest of
            Nothing -> Left node
            Just w -> untag identity identity identity <$> w
              & fmap textualToken
@@ -137,19 +137,14 @@ resolvability df r nodes = M.toList unambigLanguages
     languages = S.toMap nodes
       & M.mapWithKey (\node _ -> mkLanguage isForbidden (bracketKind df) getSyTy getGrouping info node
                        & fromEpsNVA
-                       & determinize
+                       & reduce
                        & renumber)
 
-    unambigLanguages :: HashMap Node ResLang
-    unambigLanguages = M.mapWithKey mkUnambig languages
-    mkUnambig node lang = S.delete node nodes
-      & toList
-      & fmap (\n -> M.lookup n languages
-               & compFromJust "P4Parsing.AmbiguityReporter.resolvability.mkUnambig" "Missed computing a language for a node")
-      & foldl' langDiff lang
-
-    langDiff :: ResLang -> ResLang -> ResLang
-    langDiff a b = difference a b & asNVA & trim & determinize & renumber
+    shortest :: HashMap ResLang [TaggedTerminal Token Token Token]
+    shortest = shortestUniqueWord (len + 10) nvas
+      where
+        Max len = foldMap (shortestWord >>> fmap (length >>> Max) >>> fold) nvas
+        nvas = foldMap S.singleton languages
 
     getSyTy :: Name -> TypeName
     getSyTy n = M.lookup n (syncons df)

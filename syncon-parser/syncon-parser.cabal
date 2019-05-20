@@ -16,6 +16,7 @@ executable syncon-parser
                , unordered-containers
                , these
                , containers
+               , vector
                , array
                , recursion-schemes
                , bytestring

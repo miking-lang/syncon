@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Data.Automaton.NVA where
 
@@ -7,6 +8,8 @@ import qualified Pre
 
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
+import Data.Vector (Vector)
+import qualified Data.Vector as Vec
 
 import qualified Data.Automaton.NFA as N
 import Data.Automaton.EpsilonNVA (EpsNVA(EpsNVA), TaggedTerminal(..))
@@ -26,7 +29,8 @@ data NVA s sta i o c = NVA
   , openTransitions :: !(HashMap s (HashMap o (HashSet (sta, s))))
   , closeTransitions :: !(HashMap s (HashMap c (HashSet (sta, s))))
   , final :: !(HashSet s) }
-  deriving (Show)
+  deriving (Show, Eq, Generic)
+instance (Hashable s, Hashable sta, Hashable i, Hashable o, Hashable c) => Hashable (NVA s sta i o c)
 
 -- | Retrieve all the states mentioned in an NVA
 states :: (Eq s, Hashable s) => NVA s sta i o c -> HashSet s
@@ -507,6 +511,105 @@ shortestWord NVA{..} = recur initialConfigs
     isFinal :: forall x. (s, [sta], x) -> Bool
     isFinal (s, [], _) = S.member s final
     isFinal _ = False
+
+shortestUniqueWord :: forall s sta i o c.
+                      ( Eq s, Hashable s
+                      , Eq sta, Hashable sta
+                      , Eq i, Hashable i
+                      , Eq o, Hashable o
+                      , Eq c, Hashable c )
+                   => Int  -- ^ Max word length to consider (inclusive)
+                   -> HashSet (NVA s sta i o c)  -- ^ NVAs to find unique words for
+                   -> HashMap (NVA s sta i o c) [TaggedTerminal i o c]  -- ^ Produced shortest unique words, per NVA. If no unique word was found for an NVA, then there is no entry for that NVA here
+shortestUniqueWord maxLength (toList >>> Vec.fromList -> nvas) =
+  recur maxLength (getUniques initials) initials
+  <&> Pre.reverse
+  where
+    asNVA idx = Vec.unsafeIndex nvas idx
+    initialConfigs NVA{initial} = S.map (, []) initial
+    initials = nvas
+      <&> initialConfigs
+      & M.singleton []
+
+    recur :: Int  -- ^ max amount of further steps to take
+          -> HashMap Int [TaggedTerminal i o c] -- ^ already found shortest words
+          -> HashMap [TaggedTerminal i o c] (Vector (HashSet (s, [sta]))) -- ^ current configurations, grouped by word so far
+          -> HashMap (NVA s sta i o c) [TaggedTerminal i o c]
+    recur n result _
+      | 0 <- n = result'
+      | M.size result == Vec.length nvas = result'
+      where
+        result' = M.toList result <&> first asNVA & M.fromList
+    recur n prev (clearRedundant prev -> configs) =
+      recur (n-1) next steppedConfigs
+      where
+        steppedConfigs = configs
+          <&> Vec.imap (\nva -> foldl' (\a b -> step nva b & M.unionWith S.union a) M.empty)
+          <&> distribute
+          & addTerminal
+        next = M.union prev $ getUniques steppedConfigs
+
+    getUniques :: HashMap [TaggedTerminal i o c] (Vector (HashSet (s, [sta]))) -> HashMap Int [TaggedTerminal i o c]
+    getUniques configs = M.mapMaybe isUnique configs
+      & M.toList
+      <&> swap
+      & M.fromList
+    isUnique = Vec.indexed >>> toList >>> filter (\(nva, cs) -> any (isFinal $ asNVA nva) cs) >>> \case
+      [(nva, _)] -> Just nva
+      _ -> Nothing
+
+    closeBySta :: Vector (HashMap s (HashMap sta (HashMap c (HashSet s))))
+    closeBySta = nvas & fmap (\nva -> closeTransitions nva
+      <&> (M.toList >=> \(c, stas) -> toList stas <&> (c,))
+      <&> fmap (\(c, (sta, s)) -> (sta, M.singleton c $ S.singleton s))
+      <&> M.fromListWith (M.unionWith S.union))
+
+    step :: Int -> (s, [sta]) -> HashMap (TaggedTerminal i o c) (HashSet (s, [sta]))
+    step nva@(asNVA -> NVA{innerTransitions,openTransitions}) (s, stack) =
+      let is = M.lookupDefault M.empty s innerTransitions
+            & M.toList
+            <&> (Inner *** S.map (,stack))
+            & M.fromListWith S.union
+          os = M.lookupDefault M.empty s openTransitions
+            & M.toList
+            <&> (Open *** S.map (\(sta, s2) -> (s2, sta : stack)))
+            & M.fromListWith S.union
+          cs | sta : stack' <- stack = closeBySta Vec.!? nva >>= M.lookup s >>= M.lookup sta
+               & foldMap (M.toList >>> fmap (Close *** S.map (,stack')) >>> M.fromList)
+             | otherwise = M.empty
+      in foldl' (M.unionWith S.union) M.empty [is, os, cs]
+
+    -- | Remove the partial words that could only produce unique words for NVAs that already have a
+    -- shortest word found.
+    clearRedundant :: HashMap Int [TaggedTerminal i o c]
+                   -> HashMap [TaggedTerminal i o c] (Vector (HashSet (s, [sta])))
+                   -> HashMap [TaggedTerminal i o c] (Vector (HashSet (s, [sta])))
+    clearRedundant alreadyFound = M.filter $
+      Vec.indexed >>> any (\(nva, configs) -> not (S.null configs) && not (M.member nva alreadyFound))
+
+    distribute :: ( Eq terminal, Hashable terminal
+                  , Eq config, Hashable config )
+               => Vector (HashMap terminal (HashSet config))
+               -> HashMap terminal (Vector (HashSet config))
+    distribute start = start
+      & Vec.imap (\idx m -> mkSingleVec (Vec.length start) idx <$> m)
+      & foldl' (M.unionWith $ Vec.zipWith S.union) M.empty
+    mkSingleVec :: Int -> Int -> HashSet config -> Vector (HashSet config)
+    mkSingleVec len idx configs =
+      Vec.generate len (\idx' -> if idx == idx' then configs else S.empty)
+
+    addTerminal :: ( Eq terminal, Hashable terminal
+                   , Eq config, Hashable config )
+                => HashMap [terminal] (HashMap terminal (Vector (HashSet config)))
+                -> HashMap [terminal] (Vector (HashSet config))
+    addTerminal start = M.fromListWith (Vec.zipWith S.union) $ do
+      (word, m) <- M.toList start
+      (terminal, m') <- M.toList m
+      pure (terminal : word, m')
+
+    isFinal :: NVA s sta i o c -> (s, [sta]) -> Bool
+    isFinal NVA{final} (s, []) = S.member s final
+    isFinal _ _ = False
 
 mapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
 mapKeys convert = M.toList >>> fmap (first convert) >>> M.fromList
