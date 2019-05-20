@@ -100,9 +100,25 @@ syncon question: Exp = left:Exp "?"
 `infix` in particular can have associativity, specified by adding `left` or `right` before the name:
 
 ```
-syncon left prod: Exp = "*"
-syncon right funcType: Type = "->"
+infix left prod: Exp = "*"
+infix right funcType: Type = "->"
 ```
+
+------
+
+Grouping (i.e., parentheses) can be added using `grouping`:
+
+```
+grouping "(" Exp ")"
+grouping "[" Exp "]"
+grouping TokType1 SyntaxType TokType2
+```
+
+Grouping has no semantic meaning, but is helpful for disambiguation. There is no implicit grouping, if you want disambiguation through grouping to be available for a particular syntax type you must add it yourself.
+
+Additionally, this marks the tokens as opening or closing brackets, respectively. In this case, `"("` and `TokType1` become opening brackets while `")"` and `TokType2` become closing brackets.
+
+A syncon may use bracket tokens freely, as long as they always appear balanced. However, they do *not* need to be paired with the other bracket from the grouping construct, e.g., `"("` could be balanced by `TokType2`. If these last two paragraphs don't make sense, don't worry about it until you run into an error message talking about "unpaired brackets", at which point it should make more sense.
 
 ------
 
