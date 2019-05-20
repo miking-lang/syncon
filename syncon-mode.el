@@ -11,6 +11,7 @@
        "comment"
        "except"
        "forbid"
+       "grouping"
        "infix"
        "left"
        "postfix"
@@ -21,7 +22,6 @@
        "syncon"
        "token"
        "type"
-       "grouping"
       ))
 
 (setq syncon-operators

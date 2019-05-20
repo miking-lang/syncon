@@ -36,7 +36,7 @@ data Error
   | UnnamedSyntaxTypeOccurrence Range
   | UnexpectedSyntaxType TypeName Range
   | UnexpectedTokenType TypeName Range
-  | InconsistentBracketKinds (Either Text TypeName) [(TokenKind, HashSet Range)]
+  | InconsistentBracketKinds (Either Text TypeName) [(BracketKind, HashSet Range)]
   | UnequalAltDescriptions Range [((Int, Int), HashSet Range)]
   | UnbalancedDescription Range [Range] [Range]  -- ^ unpaired closing bracket locations, unpaired opening bracket locations
   deriving (Show, Eq)
@@ -89,9 +89,9 @@ instance FormatError Error where
     , e_ranges = defs >>= \(kind, rs) -> (, fmt kind) <$> sort (toList rs)
     }
     where
-      fmt OpenTok = "Open bracket:"
-      fmt InnerTok = "Non-bracket:"
-      fmt CloseTok = "Close bracket:"
+      fmt OpenBracket = "Open bracket:"
+      fmt NonBracket = "Non-bracket:"
+      fmt CloseBracket = "Close bracket:"
   formatError (UnequalAltDescriptions r alts) = ErrorMessage
     { e_message = "The alternatives of this description do not have the same amount of unpaired brackets."
     , e_range = r
@@ -128,8 +128,8 @@ mkDefinitionFile :: [Top] -> Res DefinitionFile
 mkDefinitionFile (addImplicits >>> Seq.fromList -> tops) = do
   findDuplicates s_name synconTops
   findDuplicates getTypeName typeTops
-  (tokKind, Groupings groupings) <- checkGroupings syntaxTypes tops
-  traverse_ (checkSyncon syntaxTypes tokKind) synconTops
+  (bracketKind, Groupings groupings) <- checkGroupings syntaxTypes tops
+  traverse_ (checkSyncon syntaxTypes bracketKind) synconTops
   traverse_ (checkForbid synconAndSDNames) forbids
   precedences <- checkPrecedences synconAndSDNames tops
   pure $ DefinitionFile{..}
@@ -165,7 +165,7 @@ instance Monoid BalancedDescription where
   mappend = (<>)
 
 -- | Find all errors local to a single syncon.
-checkSyncon :: HashMap TypeName (Either SyntaxType TokenType) -> (Either Text TypeName -> TokenKind) -> Syncon -> Res ()
+checkSyncon :: HashMap TypeName (Either SyntaxType TokenType) -> (Either Text TypeName -> BracketKind) -> Syncon -> Res ()
 checkSyncon types tokKind Syncon{..} = do
   checkIsSyTy types s_syntaxType
   findDuplicates fst [(t, r) | SDNamed r (SDName t) _ <- universe s_syntaxDescription]
@@ -197,9 +197,9 @@ checkSyncon types tokKind Syncon{..} = do
       BalancedDescription closes opens ->
         Error [UnbalancedDescription (range original) (toList closes) (toList opens)]
     baseDescr r = tokKind >>> \case
-      OpenTok -> BalancedDescription Seq.empty (Seq.singleton r)
-      InnerTok -> mempty
-      CloseTok -> BalancedDescription (Seq.singleton r) Seq.empty
+      OpenBracket -> BalancedDescription Seq.empty (Seq.singleton r)
+      NonBracket -> mempty
+      CloseBracket -> BalancedDescription (Seq.singleton r) Seq.empty
 
 -- | Check that forbids refer to actually defined things, and that the syntax types agree.
 checkForbid :: HashMap Name (TypeName, HashSet Rec, HashMap SDName (Maybe TypeName)) -> Forbid -> Res ()
@@ -295,9 +295,6 @@ checkPrecedences names tops = consistentTypes *> matrix
            >>> fmap (first pure >>> bisequence)
            >>> fold)
 
-data TokenKind = OpenTok | InnerTok | CloseTok deriving (Show, Eq, Generic)
-instance Hashable TokenKind
-
 newtype Groupings = Groupings (HashMap TypeName (Seq (Either Text TypeName, Either Text TypeName)))
 
 instance Semigroup Groupings where
@@ -306,14 +303,14 @@ instance Monoid Groupings where
   mempty = Groupings M.empty
   mappend = (<>)
 
-newtype TokenClassifications = TokenClassifications (HashMap (Either Text TypeName) (HashMap TokenKind (HashSet Range)))
+newtype TokenClassifications = TokenClassifications (HashMap (Either Text TypeName) (HashMap BracketKind (HashSet Range)))
 instance Semigroup TokenClassifications where
   TokenClassifications a <> TokenClassifications b = TokenClassifications $ M.unionWith (M.unionWith S.union) a b
 instance Monoid TokenClassifications where
   mempty = TokenClassifications M.empty
   mappend = (<>)
 
-checkGroupings :: Foldable t => HashMap TypeName (Either SyntaxType TokenType) -> t Top -> Res (Either Text TypeName -> TokenKind, Groupings)
+checkGroupings :: Foldable t => HashMap TypeName (Either SyntaxType TokenType) -> t Top -> Res (Either Text TypeName -> BracketKind, Groupings)
 checkGroupings types tops = do
   (groupings, TokenClassifications classifications) <-
     foldMap groupingPair [g | GroupingTop g <- toList tops]
@@ -321,16 +318,16 @@ checkGroupings types tops = do
     case M.toList kinds of
       [(kind, _)] -> pure kind
       kinds' -> Error [InconsistentBracketKinds tok kinds']
-  pure (\tok -> M.lookupDefault InnerTok tok classMap, groupings)
+  pure (\tok -> M.lookupDefault NonBracket tok classMap, groupings)
   where
     groupingPair :: Grouping -> Res (Groupings, TokenClassifications)
     groupingPair Grouping{..} = do
-      openClass <- checkTokTy OpenTok g_open
+      openClass <- checkTokTy OpenBracket g_open
       checkIsSyTy types g_syntaxType
-      closeClass <- checkTokTy CloseTok g_close
+      closeClass <- checkTokTy CloseBracket g_close
       pure (Groupings $ M.singleton (snd g_syntaxType) $ Seq.singleton (snd g_open, snd g_close), openClass <> closeClass)
 
-    checkTokTy :: TokenKind -> (Range, Either Text TypeName) -> Res TokenClassifications
+    checkTokTy :: BracketKind -> (Range, Either Text TypeName) -> Res TokenClassifications
     checkTokTy kind (r, t@Left{}) = pure $ TokenClassifications $ M.singleton t $ M.singleton kind $ S.singleton r
     checkTokTy kind (r, t@(Right tyn)) = do
       checkIsTokTy types (r, tyn)

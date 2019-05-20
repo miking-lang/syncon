@@ -14,7 +14,9 @@ executable syncon-parser
                , text
                , hashable
                , unordered-containers
+               , these
                , containers
+               , vector
                , array
                , recursion-schemes
                , bytestring
@@ -34,9 +36,11 @@ executable syncon-parser
                , Data.Automaton.EpsilonNFA
                , Data.Automaton.NFA
                , Data.Automaton.DFA
-               , Data.Automaton.DVA
+               , Data.Automaton.EpsilonNVA
                , Data.Automaton.NVA
+               , Data.Automaton.DVA
                , Data.Automaton.Regex
+               , Data.Automaton.GraphViz
                , P1Lexing.Types
                , P1Lexing.Lexer
                , P2LanguageDefinition.Types
