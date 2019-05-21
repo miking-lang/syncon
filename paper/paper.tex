@@ -87,8 +87,13 @@
 \newcommand{\Labels}{\mathbb{L}} % Set of labels
 \newcommand{\yield}{\mathit{yield}} % yield of a parse tree
 \newcommand{\semantic}{\mathit{semantic}} % remove semantically unimportant productions from a w' \in L(G')
-\newcommand{\parse}{\mathit{parse}} % go from a w' \in L(G') to a subset of L(T)
-\newcommand{\words}{\mathit{words}} % go from a t \in L(T) to a subset of L(G')
+\newcommand{\parse}{\mathit{parse}} % go from a w' \in L(G'_w) to a subset of L(G_t)
+\newcommand{\words}{\mathit{words}} % go from a t \in L(G_t) to a subset of L(G'_w)
+\newcommand{\alt}{\mathit{alt}} % go from a w \in L(G'_w) to a tuple of a basic word and a range bag.
+\newcommand{\basic}{\mathit{basic}} % go from a w \in L(G'_w) to the first element of \alt(w).
+\newcommand{\altset}{\mathit{altset}} % go from a w \in L(G'_w) to \alt(w), except the second element is replaced by a set (that contains an element if the bag contained at least one of that element).
+\newcommand{\lattice}{\mathit{lattice}} % go from a t \in L(G_t) to its lattice, partitioned by equality on \altset and ordered by subset on the rangeset.
+\newcommand{\localize}{\mathit{localize}} % go from a F \subseteq L(G_t) to a set of localized ambiguities, i.e., a set of subforests.
 \newcommand{\range}[2]{#1\!-\!#2}
 
 \begin{document}
@@ -1090,6 +1095,110 @@ In this product automaton, if any transition pushes a stack symbol $(a, b)$ wher
 % }
 
 \section{Parsetime Ambiguity Reporting} \label{sec:parse-time-reporting}
+
+\section{Properties We May Want to Prove}
+
+\subsection{Static Stuff}
+
+\begin{lemma}
+There is an injective function ($\alt$) from well-balanced words to tuples of basic words and range bags.
+\end{lemma}
+
+\begin{lemma}
+$\forall t \in L(G_t), w_1, w_2 \in L(G'_w).\ \{w_1, w_2\} \subseteq \words(t) -> \basic(w_1) = \basic(w_2)$
+\label{lemma:tree-single-basic}
+\end{lemma}
+
+\begin{lemma}
+$\forall t \in L(G_t).\ \words(t) \neq \emptyset$
+\label{lemma:words-nonempty}
+\end{lemma}
+
+\begin{lemma}
+$\forall t_1, t_2 \in L(G_t).\ \words(t_1) \cap \words(t_2) \neq \emptyset -> \basic(t_1) = \basic(t_2)$ \\
+(We're using \ref{lemma:tree-single-basic} and \ref{lemma:words-nonempty} to (ab)use ''$\basic$'' on trees as well)
+\end{lemma}
+
+\begin{definition}
+A language definition is in version 1 or 2 if $\T \cap \mathit{par} = \emptyset$.
+\end{definition}
+
+\begin{theorem}
+In version 1 and 2: $\forall w_1, w_2 \in L(G'_w).\ \altset(w_1) = \altset(w_2) -> \parse(w_1) = \parse(w_2)$, where $\altset(w)$ is the same as $\alt(w)$, but with the second component (the rangebag) replaced with a corresponding set.
+\end{theorem}
+
+\begin{lemma}
+In version 1 and 2, given a $t \in L(G_t)$, the words in $\words(t)$ can be partitioned into a lattice. Each partition contains the words that are equal by $\altset$, and ordering is by subset on the rangeset. Furthermore, this lattice is bounded, and uniquely described by its bottom and top elements; it contains all elements between bottom and top. We denote this lattice as $\lattice(t)$.
+\label{lemma:bounded-lattice}
+\end{lemma}
+
+\begin{definition}
+A language definition is in version 1 if it contains no marked non-terminals and $\T \cap \mathit{par} = \emptyset$.
+\end{definition}
+
+\begin{lemma}
+In version 1: the bottom element of the lattice for a tree has a rangeset that is the empty set.
+\end{lemma}
+
+\begin{theorem}
+Given a tree $t \in L(G_t)$ in version 1, $\exists w \in L(G'_w).\ \parse(w) = \{t\} <-> \neg \exists t' \in L(G_t).\ \lattice(t) \subseteq \lattice(t')$, i.e., a tree is resolvable iff there is no other tree that entirely covers its lattice.
+\end{theorem}
+
+\begin{lemma}
+We can construct a VPDA that recognizes a linear encoding of the lattices of trees in $L(G_t)$, such that there is a bijection between successful runs and trees.
+\label{lemma:linear-lattices}
+\end{lemma}
+
+\begin{lemma}
+Using \ref{lemma:linear-lattices}, we can construct a VPDA that reconizes a linear encoding of ''superlattices'' of trees in $L(G_t)$ (i.e., lattices that completely cover the original lattices), where each successful run corresponds to exactly one tree.
+\label{lemma:linear-super-lattices}
+\end{lemma}
+
+\begin{theorem}
+Using \ref{lemma:linear-lattices}, \ref{lemma:linear-super-lattices}, and their product automaton, we can construct a VPDA such that there is a bijection between successful runs and pairs of trees in $L(G_t)$ such that the lattice of one is entirely covered by the other (this holds in both version 1 and 2).
+\end{theorem}
+
+\begin{theorem}
+We can construct a sound, decidable algorithm that takes a language definition in version 1 or 2 and answers ''resolvably ambiguous'', ''unresolvably ambiguous'', or ''unknown''. Additionally, in version 1, this algorithm will never answer ''unknown'', i.e., it is then complete.
+\label{lemma:static-algorithm}
+\end{theorem}
+
+\begin{definition}
+Version 2.5 allows a language definition to use parentheses, but restricts it to never produce double parentheses, and changes $G'_w$ to also never recognize double parentheses.
+\end{definition}
+
+\begin{theorem}
+\ref{lemma:bounded-lattice} holds also for version 2.5, thus we can extend \ref{lemma:static-algorithm} to cover version 2.5 as well.
+\end{theorem}
+
+\subsection{Dynamic Stuff}
+
+This section assumes that we at no point produce an infinite amount of parse trees. My intuition (corroborated by some quick googling) suggests that this can only happen if there is a productive, accessible nonterminal $N$ such that $N =>^{+} N$. This is not checked at the moment.
+
+\begin{lemma}
+$\forall t \in L(G_t).\ \words(t)$ is a visibly pushdown language.
+\end{lemma}
+
+\begin{theorem}
+  Given a set of trees in $L(G_t)$, we can construct a corresponding set of VPDAs that recognize the words that are unique to each tree (i.e., isn't in $\words(t)$ for some other tree $t$ in the set).
+\end{theorem}
+
+\begin{theorem}
+  We can construct an algorithm $\localize(F)$ that takes a finite parse forest $F \subseteq L(G_t)$ and selects a set of subforests\footnote{This is a term that I have introduced, and so it will need to be described. Basically a parse forest for a part of a word, where each tree is a subtree of the original parse forest.} such that:
+  \begin{itemize}
+  \item The unselected parts are identical across the different syntax trees, including range (i.e., we report all ambiguities).
+  \item No selected subforest is contained in another (i.e., we only report one ambiguity per range).
+  \item No selected subforest can be replaced by zero or more of its children while still satisfying the points above (i.e., the selected subforests are minimal\footnote{By covered range, not by count.}).
+  \end{itemize}
+\end{theorem}
+
+\begin{theorem}
+  Given an ambiguous word $w \in L(G'_w)$, a localized ambiguity $F' \in \localize(\parse(w))$ covering the subword $w' \in L_{G'_w}(N)$, and a resolution $w'' \in L_{G'_w}(N)$ such that $\parse_N(w'') = \{t\} \subset \parse_N(w')$ for some $t \in L_{G_t}(N)$, the following holds:
+  \begin{itemize}
+  \item $\localize(\parse(w[w'/w''])) = \localize(\parse(w)) \setminus F'$
+  \end{itemize}
+  where $w[w'/w'']$ denotes replacing a subword $w'$ with $w''$.
+\end{theorem}
 
 %% \noindent Generalizing this to a complete grammar, we get the following property: a grammar $G$ is resolvable iff:
 
