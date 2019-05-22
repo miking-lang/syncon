@@ -6,7 +6,7 @@ comment "//[^\\n]*(\\n|$)"
 
 token Int = "\\d+"
 
-syncon decls: Top = d:Decl*
+syncon decls: Top = d:Decl+
 
 syncon print: Decl = "print" e:Expression
 

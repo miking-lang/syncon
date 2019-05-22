@@ -1141,21 +1141,21 @@ In version 1: the bottom element of the lattice for a tree has a rangeset that i
 \end{lemma}
 
 \begin{theorem}
-Given a tree $t \in L(G_t)$ in version 1, $\exists w \in L(G'_w).\ \parse(w) = \{t\} <-> \neg \exists t' \in L(G_t).\ \lattice(t) \subseteq \lattice(t')$, i.e., a tree is resolvable iff there is no other tree that entirely covers its lattice.
+Given a tree $t \in L(G_t)$ in version 1, $\exists w \in L(G'_w).\ \parse(w) = \{t\} <-> \neg \exists t' \in L(G_t).\ t \neq t' \land \lattice(t) \subseteq \lattice(t')$, i.e., a tree is resolvable iff there is no other tree that entirely covers its lattice.
 \end{theorem}
 
 \begin{lemma}
-We can construct a VPDA that recognizes a linear encoding of the lattices of trees in $L(G_t)$, such that there is a bijection between successful runs and trees.
+(Version 1 and 2) We can construct a VPDA that recognizes a linear encoding of the lattices of trees in $L(G_t)$, such that there is a bijection between successful runs and trees.
 \label{lemma:linear-lattices}
 \end{lemma}
 
 \begin{lemma}
-Using \ref{lemma:linear-lattices}, we can construct a VPDA that reconizes a linear encoding of ''superlattices'' of trees in $L(G_t)$ (i.e., lattices that completely cover the original lattices), where each successful run corresponds to exactly one tree.
+(Version 1 and 2) Using \ref{lemma:linear-lattices}, we can construct a VPDA that reconizes a linear encoding of ''superlattices'' of trees in $L(G_t)$ (i.e., lattices that completely cover the original lattices), where each successful run corresponds to exactly one tree.
 \label{lemma:linear-super-lattices}
 \end{lemma}
 
 \begin{theorem}
-Using \ref{lemma:linear-lattices}, \ref{lemma:linear-super-lattices}, and their product automaton, we can construct a VPDA such that there is a bijection between successful runs and pairs of trees in $L(G_t)$ such that the lattice of one is entirely covered by the other (this holds in both version 1 and 2).
+(Version 1 and 2) Using \ref{lemma:linear-lattices}, \ref{lemma:linear-super-lattices}, and their product automaton, we can construct a VPDA such that there is a bijection between successful runs and pairs of trees in $L(G_t)$ such that the lattice of one is entirely covered by the other.
 \end{theorem}
 
 \begin{theorem}
@@ -1193,7 +1193,7 @@ $\forall t \in L(G_t).\ \words(t)$ is a visibly pushdown language.
 \end{theorem}
 
 \begin{theorem}
-  Given an ambiguous word $w \in L(G'_w)$, a localized ambiguity $F' \in \localize(\parse(w))$ covering the subword $w' \in L_{G'_w}(N)$, and a resolution $w'' \in L_{G'_w}(N)$ such that $\parse_N(w'') = \{t\} \subset \parse_N(w')$ for some $t \in L_{G_t}(N)$, the following holds:
+  Given an ambiguous word $w \in L(G'_w)$, a localized ambiguity $F' \in \localize(\parse(w))$ covering the subword $w' \in L_{G'_w}(N)$ (i.e., $\parse_N(w') = F'$), and a resolution $w'' \in L_{G'_w}(N)$ such that $\parse_N(w'') = \{t\} \subset \parse_N(w')$ for some $t \in L_{G_t}(N)$, the following holds:
   \begin{itemize}
   \item $\localize(\parse(w[w'/w''])) = \localize(\parse(w)) \setminus F'$
   \end{itemize}
