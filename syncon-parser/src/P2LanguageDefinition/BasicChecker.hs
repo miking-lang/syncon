@@ -169,6 +169,9 @@ checkSyncon :: HashMap TypeName (Either SyntaxType TokenType) -> (Either Text Ty
 checkSyncon types tokKind Syncon{..} = do
   checkIsSyTy types s_syntaxType
   findDuplicates fst [(t, r) | SDNamed r (SDName t) _ <- universe s_syntaxDescription]
+  forM_ [(r, tyn) | SDSyTy r tyn <- universe s_syntaxDescription] $ \(r, tyn) ->
+    unless (tyn `M.member` types) $
+      Error [Undefined (coerce tyn) r]
   join . (`cataA` s_syntaxDescription) $ \case
     SDSyTyF r tyn | isSyTy tyn  -> pure $ Error [UnnamedSyntaxTypeOccurrence r]
     SDRecF r _ -> pure $ Error [UnnamedSyntaxTypeOccurrence r]
