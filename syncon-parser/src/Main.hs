@@ -158,7 +158,7 @@ testReduce = do
     post = NVA.reduce nva
 
 test :: IO ()
-test = parseToHTMLDebug "examples/bootstrap.syncon" "examples/bootstrap.syncon" "out.html"
+test = parseToHTMLDebug "case-studies/ocaml.syncon" "case-studies/fizzbuzz.ml" "out.html"
 
 main :: IO ()
 main = getArgs >>= \case

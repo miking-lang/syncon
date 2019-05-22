@@ -95,14 +95,14 @@ data SyntaxDescription
   | SDSyTy Range TypeName
   | SDRec Range Rec
   | SDToken Range Text -- ^ A literal token, i.e., something written as a quoted string in a .syncon file
-  deriving (Show, Data, Typeable)
+  deriving (Eq, Show, Data, Typeable)
 
 -- | Recursion to the same syntax type, behaves exactly the same as just writing that syntax type,
 -- except in precedence lists, where forbids are generated for recs.
 data Rec = LRec | RRec | Rec deriving (Show, Data, Typeable, Eq, Generic)
 instance Hashable Rec
 
-data Repetition = RepStar | RepQuestion | RepPlus deriving (Show, Data, Typeable)
+data Repetition = RepStar | RepQuestion | RepPlus deriving (Eq, Show, Data, Typeable)
 
 -- |
 -- = Disambiguation

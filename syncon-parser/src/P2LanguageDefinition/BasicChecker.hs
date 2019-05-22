@@ -17,7 +17,7 @@ import qualified Data.HashSet as S
 
 import ErrorMessage (ErrorMessage(..), FormatError(..), simpleErrorMessage)
 
-import Data.Functor.Foldable (cataA, para)
+import Data.Functor.Foldable (cataA, cata, para)
 import Data.Generics.Uniplate.Data (universe)
 
 import P1Lexing.Types (Range, range, Ranged)
@@ -39,6 +39,7 @@ data Error
   | InconsistentBracketKinds (Either Text TypeName) [(BracketKind, HashSet Range)]
   | UnequalAltDescriptions Range [((Int, Int), HashSet Range)]
   | UnbalancedDescription Range [Range] [Range]  -- ^ unpaired closing bracket locations, unpaired opening bracket locations
+  | NullableSyntaxDescription Range
   deriving (Show, Eq)
 
 instance FormatError Error where
@@ -113,6 +114,8 @@ instance FormatError Error where
       & sortBy (compare `on` fst)
       & ((r, "") :)
     }
+  formatError (NullableSyntaxDescription sd) = simpleErrorMessage (range sd) $
+    "A syncon may not match nothing (it may not be nullable, in case that is more familiar terminology)."
 
 -- | Add the implicitly defined things.
 addImplicits :: [Top] -> [Top]
@@ -189,6 +192,8 @@ checkSyncon types tokKind Syncon{..} = do
         balances -> Error [UnequalAltDescriptions r $ second (fmap snd >>> S.fromList) <$> balances]
     SDRepF _ _ (original, sd) -> checkBalanced original sd
     other -> foldMap snd other
+  when (isNullable s_syntaxDescription) $
+    Error [NullableSyntaxDescription $ range s_syntaxDescription]
   pure ()
   where
     isSyTy tyn = M.lookup tyn types & maybe False isLeft
@@ -203,6 +208,14 @@ checkSyncon types tokKind Syncon{..} = do
       OpenBracket -> BalancedDescription Seq.empty (Seq.singleton r)
       NonBracket -> mempty
       CloseBracket -> BalancedDescription (Seq.singleton r) Seq.empty
+    isNullable = cata $ \case
+      SDSeqF _ sds -> and sds
+      SDAltF _ sds -> or sds
+      SDRepF _ RepStar _ -> True
+      SDRepF _ RepQuestion _ -> True
+      SDRepF _ RepPlus sd -> sd
+      SDNamedF _ _ sd -> sd
+      _ -> False
 
 -- | Check that forbids refer to actually defined things, and that the syntax types agree.
 checkForbid :: HashMap Name (TypeName, HashSet Rec, HashMap SDName (Maybe TypeName)) -> Forbid -> Res ()
