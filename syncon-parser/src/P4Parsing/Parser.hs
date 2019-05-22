@@ -148,7 +148,7 @@ generateGrammar DefinitionFile{..}
           syncons'
           & (`M.intersection` (S.toMap $ M.lookupDefault S.empty tyn syTyToSyncon))
           & (`M.difference` S.toMap excludes)
-          & toList & (lookupEmpty tyn parens : ) & asum & (<?> coerce tyn)
+          & toList & (lookupEmpty tyn parens : ) & asum
       M.lookup (TypeName "Top", S.empty) nts'
         & compFromJust "P4Parsing.Parser.generateGrammar" "Top somehow vanished during generation"
         & fmap fst
@@ -177,7 +177,6 @@ generateSyncon :: HashMap (Name, Either Rec SDName) (TypeName, HashSet Name)
 generateSyncon markings isSyTy nts Syncon{s_name = n, s_syntaxDescription, s_syntaxType = (_, syty)} =
   para alg s_syntaxDescription
   & fmap (\(internals, r) -> (Node n (asStruct internals) r, r))
-  & (<?> ("syncon " <> coerce n))
   where
     alg (SDNamedF _ sdname (SDSyTy _ tyn, _))
       | isSyTy tyn = M.lookupDefault (tyn, S.empty) (n, Right sdname) markings
@@ -211,7 +210,7 @@ lit t = (<?> ("literal " <> t)) . satisfy $ \case
 
 -- | Parse a specific kind of token.
 othertok :: TypeName -> Prod r l (Tok l)
-othertok tyn = (<?> ("othertok " <> coerce tyn)) . satisfy $ \case
+othertok tyn = (<?> ("token " <> coerce tyn)) . satisfy $ \case
   OtherTok _ _ tyn' _ | tyn == tyn' -> True
   _ -> False
 
