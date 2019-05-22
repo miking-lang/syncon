@@ -71,6 +71,8 @@ postfix sdQuestion: SyntaxDescription = "?"
 syncon sdAlt: SyntaxDescription = left:rec+ ("|" right:rec+)+
 forbid sdAlt.left = sdAlt
 forbid sdAlt.right = sdAlt
+forbid sdSeq.head = sdAlt
+forbid sdSeq.tail = sdAlt
 
 prefix sdName: SyntaxDescription = name:(Name | "left" | "right") ":"
 

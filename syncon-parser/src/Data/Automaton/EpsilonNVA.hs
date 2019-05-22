@@ -23,6 +23,7 @@ data EpsNVA s sta i o c = EpsNVA
   , openTransitions :: HashMap s (HashMap o (HashSet (sta, s)))
   , closeTransitions :: HashMap s (HashMap c (HashSet (sta, s)))
   , final :: HashSet s }
+  deriving (Show)
 
 data TaggedTerminal i o c
   = Open o
@@ -130,6 +131,24 @@ renumberStack nva = mapSta oldToNew nva
     newSymbols = evalState computeNewSymbols 0
     computeNewSymbols = stackSymbols nva & S.toMap & traverse (\_ -> get <* modify (+1))
 
+renumberStackKeepLeft :: ( Eq s, Hashable s
+                         , Eq stal, Hashable stal
+                         , Eq star, Hashable star )
+                      => EpsNVA s (Either stal star) i o c -> EpsNVA s (Either stal Int) i o c
+renumberStackKeepLeft nva = mapSta (second oldToNew) nva
+  where
+    oldToNew sta = M.lookup sta newSymbols
+      & compFromJust "Data.Automaton.EpsilonNVA.renumberStackKeepLeft" "missing symbol"
+    newSymbols = evalState computeNewSymbols 0
+    computeNewSymbols = stackSymbols nva
+      & toList
+      & mapMaybe asRight
+      & S.fromList
+      & S.toMap
+      & traverse (\_ -> get <* modify (+1))
+    asRight Left{} = Nothing
+    asRight (Right a) = Just a
+
 renumber :: ( Eq s, Hashable s
             , Eq sta, Hashable sta
             , Eq i, Hashable i
@@ -168,6 +187,33 @@ instance
   , Eq o, Hashable o
   , Eq c, Hashable c )
   => Monoid (EpsNVA Int Int i o c) where
+  mempty = EpsNVA
+    { initial = S.singleton 0
+    , innerTransitions = M.empty
+    , openTransitions = M.empty
+    , closeTransitions = M.empty
+    , final = S.singleton 0 }
+  mappend = (<>)
+
+instance
+  ( Eq i, Hashable i
+  , Eq o, Hashable o
+  , Eq c, Hashable c
+  , Eq sta, Hashable sta)
+  => Semigroup (EpsNVA Int (Either sta Int) i o c) where
+  a <> b = concat a b & renumberStates & mapSta (either (shuffle Left) (shuffle Right))
+    & renumberStackKeepLeft
+    where
+      shuffle :: (Int -> Either Int Int) -> Either sta Int -> Either sta (Either Int Int)
+      shuffle _ (Left sta) = Left sta
+      shuffle constr (Right i) = Right $ constr i
+
+instance
+  ( Eq i, Hashable i
+  , Eq o, Hashable o
+  , Eq c, Hashable c
+  , Eq sta, Hashable sta)
+  => Monoid (EpsNVA Int (Either sta Int) i o c) where
   mempty = EpsNVA
     { initial = S.singleton 0
     , innerTransitions = M.empty

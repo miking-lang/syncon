@@ -512,6 +512,7 @@ shortestWord NVA{..} = recur initialConfigs
     isFinal (s, [], _) = S.member s final
     isFinal _ = False
 
+-- TODO: make a timeouting version of this in IO
 shortestUniqueWord :: forall s sta i o c.
                       ( Eq s, Hashable s
                       , Eq sta, Hashable sta
@@ -521,6 +522,8 @@ shortestUniqueWord :: forall s sta i o c.
                    => Int  -- ^ Max word length to consider (inclusive)
                    -> HashSet (NVA s sta i o c)  -- ^ NVAs to find unique words for
                    -> HashMap (NVA s sta i o c) [TaggedTerminal i o c]  -- ^ Produced shortest unique words, per NVA. If no unique word was found for an NVA, then there is no entry for that NVA here
+shortestUniqueWord maxLength _
+  | maxLength < 0 = compErr "Data.Automaton.NVA.shortestUniqueWord" $ "Got a negative maxLength: " <> show maxLength
 shortestUniqueWord maxLength (toList >>> Vec.fromList -> nvas) =
   recur maxLength (getUniques initials) initials
   <&> Pre.reverse

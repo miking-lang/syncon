@@ -21,7 +21,7 @@ import Data.Generics.Uniplate.Data (universe)
 import Data.Functor.Foldable (project)
 
 import Data.Automaton.NVA (fromEpsNVA, NVA, reduce, shortestUniqueWord, shortestWord, renumber)
-import Data.Automaton.EpsilonNVA (EpsNVA(..), untag, fromNFA, renumberStack, TaggedTerminal(..))
+import Data.Automaton.EpsilonNVA (EpsNVA(..), untag, fromNFA, TaggedTerminal(..))
 import qualified Data.Automaton.EpsilonNVA as EpsNVA
 import Data.Automaton.Regex (Regex(..))
 import qualified Data.Automaton.Regex as Regex
@@ -49,7 +49,7 @@ instance FormatError Error where
     "Unresolvable ambiguity error with " <> show (length trees + length resolvable) <> " alternatives.\n" <>
     formattedResolvable <> "\n" <>
     "Unresolvable alternatives:\n" <>
-    foldMap ((n_name &&& (project >>> toList)) >>> format) trees
+    fold unresolvables
     where
       format (name, children) = "  " <> coerce name <> formatChildren children <> "\n"
       formatChildren = sortBy (compare `on` range) >>> foldMap formatNode
@@ -58,6 +58,10 @@ instance FormatError Error where
       formattedResolvable
         | null resolvable = ""
         | otherwise = "\nResolvable alternatives:\n" <> foldMap (\t -> "  " <> t <> "\n") resolvable
+      unresolvables = trees
+        <&> (n_name &&& (project >>> toList))
+        <&> format
+        & S.fromList
   formatError (Ambiguity r resolvable) = simpleErrorMessage r $
     "Ambiguity error with " <> show (length resolvable) <> " alternatives:\n\n" <>
     foldMap (\t -> "  " <> t <> "\n") resolvable
@@ -192,7 +196,7 @@ mkLanguage :: (Name -> SDName -> Name -> Bool)  -- ^ True if forbidden
                            , HashMap (SavedPoint ()) Path
                            , HashSet Path )
            -> Node
-           -> EpsNVA Int Int Token Token Token
+           -> EpsNVA Int (Either () Int) Token Token Token
 mkLanguage isForbidden bracketKind getSyTy getGroupings syncons n@Node{n_name} =
   zipWith genSegment (toList points) (tail $ fst <$> toList points)
   & mconcat
@@ -201,6 +205,7 @@ mkLanguage isForbidden bracketKind getSyTy getGroupings syncons n@Node{n_name} =
     groupings = getGroupings syTy
       & toList
       & zip [-1,-2..]
+      <&> first Right
       & Seq.fromList
     (sd, pointToPathMap, paths) = M.lookup n_name syncons
       & compFromJust "P4Parsing.AmbiguityReporter.mkLanguage" "Missing syncon"
@@ -211,11 +216,11 @@ mkLanguage isForbidden bracketKind getSyTy getGroupings syncons n@Node{n_name} =
 
     genSegment :: (Path, Maybe (SavedPoint Node))
                -> Path
-               -> EpsNVA Int Int Token Token Token
+               -> EpsNVA Int (Either () Int) Token Token Token
     genSegment (start, point) end =
       foldMap genPoint point <> regexToEpsNVA (regexIntermission sd start end paths)
 
-    genPoint :: SavedPoint Node -> EpsNVA Int Int Token Token Token
+    genPoint :: SavedPoint Node -> EpsNVA Int (Either () Int) Token Token Token
     genPoint (TokPoint _ tok) = regexToEpsNVA $ Terminal tok
     genPoint (NodePoint sdname _ node@Node{n_name=innerName})
       | isForbidden n_name sdname innerName = withOpt
@@ -241,8 +246,8 @@ mkLanguage isForbidden bracketKind getSyTy getGroupings syncons n@Node{n_name} =
         addTransitions = M.unionWith $ M.unionWith S.union
         innerLang = mkLanguage isForbidden bracketKind getSyTy getGroupings syncons node
 
-    regexToEpsNVA :: Regex Token -> EpsNVA Int Int Token Token Token
-    regexToEpsNVA = Regex.toAutomaton >>> fromNFA tag >>> renumberStack
+    regexToEpsNVA :: Regex Token -> EpsNVA Int (Either () Int) Token Token Token
+    regexToEpsNVA = Regex.toAutomaton >>> fromNFA tag >>> EpsNVA.mapSta Left
 
     tag :: Token -> TaggedTerminal Token Token Token
     tag tok = case bracketKind $ eitherRepr tok of

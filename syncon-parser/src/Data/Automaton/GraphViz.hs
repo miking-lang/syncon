@@ -54,5 +54,6 @@ debugWriteDotFile path sToStr aToStr fa b = unsafePerformIO $ do
 escape :: Text -> Text
 escape = Text.concatMap f
   where
+    f '\\' = "\\\\"
     f '"' = "\\\""
     f c = Text.singleton c

@@ -248,7 +248,7 @@ syntaxDescription :: Grammar r (Prod r SyntaxDescription)
 syntaxDescription = mdo
   let sdsequence = do
         start <- lit "("
-        descrs <- fmap Seq.fromList $ (:) <$> alted <*> some alted
+        descrs <- fmap Seq.fromList $ (:) <$> repped <*> some repped
         end <- lit ")"
         return $ SDSeq (range start <> range end) descrs
   let sdlit = uncurry SDToken <$> string
@@ -262,7 +262,7 @@ syntaxDescription = mdo
   let rep = ((,) <$> lit "*" <*> pure RepStar)
             <|> ((,) <$> lit "+" <*> pure RepPlus)
             <|> ((,) <$> lit "?" <*> pure RepQuestion)
-  let repped = (mkRep <$> (named <|> atom) <*> rep) <|> named <|> atom
+  repped <- rule $ (mkRep <$> (named <|> atom) <*> rep) <|> named <|> atom
   let alts = mkAlt <$> some repped <*> some (lit "|" *> some repped)
   alted <- rule $ repped <|> alts <?> "syntax description"
   return repped
