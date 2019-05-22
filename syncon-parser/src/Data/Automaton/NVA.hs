@@ -10,6 +10,8 @@ import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
 import Data.Vector (Vector)
 import qualified Data.Vector as Vec
+import Data.IORef (IORef, newIORef, readIORef, atomicWriteIORef)
+import System.Timeout (timeout)
 
 import qualified Data.Automaton.NFA as N
 import Data.Automaton.EpsilonNVA (EpsNVA(EpsNVA), TaggedTerminal(..))
@@ -519,14 +521,16 @@ shortestUniqueWord :: forall s sta i o c.
                       , Eq i, Hashable i
                       , Eq o, Hashable o
                       , Eq c, Hashable c )
-                   => Int  -- ^ Max word length to consider (inclusive)
+                   => Int  -- ^ Timeout in microseconds. Negative to never timeout
+                   -> Int  -- ^ Max word length to consider (inclusive)
                    -> HashSet (NVA s sta i o c)  -- ^ NVAs to find unique words for
-                   -> HashMap (NVA s sta i o c) [TaggedTerminal i o c]  -- ^ Produced shortest unique words, per NVA. If no unique word was found for an NVA, then there is no entry for that NVA here
-shortestUniqueWord maxLength _
+                   -> IO (HashMap (NVA s sta i o c) [TaggedTerminal i o c])  -- ^ Produced shortest unique words, per NVA. If no unique word was found for an NVA, then there is no entry for that NVA here
+shortestUniqueWord _ maxLength _
   | maxLength < 0 = compErr "Data.Automaton.NVA.shortestUniqueWord" $ "Got a negative maxLength: " <> show maxLength
-shortestUniqueWord maxLength (toList >>> Vec.fromList -> nvas) =
-  recur maxLength (getUniques initials) initials
-  <&> Pre.reverse
+shortestUniqueWord timeoutDuration maxLength (toList >>> Vec.fromList -> nvas) = do
+  res <- newIORef $ getUniques initials
+  _ <- timeout timeoutDuration $ recur maxLength res initials
+  readIORef res <&> (M.toList >>> fmap (asNVA *** Pre.reverse) >>> M.fromList)
   where
     asNVA idx = Vec.unsafeIndex nvas idx
     initialConfigs NVA{initial} = S.map (, []) initial
@@ -535,22 +539,22 @@ shortestUniqueWord maxLength (toList >>> Vec.fromList -> nvas) =
       & M.singleton []
 
     recur :: Int  -- ^ max amount of further steps to take
-          -> HashMap Int [TaggedTerminal i o c] -- ^ already found shortest words
+          -> IORef (HashMap Int [TaggedTerminal i o c]) -- ^ already found shortest words
           -> HashMap [TaggedTerminal i o c] (Vector (HashSet (s, [sta]))) -- ^ current configurations, grouped by word so far
-          -> HashMap (NVA s sta i o c) [TaggedTerminal i o c]
-    recur n result _
-      | 0 <- n = result'
-      | M.size result == Vec.length nvas = result'
-      where
-        result' = M.toList result <&> first asNVA & M.fromList
-    recur n prev (clearRedundant prev -> configs) =
-      recur (n-1) next steppedConfigs
-      where
-        steppedConfigs = configs
-          <&> Vec.imap (\nva -> foldl' (\a b -> step nva b & M.unionWith S.union a) M.empty)
-          <&> distribute
-          & addTerminal
-        next = M.union prev $ getUniques steppedConfigs
+          -> IO ()
+    recur n _ _
+      | 0 <- n = return ()
+    recur n prevRef configs = do
+      prev <- readIORef prevRef
+      if M.size prev == Vec.length nvas then return () else do
+        let configs' = clearRedundant prev configs
+            steppedConfigs = configs'
+              <&> Vec.imap (\nva -> foldl' (\a b -> step nva b & M.unionWith S.union a) M.empty)
+              <&> distribute
+              & addTerminal
+            next = M.union prev $ getUniques steppedConfigs
+        atomicWriteIORef prevRef next
+        recur (n-1) prevRef steppedConfigs
 
     getUniques :: HashMap [TaggedTerminal i o c] (Vector (HashSet (s, [sta]))) -> HashMap Int [TaggedTerminal i o c]
     getUniques configs = M.mapMaybe isUnique configs

@@ -16,6 +16,7 @@ import qualified Data.HashMap.Lazy as M
 import qualified Data.Sequence as Seq
 import Data.Sequence (pattern Empty, pattern (:<|), pattern (:|>))
 import Data.Semigroup (Max(..))
+import System.IO.Unsafe (unsafePerformIO)
 
 import Data.Generics.Uniplate.Data (universe)
 import Data.Functor.Foldable (project)
@@ -145,7 +146,7 @@ resolvability df r nodes = M.toList languages
                        & renumber)
 
     shortest :: HashMap ResLang [TaggedTerminal Token Token Token]
-    shortest = shortestUniqueWord (len + 10) nvas
+    shortest = unsafePerformIO $ shortestUniqueWord 1_000_000 (len + 10) nvas
       where
         Max len = foldMap (shortestWord >>> fmap (length >>> Max) >>> fold) nvas
         nvas = foldMap S.singleton languages

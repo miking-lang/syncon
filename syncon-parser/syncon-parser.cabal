@@ -89,3 +89,4 @@ executable syncon-parser
                     , TypeFamilies
                     , TypeFamilyDependencies
                     , PatternSynonyms
+                    , NumericUnderscores
