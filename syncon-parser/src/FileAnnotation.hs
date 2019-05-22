@@ -1,4 +1,4 @@
-module FileAnnotation (annotate, putInTemplate) where
+module FileAnnotation (annotate, putInTextTemplate, putInTemplate) where
 
 import Pre
 
@@ -40,6 +40,9 @@ annotate source annotations = flip evalState initState $ do
 putInTemplate :: FilePath -> Text -> IO Text
 putInTemplate templatePath html =
   readFile templatePath <&> Text.replace "$prettyprint$" html
+
+putInTextTemplate :: Text -> Text -> Text
+putInTextTemplate template html = Text.replace "$prettyprint$" html template
 
 step :: Char -> AnnoM Builder
 step c = do

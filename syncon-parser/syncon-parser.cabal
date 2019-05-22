@@ -26,6 +26,7 @@ executable syncon-parser
                , pretty-terminal
                , uniplate
                , Earley
+               , file-embed
   main-is: Main.hs
   other-modules: Pre
                , Result

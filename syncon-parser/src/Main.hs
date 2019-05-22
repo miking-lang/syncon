@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 
 module Main where
@@ -5,12 +6,13 @@ module Main where
 import Pre
 import Result (Result(..))
 
-import FileAnnotation (annotate, putInTemplate)
+import FileAnnotation (annotate, putInTextTemplate)
 import ErrorMessage (FormatError, formatErrors, formatError)
 
 import Data.Data (Data)
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
+import Data.FileEmbed (embedFile)
 
 import Data.Generics.Uniplate.Data (universe, universeBi)
 import Data.Functor.Foldable (project, cata)
@@ -107,8 +109,8 @@ parseToHTMLDebug defFile sourceFile outFile = do
   case Parser.report df setOfNodes of
     Data node -> universe node >>= nodeAnnotation
       & annotate source
-      & putInTemplate "resources/htmlTemplate.html"
-      & (>>= writeFile outFile)
+      & putInTextTemplate (toS $(embedFile "resources/htmlTemplate.html"))
+      & writeFile outFile
       & (>> putStrLn @Text "Done")
     Error errs -> formatError <$> errs
       & formatErrors fileSource
