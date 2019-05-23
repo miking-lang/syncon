@@ -8,6 +8,7 @@ module P2LanguageDefinition.BasicChecker
 
 import Pre hiding (check)
 import Result (Result(..), errorIfNonEmpty)
+import Util (repeatUntilStableBy)
 
 import qualified Data.Text as Text
 import Data.Bitraversable (bisequence)
@@ -17,7 +18,7 @@ import qualified Data.HashSet as S
 
 import ErrorMessage (ErrorMessage(..), FormatError(..), simpleErrorMessage)
 
-import Data.Functor.Foldable (cataA, cata, para)
+import Data.Functor.Foldable (cataA, cata, para, zygo)
 import Data.Generics.Uniplate.Data (universe)
 
 import P1Lexing.Types (Range, range, Ranged)
@@ -27,7 +28,7 @@ type Res = Result [Error]
 data Error
   = DuplicateDefinition Text [Range]
   | Undefined Text Range
-  | NotAnOperator Name Range
+  | ExpectedOther Name OpOrNot Bool Range  -- ^ name is opOrNot, expected opposite, bool = is in main list
   | InconsistentPrecedence (Name, Name) [(Ordering, HashSet Range)]
   | NonEqSelfPrecedence Name (HashSet Range)
   | WrongSyntaxType Name SDName TypeName Name TypeName Range  -- ^ name.sdname : syntaxtype, but name : typename
@@ -40,6 +41,7 @@ data Error
   | UnequalAltDescriptions Range [((Int, Int), HashSet Range)]
   | UnbalancedDescription Range [Range] [Range]  -- ^ unpaired closing bracket locations, unpaired opening bracket locations
   | NullableSyntaxDescription Range
+  | NonProductiveCycle (Seq (Name, Range, TypeName))
   deriving (Show, Eq)
 
 instance FormatError Error where
@@ -51,8 +53,11 @@ instance FormatError Error where
     }
   formatError (Undefined defname r) = simpleErrorMessage r $
     defname <> " is undefined"
-  formatError (NotAnOperator defname r) = simpleErrorMessage r $
-    coerce defname <> " is not an operator (it was defined with 'syncon', not 'infix', 'prefix', or 'suffix')."
+  formatError (ExpectedOther defname Op _ r) = simpleErrorMessage r $
+    coerce defname <> " is an operator, but the '!' prefix suggests that it is not."
+  formatError (ExpectedOther defname NonOp inMain r) = simpleErrorMessage r $
+    coerce defname <> " is not an operator (it was defined with 'syncon', not 'infix', 'prefix', or 'suffix').\n"
+    <> if inMain then "If you want to put it here anyway, prefix it with '!'." else ""
   formatError (InconsistentPrecedence (n1, n2) defs) = ErrorMessage
     { e_message = coerce n1 <> " and " <> coerce n2 <> " have inconsistent precedences."
     , e_range = foldMap (snd >>> fold) defs
@@ -100,7 +105,7 @@ instance FormatError Error where
       & sortBy (compare `on` fst)
       & ((r, "") :)
     }
-    where
+    where  -- TODO: don't print "no closing brackets" or "no opening brackets", only print the ones that are there, or that no brackets at all are there
       fmt (0, 0) = "No unpaired brackets"
       fmt (closing, opening) = innerFmt closing "closing bracket" <> ", " <> innerFmt opening "opening bracket" <> ":"
       innerFmt 0 str = "No " <> str <> "s"
@@ -116,6 +121,16 @@ instance FormatError Error where
     }
   formatError (NullableSyntaxDescription sd) = simpleErrorMessage (range sd) $
     "A syncon may not match nothing (it may not be nullable, in case that is more familiar terminology)."
+  formatError (NonProductiveCycle Seq.Empty) = compErr "P2LanguageDefinition.BasicChecker.formatError.NonProductiveCycle" "got a zero-length cycle"
+  formatError (NonProductiveCycle syncons@((n, _, tyn) Seq.:<| rest)) = ErrorMessage
+    { e_message = "There is a non-productive cycle in your syncons, which can lead to infinite (i.e. unresolvable) ambiguity:\n"
+      <> "   " <> coerce n <> ": " <> coerce tyn <> "\n"
+      <> foldMap (\(n', _, tyn') -> "-> " <> coerce n' <> ": " <> coerce tyn' <> "\n") rest
+      <> "-> " <> coerce tyn
+    , e_range = foldMap (\(_, r, _) -> r) syncons
+    , e_ranges = toList syncons
+      <&> \(n', r, _) -> (r, coerce n' <> " is defined here:")
+    }  -- TODO: maybe special case error message when it's a cycle of length 1?
 
 -- | Add the implicitly defined things.
 addImplicits :: [Top] -> [Top]
@@ -135,6 +150,7 @@ mkDefinitionFile (addImplicits >>> Seq.fromList -> tops) = do
   traverse_ (checkSyncon syntaxTypes bracketKind) synconTops
   traverse_ (checkForbid synconAndSDNames) forbids
   precedences <- checkPrecedences synconAndSDNames tops
+  checkNonProductiveCycles synconTops
   pure $ DefinitionFile{..}
   where
     typeTops = toList tops & mapMaybe asTypeDef & Seq.fromList
@@ -208,14 +224,56 @@ checkSyncon types tokKind Syncon{..} = do
       OpenBracket -> BalancedDescription Seq.empty (Seq.singleton r)
       NonBracket -> mempty
       CloseBracket -> BalancedDescription (Seq.singleton r) Seq.empty
-    isNullable = cata $ \case
-      SDSeqF _ sds -> and sds
-      SDAltF _ sds -> or sds
-      SDRepF _ RepStar _ -> True
-      SDRepF _ RepQuestion _ -> True
-      SDRepF _ RepPlus sd -> sd
-      SDNamedF _ _ sd -> sd
-      _ -> False
+    isNullable = cata nullableAlg
+
+nullableAlg :: SyntaxDescriptionF Bool -> Bool
+nullableAlg = \case
+  SDSeqF _ sds -> and sds
+  SDAltF _ sds -> or sds
+  SDRepF _ RepStar _ -> True
+  SDRepF _ RepQuestion _ -> True
+  SDRepF _ RepPlus sd -> sd
+  SDNamedF _ _ sd -> sd
+  _ -> False
+
+singlesAlg :: TypeName -> SyntaxDescriptionF (Bool, HashSet TypeName) -> HashSet TypeName
+singlesAlg self = \case
+  SDSyTyF _ tyn -> S.singleton tyn
+  SDRecF _ _ -> S.singleton self
+  SDSeqF _ sds -> Seq.cycleTaking (Seq.length sds * 2 - 1) sds
+    & toList
+    & tails
+    & take (Seq.length sds)
+    <&> take (Seq.length sds)
+    & foldMap findSingles
+    where
+      findSingles ((_, tyns) : rest)
+        | all fst rest = tyns
+      findSingles _ = S.empty
+  sd -> foldMap snd sd
+
+checkNonProductiveCycles :: Foldable f => f Syncon -> Res ()
+checkNonProductiveCycles =
+  foldl' (\prev syncon -> M.unionWith (M.unionWith shortest) prev $ findEdges syncon) M.empty
+  >>> repeatUntilStableBy numEdges step
+  >>> M.toList
+  >>> traverse_ (uncurry M.lookup >>> fmap NonProductiveCycle >>> foldMap pure >>> errorIfNonEmpty)
+  where
+    numEdges = foldMap (M.size >>> Sum) >>> getSum
+    findEdges :: Syncon -> HashMap TypeName (HashMap TypeName (Seq (Name, Range, TypeName)))
+    findEdges Syncon{s_syntaxType = (_, tyn), s_syntaxDescription, s_name, s_range} =
+      toList (zygo nullableAlg (singlesAlg tyn) s_syntaxDescription)
+      <&> (\target -> (tyn, M.singleton target $ Seq.singleton (s_name, s_range, tyn)))
+      & M.fromListWith M.union
+    step :: HashMap TypeName (HashMap TypeName (Seq (Name, Range, TypeName)))
+         -> HashMap TypeName (HashMap TypeName (Seq (Name, Range, TypeName)))
+    step prev = prev
+      <&> M.intersectionWith (\targets path -> targets <&> (path <>)) prev
+      <&> foldl' (M.unionWith shortest) M.empty
+      & M.unionWith (M.unionWith shortest) prev
+    shortest a b
+      | Seq.length a <= Seq.length b = a
+      | otherwise = a
 
 -- | Check that forbids refer to actually defined things, and that the syntax types agree.
 checkForbid :: HashMap Name (TypeName, HashSet Rec, HashMap SDName (Maybe TypeName)) -> Forbid -> Res ()
@@ -253,18 +311,21 @@ checkPrecedences names tops = consistentTypes *> matrix
 
     consistentTypes = traverse_ operatorTypes precedences
     operatorTypes :: PrecedenceList -> Res ()
-    operatorTypes (PrecedenceList r pList eList) = foldMap toList pList <> foldMap toList eList
+    operatorTypes (PrecedenceList r pList eList) = (first Left <$> foldMap toList pList)
+      <> ((Right (),) <$> foldMap toList eList)
       & S.fromList & S.toList
       & traverse (operatorType r)
       & fmap (M.fromListWith S.union)
       & (>>= \types -> case M.toList types of
                  [_] -> pure ()
                  _ -> Error [NotAllSameSyntaxType types r])
-    operatorType :: Range -> Name -> Res (TypeName, HashSet Name)
-    operatorType r n@(Name t) = case M.lookup n names of
-      Nothing -> Error [Undefined t r]
-      Just (_, recs, _) | S.null recs -> Error [NotAnOperator n r]
-      Just (ty, _, _) -> Data (ty, S.singleton n)
+    operatorType :: Range -> (Either OpOrNot (), Name) -> Res (TypeName, HashSet Name)
+    operatorType r (opOr, n@(Name t)) = case (opOr, M.lookup n names) of
+      (_, Nothing) -> Error [Undefined t r]
+      (Right (), Just (_, recs, _)) | S.null recs -> Error [ExpectedOther n NonOp False r]
+      (Left Op, Just (_, recs, _)) | S.null recs -> Error [ExpectedOther n NonOp True r]
+      (Left NonOp, Just (_, recs, _)) | not (S.null recs) -> Error [ExpectedOther n Op True r]
+      (_, Just (ty, _, _)) -> Data (ty, S.singleton n)
 
     matrix :: Res PrecedenceMatrix
     matrix = precedences
@@ -277,10 +338,10 @@ checkPrecedences names tops = consistentTypes *> matrix
       mergePreMatrices gtPrecedences eqPrecedences `M.difference` exceptions
       where
         gtPrecedences, eqPrecedences :: HashMap (Name, Name) (HashMap Ordering (HashSet Range))
-        gtPrecedences = ((toList <$> pList & orderedPairs)
+        gtPrecedences = (((toList >>> fmap snd) <$> pList & orderedPairs)
           >>= uncurry (liftA2 $ mkEntry GT))
           & foldl' mergePreMatrices M.empty
-        eqPrecedences = (toList pList >>= orderedPairs)
+        eqPrecedences = (toList pList <&> fmap snd >>= orderedPairs)
           & fmap (uncurry $ mkEntry EQ)
           & foldl' mergePreMatrices M.empty
         exceptions :: HashMap (Name, Name) ()

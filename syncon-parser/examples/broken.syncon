@@ -94,3 +94,15 @@ syncon balanced1: NewType = ("(" | TokType) ")"
 // === Unequal alts ===
 
 syncon unequal1: NewType = ("(" | "blub")
+
+
+// === Cycles ===
+
+type Cycle1
+type Cycle2
+type Cycle3
+
+syncon trivialCycle: Cycle1 = s:Cycle1
+
+syncon cycle1: Cycle2 = s1:Cycle1? s2:Cycle3?
+syncon cycle2: Cycle3 = s:Cycle2

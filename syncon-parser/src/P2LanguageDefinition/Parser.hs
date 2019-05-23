@@ -75,7 +75,7 @@ synconTokens = Lexer.LanguageTokens
   -- Literal tokens
   [ "token", "=", "syncon", ":", "{", ";", "}", "prefix", "postfix", "infix"
   , "(", ")", "*", "+", "?", ".", "comment", "left", "right", "precedence", "except"
-  , "type", "builtin", "forbid", "|", "rec", "grouping" ]
+  , "type", "builtin", "forbid", "|", "rec", "grouping", "!" ]
   -- Regex tokens
   [ (NameTok, (Nowhere, "[[:lower:]][[:word:]]*"))
   , (TypeNameTok, (Nowhere, "[[:upper:]][[:word:]]*"))
@@ -132,10 +132,12 @@ precedenceDef :: Grammar r (Prod r PrecedenceList)
 precedenceDef = rule . (<?> "precedence disambiguation list") $ do
   start <- lit "precedence" <* lit "{"
   pList <- innerList
+    $ (NonOp,) <$ lit "!"
+    <|> pure (Op,)
   end <- lit "}"
   mExcept <- optional $ do
     lit "except" *> lit "{"
-    eList <- innerList
+    eList <- innerList $ pure identity
     end' <- lit "}"
     pure (end', eList)
   pure $ PrecedenceList
@@ -143,7 +145,7 @@ precedenceDef = rule . (<?> "precedence disambiguation list") $ do
     pList
     (foldMap snd mExcept)
   where
-    innerList = Seq.fromList <$> some (Seq.fromList <$> some (snd <$> name) <* lit ";")
+    innerList f = Seq.fromList <$> some (Seq.fromList <$> some (f <*> (snd <$> name)) <* lit ";")
 
 groupingDef :: Grammar r (Prod r Grouping)
 groupingDef = rule . (<?> "grouping disambiguation") $ do

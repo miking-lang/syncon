@@ -1,6 +1,8 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module Util where
 
-import Pre hiding (all)
+import Pre hiding (all, check)
 
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
@@ -34,10 +36,19 @@ iterateInductivelyM f s = recur S.empty s
 iterateInductively :: (Eq s, Hashable s) => (s -> HashSet s) -> HashSet s -> HashSet s
 iterateInductively f s = runIdentity $ iterateInductivelyOptM (f >>> return) s
 
-repeatUntilStable :: (Monad m, Eq a) => m a -> m a
-repeatUntilStable action = action >>= recur
+repeatUntilStableM :: (Monad m, Eq a) => m a -> m a
+repeatUntilStableM action = action >>= recur
   where
     recur prev = action >>= \new -> if prev == new then return new else recur new
+
+repeatUntilStableBy :: Eq b => (a -> b) -> (a -> a) -> a -> a
+repeatUntilStableBy check step a = recur (check a) a
+  where
+    recur prev (step -> a')
+      | prev == next = a'
+      | otherwise = recur next a'
+      where
+        next = check a'
 
 flipMap :: forall a b c. (Eq a, Hashable a, Eq b, Hashable b, Eq c, Hashable c)
         => HashMap a (HashMap b c)

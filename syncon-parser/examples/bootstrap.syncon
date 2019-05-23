@@ -94,5 +94,5 @@ syncon forbidDef: Decl =
 
 
 syncon precedenceList: Decl =
-  "precedence" "{" line:(name:Name+ ";")+ "}"
+  "precedence" "{" line:(nonOp:"!"? name:Name+ ";")+ "}"
   ("except" "{" eLine:(eName:Name+ ";")+ "}")?

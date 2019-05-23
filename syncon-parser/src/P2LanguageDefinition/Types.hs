@@ -125,8 +125,10 @@ data Forbid
 --
 --   The last member is an exception list, the operators appearing in the same list
 --   there will *not* have their relative precedence defined by this precedence list.
-data PrecedenceList = PrecedenceList !Range !(Seq (Seq Name)) !(Seq (Seq Name))
+data PrecedenceList = PrecedenceList !Range !(Seq (Seq (OpOrNot, Name))) !(Seq (Seq Name))
   deriving (Show, Data, Typeable)
+data OpOrNot = Op | NonOp deriving (Eq, Show, Data, Typeable, Generic)
+instance Hashable OpOrNot
 
 -- | A (sparse) matrix of precedences. Should only ever contain references to syncons
 -- defined as operators. Internally is a map from (min a b, max a b) names to orderings

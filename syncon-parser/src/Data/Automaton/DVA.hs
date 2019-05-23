@@ -11,7 +11,7 @@ import qualified Data.HashSet as S
 import Data.Align (align, padZip)
 import Data.These (fromThese)
 
-import Util (iterateInductivelyOptM, repeatUntilStable)
+import Util (iterateInductivelyOptM, repeatUntilStableM)
 
 import Data.Automaton.NVA (NVA(NVA))
 import qualified Data.Automaton.NVA as NVA
@@ -89,7 +89,7 @@ determinize NVA
       { final = S.filter (M.keys >>> S.fromList >>> S.intersection fin >>> S.null >>> not) (states dva) }
 
     allEdges = execState discoverAll mempty
-    discoverAll = discoverOnce >> gets stackSyms & repeatUntilStable
+    discoverAll = discoverOnce >> gets stackSyms & repeatUntilStableM
     discoverOnce = gets dstates >>= \currStates -> iterateInductivelyOptM discoverSuccessors
       (if S.null currStates
       then S.singleton startState
