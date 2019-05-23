@@ -35,7 +35,7 @@ token CaretSymbol = "\\^[!$%&*+\-./:<=>?@^|~]*"
 token EqualSymbol = "=[!$%&*+\-./:<=>?@^|~]*"
 token LessThanSymbol = "<[!$%&*+\-./:<=>?@^|~]*"
 token GreaterThanSymbol = ">[!$%&*+\-./:<=>?@^|~]*"
-token BarSymbol = "|[!$%&*+\-./:<=>?@^|~]*"
+token BarSymbol = "\\|[!$%&*+\-./:<=>?@^|~]*"
 token AndSymbol = "&[!$%&*+\-./:<=>?@^|~]*"
 token DollarSymbol = "$[!$%&*+\-./:<=>?@^|~]*"
 
@@ -113,6 +113,7 @@ syncon extendedModulePath: ExtendedModulePath = mp:ModulePath  // TODO: implemen
 // === 7.4 Type Expressions ===
 
 type TypExpr
+grouping "(" TypExpr ")"
 
 syncon tyVar: TypExpr = "'" id:Ident
 syncon anonType: TypExpr = "_"
@@ -158,6 +159,7 @@ syncon unitPat: Pat = "()"
 // === 7.6 Patterns ===
 
 type Pat
+grouping "(" Pat ")"
 
 syncon bindPat: Pat = n:ValueName
 syncon wildPat: Pat = "_"
@@ -284,13 +286,15 @@ infix left customDollarOp: Exp = o:DollarSymbol
 
 precedence {
   fieldAccess arrayAccess stringAccess;
+  customHashOp;
   application constrExp assert lazy;
   neg negFloat;
-  lsl lsr asr;
-  mod land lor lxor;
-  sum difference differenceFloat;
+  customStarStarOp lsl lsr asr;
+  customStarOp customDivOp customPercentOp mod land lor lxor;
+  customPlusOp customMinusOp sum difference differenceFloat;
   consExp;
-  equal notEqual lessThan greaterThan;
+  customAtOp customCaretOp;
+  customEqualOp customLessThanOp customGreaterThanOp customGreaterThanOp customBarOp customAndOp customDollarOp equal notEqual lessThan greaterThan;
   andSingle andDouble;
   orText or;
   tuple;
@@ -327,10 +331,10 @@ type TypeDef
 syncon typeDefSingle: TypeDef =
   ( (vp:"+"|vm:"-")? "'" ty:Ident
   | "(" (vhp:"+"|vhm:"-")? tyh:Ident ("," (vtp:"+"|vtm:"-")? "'" tyt:Ident)* ")"
-  )
+  )?
   tyn:TypeConstrName
-  ("=" eq:TypExpr)?
-  "=" tyrepr:TypeRepr
+  ("=" eq:TypExpr)? // type-equation
+  ("=" tyrepr:TypeRepr)? // type-representation
   constraints:("constraint" "'" cvar:Ident "=" cexp:TypExpr)*
 
 type TypeRepr
@@ -437,5 +441,22 @@ forbid application.left = application
 forbid application.e1 = application
 forbid application.e2 = application
 forbid application.e3 = application
+
+forbid application.left = constrLit
+
+forbid arrayAccess.left = constrLit
+forbid fieldAccess.left = constrLit
+
+forbid tuple.a = tuple
+forbid tuple.b = tuple
+
+forbid prodType.a = prodType
+forbid prodType.b = prodType
+
+forbid tupPat.a = tupPat
+forbid tupPat.b = tupPat
+
+forbid constrDecl.head = prodType
+forbid constrDecl.tail = prodType
 
 // Tokens: I disallowed a preceeding minus in integers, instead relying on unary negation
