@@ -10,7 +10,7 @@ let fizzbuzz n = match remainder n 3 :: remainder n 5 :: [] with
   | [0; 0] -> print_endline "fizzbuzz"
   | [0; _] -> print_endline "fizz"
   | [_; 0] -> print_endline "buzz"
-  | _ -> p_int n
+  | _ -> print_int n; print_newline ()
 
 let fizzbuzz_alt upTo =
   let rec recur n till3 till5 = match upTo <= n with
@@ -19,7 +19,7 @@ let fizzbuzz_alt upTo =
       | [true; true] -> print_endline "fizzbuzz"; recur (n+1) 3 5
       | [true; _] -> print_endline "fizz"; recur (n+1) 3 (till5-1)
       | [_; true] -> print_endline "buzz"; recur (n+1) (till3-1) 5
-      | _ -> p_int n; recur (n+1) (till3-1) (till5-1))
+      | _ -> print_int n; print_newline (); recur (n+1) (till3 -1) (till5-1))
   in recur 1 2 4
 
 let main =

@@ -8,7 +8,7 @@ syncon upperIdent: Ident = id:UpperIdent
 token UpperIdent = "[[:upper:]][[:alnum:]_']*"   // was called "capitalized-ident"
 token LowerIdent = "[[:lower:]_][[:alnum:]_']*"  // was called "lowercase-ident"
 
-token Integer = "-?([0-9][0-9_]*|(0x|0X)[0-9a-fA-F][0-9a-fA-F_]*|(0o|0O)[0-7][0-7_]*|(0b|0B)[0-1][0-1_]*)"  // was called "integer-literal"
+token Integer = "([0-9][0-9_]*|(0x|0X)[0-9a-fA-F][0-9a-fA-F_]*|(0o|0O)[0-7][0-7_]*|(0b|0B)[0-1][0-1_]*)"  // was called "integer-literal"
 
 // TODO: this does not include hexadecimal notation for floats
 // NOTE: the original made both decimal point and e notation optional, but that makes it overlap with
@@ -194,7 +194,11 @@ prefix constrExp: Exp = c:Constr
 infix right consExp: Exp = "::"
 syncon list: Exp = "[" (head:Exp (";" tail:Exp)* ";"?)? "]"
 syncon array: Exp = "[|" (head:Exp (";" tail:Exp)* ";"?)? "|]"
-postfix application: Exp = a:Argument+
+postfix application: Exp =
+  ( e1:rec
+  | "~" l1:LabelName (":" e2:rec)?
+  | "?" l2:LabelName (":" e3:rec)?
+  )+
 prefix neg: Exp = "-"
 prefix negFloat: Exp = "-."
 infix left product: Exp = "*"
@@ -289,20 +293,13 @@ precedence {
   equal notEqual lessThan greaterThan;
   andSingle andDouble;
   orText or;
-  tuple
+  tuple;
   fieldUpdate arrayUpdate stringUpdate refAssign;
-  // "if"
+  !if;
   seqComp;
-  let letModule letOpen fun; // + "match", "function", "try"
+  let letModule letOpen fun !match !function !try;
 }
 // TODO: write out forbids for "if", "match", "function", and "try"
-
-type Argument
-syncon expArgument: Argument = e:Exp
-syncon punArgument: Argument = "~" l:LabelName
-syncon labelArgument: Argument = "~" l:LabelName ":" e:Exp
-syncon optPunArgument: Argument = "?" l:LabelName
-syncon optArgument: Argument = "?" l:LabelName ":" e:Exp
 
 type LetBinding
 syncon patBinding: LetBinding = p:Pat "=" e:Exp
@@ -433,3 +430,12 @@ syncon unitImplementation: Top =
   ";;"* (dh:Def | eh:Exp) (";;"* (dt:Def | ";;" et:Exp))* ";;"*  // NOTE: technically there should be a ? around the entire thing
 
 // syncon unitInterface: Top = (s:Spec ";;"?)*
+
+// === Appendix: added stuff for syncons ===
+
+forbid application.left = application
+forbid application.e1 = application
+forbid application.e2 = application
+forbid application.e3 = application
+
+// Tokens: I disallowed a preceeding minus in integers, instead relying on unary negation
