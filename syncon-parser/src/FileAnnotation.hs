@@ -30,9 +30,10 @@ annotate source annotations = flip evalState initState $ do
   where
     initState = AnnotationState { position = firstPosition, commands }
     commands :: [(Position, Maybe Text)]
-    commands = sortBy (compare `on` fst) $ do
+    commands = sortBy comp $ do
       (Range start end, annotation) <- annotations
       [(start, Just annotation), (end, Nothing)]
+    comp (p1, command1) (p2, command2) = compare p1 p2 <> comparing void command1 command2
 
 -- | Read the provided file, replace the text "$prettyprint$" with the second argument, then return
 -- the result. Presumably, the template should contain whatever styling and other wrapping is required
