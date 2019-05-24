@@ -63,7 +63,7 @@ equalBy f = foldMap (f >>> equal) >>> isEqual
 
 -- | Make a 'HashMap' given a function to generate a key and a collection of values
 mapFromFoldable :: (Eq b, Hashable b, Foldable t) => (a -> b) -> t a -> HashMap b [a]
-mapFromFoldable getName = toList >>> fmap (getName &&& pure) >>> M.fromListWith (<>)
+mapFromFoldable getName = toList >>> fmap (getName &&& pure) >>> M.fromListWith (flip (<>))
 
 instance Eq a => Semigroup (Equal a) where
   NotEqual <> _ = NotEqual
