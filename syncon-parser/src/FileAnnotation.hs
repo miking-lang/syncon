@@ -1,4 +1,4 @@
-module FileAnnotation (annotate, putInTextTemplate, putInTemplate) where
+module FileAnnotation (annotate, annotateOne, putInTextTemplate, putInTemplate) where
 
 import Pre
 
@@ -6,6 +6,7 @@ import Data.List (span)
 import Data.Text.Lazy.Builder (Builder)
 import qualified Data.Text.Lazy.Builder as Builder
 import qualified Data.Text as Text
+import qualified Data.HashMap.Strict as M
 
 import P1Lexing.Types (Range(..), Position(..), firstPosition, stepPosition)
 
@@ -16,13 +17,28 @@ data AnnotationState = AnnotationState
 
 type AnnoM = State AnnotationState
 
+-- | Takes a bunch of source files (map from filepath to contents) and annotations,
+-- and creates one piece of HTML, annotated as with 'annotateOne', but with a <h1>
+-- header for each file, and a little bit of vertical whitespace inbetween.
+annotate :: HashMap Text Text -> [(Range, Text)] -> Text
+annotate sources annotations = M.intersectionWith annotateOne sources splitAnnotations
+  & M.toList
+  & sortBy (comparing fst)
+  & foldMap mkFileSection
+  where
+    splitAnnotations = mapFromFoldable (fst >>> getFilename) annotations
+    getFilename (Range f _ _) = f
+    getFilename Nowhere = ""
+    mkFileSection (path, annotated) = "<h1>" <> (escape path & Builder.toLazyText & toS) <> "</h1>\n" <> annotated <> "\n\n"
+
 -- TODO: assumes all ranges are well-nested, either check for this, or (ideally), implement support for non-nested annotations
--- | Takes some source code and a list of (well-nested) annotations and produces well-formatted HTML.
+-- | Takes some source code and a list of (well-nested) annotations
+-- and produces well-formatted HTML.
 -- Each annotated section is formatted as follows:
 -- <span class="tagged"><div class="tag">annotation-content</div>section-content</span>
 -- All text is properly escaped, and whitespace is preserved.
-annotate :: Text -> [(Range, Text)] -> Text
-annotate source annotations = flip evalState initState $ do
+annotateOne :: Text -> [(Range, Text)] -> Text
+annotateOne source annotations = flip evalState initState $ do
   start <- dumpCurrentCommands
   source' <- Text.unpack source & traverse step & fmap mconcat
   extras <- dumpRemainingCommands
@@ -31,7 +47,7 @@ annotate source annotations = flip evalState initState $ do
     initState = AnnotationState { position = firstPosition, commands }
     commands :: [(Position, Maybe Text)]
     commands = sortBy comp $ do
-      (Range start end, annotation) <- annotations
+      (Range _ start end, annotation) <- annotations
       [(start, Just annotation), (end, Nothing)]
     comp (p1, command1) (p2, command2) = compare p1 p2 <> comparing void command1 command2
 

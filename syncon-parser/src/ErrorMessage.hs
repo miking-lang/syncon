@@ -13,6 +13,7 @@ import Text.Printf (printf)
 import qualified Data.Sequence as Seq
 import Data.Text (split, splitAt)
 import qualified Data.Text as Text
+import qualified Data.HashMap.Lazy as M
 
 import System.Console.Pretty (style, Style(Bold), color, Color(Red))
 import Text.Show.Pretty (ppShow)
@@ -39,15 +40,18 @@ simpleErrorMessage r t = ErrorMessage { e_message = t, e_range = r, e_ranges = [
 -- TODO: omit parts of the code if it's a large number of lines
 -- | Produce (colored) output suitable for printing the errors. Will extract source code and highlight the
 -- relevant section.
-formatErrors :: Foldable f => Text -> f ErrorMessage -> Text
-formatErrors source messages = sortedMessages <&> formatSingle & Text.intercalate "\n--------------------\n\n"
+formatErrors :: Foldable f => HashMap Text Text -> f ErrorMessage -> Text
+formatErrors sources messages = sortedMessages <&> formatSingle & Text.intercalate "\n--------------------\n\n"
   where
     sortedMessages :: [ErrorMessage]
     sortedMessages = toList messages & sortBy (compare `on` range)
     firstLine :: Int
     firstLine = line firstPosition
-    lines :: Seq (Int, Text)
-    lines = [firstLine..] `zip` split (== '\n') source & Seq.fromList
+    lines :: HashMap Text (Seq (Int, Text))
+    lines = sources <&> \source -> [firstLine..] `zip` split (== '\n') source & Seq.fromList
+    getLines :: Text -> Seq (Int, Text)
+    getLines path = M.lookup path lines
+      & errJust "missing file"
 
     -- Format a single ErrorMessage
     formatSingle :: ErrorMessage -> Text
@@ -61,12 +65,12 @@ formatErrors source messages = sortedMessages <&> formatSingle & Text.intercalat
 
     extractRange :: Range -> Text
     extractRange Nowhere = ""
-    extractRange pos@(Range (Position l1 _) (Position l2 _))
-      | l1 == l2 = Seq.lookup (l1-firstLine) lines
+    extractRange pos@(Range f (Position l1 _) (Position l2 _))
+      | l1 == l2 = Seq.lookup (l1-firstLine) (getLines f)
         & errJust "line out of bounds"
         & formatLine pos
         & ensureLn
-      | l1 < l2 = Seq.drop (l1-firstLine) lines & Seq.take (l2-l1+1)
+      | l1 < l2 = Seq.drop (l1-firstLine) (getLines f) & Seq.take (l2-l1+1)
         & fmap (formatLine pos)
         & toList
         & foldMap (<> "\n")
@@ -74,7 +78,7 @@ formatErrors source messages = sortedMessages <&> formatSingle & Text.intercalat
 
     formatLine :: Range -> (Int, Text) -> Text
     formatLine Nowhere _ = compErr "ErrorMessage.formatErrors.formatLine" "Unexpected Nowhere"
-    formatLine (Range (Position l1 c1) (Position l2 c2)) (lnum, lcontents)
+    formatLine (Range _ (Position l1 c1) (Position l2 c2)) (lnum, lcontents)
       | lnum == l1 && lnum == l2 = formatNumber lnum <> ": " <> highlightBetween c1 c2 lcontents
       | lnum == l1 = formatNumber lnum <> ": " <> highlightBetween c1 maxBound lcontents
       | lnum == l2 = formatNumber lnum <> ": " <> highlightBetween 1 c2 lcontents

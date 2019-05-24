@@ -12,6 +12,7 @@ import ErrorMessage (FormatError, formatErrors, formatError)
 import Data.Data (Data)
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
+import qualified Data.Sequence as Seq
 import Data.FileEmbed (embedFile)
 
 import Data.Generics.Uniplate.Data (universe, universeBi)
@@ -95,20 +96,20 @@ parse4Test = do
 --       -- Parser.Ambiguity r alts -> (r, fmap (project >>> fmap (project >>> void)) $ toList alts)
 --       Parser.Ambiguity r alts -> (r, fmap (project >>> void) $ toList alts)
 
-parseToHTMLDebug :: FilePath -> FilePath -> FilePath -> IO ()
-parseToHTMLDebug defFile sourceFile outFile = do
-  defSource <- readFile defFile
+parseToHTMLDebug :: [FilePath] -> FilePath -> FilePath -> IO ()
+parseToHTMLDebug defFiles sourceFile outFile = do
+  defSource :: HashMap Text Text <- defFiles <&> toS & S.fromList & S.toMap & M.traverseWithKey (\path _ -> readFile $ toS path)
   putStrLn @Text "Parsing definition file"
-  tops <- LD.parseFile defFile >>= dataOrError defSource
+  tops <- M.traverseWithKey (\defFile _ -> LD.parseFile $ toS defFile) defSource
+          >>= (fold >>> dataOrError defSource)
   df <- LD.mkDefinitionFile tops & dataOrError defSource
   parseFile <- Parser.parseSingleLanguage df & dataOrError defSource
-  fileSource <- readFile sourceFile
+  fileSource <- readFile sourceFile <&> M.singleton (toS sourceFile)
   putStrLn @Text "Parsing source file"
   setOfNodes <- parseFile sourceFile >>= dataOrError fileSource
-  source <- readFile sourceFile
   case Parser.report df setOfNodes of
     Data node -> universe node >>= nodeAnnotation
-      & annotate source
+      & annotate fileSource
       & putInTextTemplate (toS $(embedFile "resources/htmlTemplate.html"))
       & writeFile outFile
       & (>> putStrLn @Text "Done")
@@ -125,7 +126,7 @@ nodeAnnotation n = (range n, Parser.n_name n & coerce)
     tokToAnno (Lexer.LitTok r _ t) = (r, "literal " <> show t)
     tokToAnno (Lexer.OtherTok r _ (LD.TypeName tyn) t) = (r, "token " <> show tyn <> " " <> show t)
 
-dataOrError :: (Functor f, Foldable f, FormatError e) => Text -> Result (f e) a -> IO a
+dataOrError :: (Functor f, Foldable f, FormatError e) => HashMap Text Text -> Result (f e) a -> IO a
 dataOrError _ (Data a) = return a
 dataOrError source (Error e) = do
   putStrLn $ formatErrors source $ formatError <$> e
@@ -158,11 +159,14 @@ testReduce = do
     post = NVA.reduce nva
 
 test :: IO ()
-test = parseToHTMLDebug "case-studies/ocaml.syncon" "case-studies/fizzbuzz.ml" "out.html"
+test = parseToHTMLDebug ["case-studies/ocaml.syncon"] "case-studies/fizzbuzz.ml" "out.html"
+
+getArgsSeq :: IO (Seq [Char])
+getArgsSeq = getArgs <&> Seq.fromList
 
 main :: IO ()
-main = getArgs >>= \case
-  [defFile, sourceFile, outFile] -> parseToHTMLDebug defFile sourceFile outFile
+main = getArgsSeq >>= \case
+  defFiles Seq.:|> sourceFile Seq.:|> outFile -> parseToHTMLDebug (toList defFiles) sourceFile outFile
   args -> putStrLn $
-    "Expected arguments: <syncon-def-file> <source-file> <output-html-file>\n"
-    <> "Got " <> show (length args) <> " arguments: " <> (intercalate " " $ show <$> args)
+    "Expected arguments: <syncon-def-file(s)> <source-file> <output-html-file>\n"
+    <> "Got " <> show (length args) <> " arguments: " <> (intercalate " " $ show <$> toList args)

@@ -35,21 +35,21 @@ data LanguageTokens n = LanguageTokens
   [(Range, Text)] -- ^ Regexes for comments (range for the string, the regex itself)
 
 data Error l n
-  = RegexError l Position Text
+  = RegexError l Text Position Text
   | UnicodeError UnicodeException
   | OverlappingLex l [Token l n]
-  | NoLex Position
+  | NoLex Text Position
   deriving (Show)
 
 instance (Show l, Show n) => FormatError (Error l n) where
-  formatError (RegexError _ pos t) = simpleErrorMessage (Range pos pos) $
+  formatError (RegexError _ f pos t) = simpleErrorMessage (Range f pos pos) $
     "Regex error: " <> t
   formatError (UnicodeError ex) = simpleErrorMessage Nowhere $
     "The file must be UTF8 encoded, got an error: " <> show ex
   formatError (OverlappingLex _ toks) = simpleErrorMessage (foldMap range toks) $
     "Lexing needs to produce a unique longest token, but there were multiple:\n"
     <> foldMap (show >>> (<> "\n")) toks
-  formatError (NoLex pos) = simpleErrorMessage (Range pos (Position (line pos + 4) maxBound)) $
+  formatError (NoLex f pos) = simpleErrorMessage (Range f pos (Position (line pos + 4) maxBound)) $
     "There is no valid token starting here."
 
 data LanguageInternal n = LanguageInternal
@@ -60,6 +60,7 @@ data LanguageInternal n = LanguageInternal
 
 data Lexer l n = Lexer
   { remainingSource :: !ByteString
+  , file :: !Text
   , position :: !Position
   , languages :: !(HashMap l (LanguageInternal n))
   }
@@ -85,8 +86,8 @@ compileRegex t = unsafePerformIO (compile compOpts execOpts (encodeUtf8 ("(*UCP)
 compileRegex' :: l -> Range -> Text -> Result [Error l n] Regex
 compileRegex' l r t = case compileRegex t of
   Left (errColumn, message) -> case r of
-    Range (Position line column) _ -> Error [RegexError l (Position line (column + errColumn)) (toS message)]
-    Nowhere -> Error [RegexError l (Position (-1) errColumn) (toS message)]
+    Range f (Position line column) _ -> Error [RegexError l f (Position line (column + errColumn)) (toS message)]
+    Nowhere -> Error [RegexError l "" (Position (-1) errColumn) (toS message)]
   Right regex -> Data regex
 
 -- | Construct a new lexer, capable of lexing multiple languages
@@ -96,6 +97,7 @@ mkLexer langs = do
   return $ Lexer
     { remainingSource = ""
     , position = Position 1 1
+    , file = ""
     , languages = M.fromList langs' }
   where
     mkLang :: (l, LanguageTokens n) -> Result [Error l n] (l, LanguageInternal n)
@@ -128,7 +130,10 @@ startFileLex path lexer = do
   let utf8res = case decodeUtf8' source of
                   Left err -> Error [UnicodeError err]
                   Right _ -> Data ()
-  return $ utf8res *> (Data lexer { remainingSource = source, position = Position 1 1 })
+  return $ utf8res *>
+    (Data lexer { remainingSource = source
+                , position = Position 1 1
+                , file = toS path })
 
 -- | Update position according to the symbols passed in the given string. Assumes the
 -- bytestring is properly encoded UTF8.
@@ -148,7 +153,7 @@ lexHere langs Lexer{..} = fmap M.fromList . forM langs $ \lang -> do
 
       startPos = advancePosition preceedingWhitespace position
 
-      mkRange str = Range startPos $ advancePosition str startPos
+      mkRange str = Range file startPos $ advancePosition str startPos
       mkLitTok str = (UTF8.length str, LitTok (mkRange str) lang (decodeUtf8 str))
       mkOtherTok (n, str) = (UTF8.length str, OtherTok (mkRange str) lang n (decodeUtf8 str))
       parseOtherTok (n, reg) = (n,) <$> runRegex reg nonWhitespace
@@ -204,7 +209,7 @@ allOneLanguage lang langToks = do
     go lex = do
       tokens <- lexHere [lang] lex
       case tokens & M.elems & catMaybes of
-        [] -> Error [NoLex (position lex)]
+        [] -> Error [NoLex (file lex) (position lex)]
         [(len, t)] -> (t:) <$> maybe (return []) go (advanceLexer len lex)
         ts -> compErr "P1Lexing.Lexer.allOneLanguage.go" $ "Impossible: " <> show (length ts)
 

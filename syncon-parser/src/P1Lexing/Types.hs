@@ -4,7 +4,7 @@ import Pre
 
 import Data.Data (Data)
 
-data Range = Nowhere | Range !Position !Position deriving (Show, Eq, Ord, Data, Typeable, Generic)
+data Range = Nowhere | Range !Text !Position !Position deriving (Show, Eq, Ord, Data, Typeable, Generic)
 data Position = Position { line :: !Int, column :: !Int } deriving (Show, Eq, Ord, Data, Typeable, Generic)
 
 firstPosition :: Position
@@ -16,13 +16,15 @@ stepPosition (Position l c) _ = Position l (c+1)
 
 textualRange :: Range -> Text
 textualRange Nowhere = "(nowhere"
-textualRange (Range (Position l1 c1) (Position l2 c2))
-  | l1 == l2 && c1 == c2 = show l1 <> ":" <> show c1
-  | l1 == l2 = show l1 <> ":" <> show c1 <> "-" <> show c2
-  | otherwise = show l1 <> ":" <> show c1 <> "-" <> show l2 <> ":" <> show c2
+textualRange (Range f (Position l1 c1) (Position l2 c2))
+  | l1 == l2 && c1 == c2 = f <> ":" <> show l1 <> ":" <> show c1
+  | l1 == l2 = f <> ":" <> show l1 <> ":" <> show c1 <> "-" <> show c2
+  | otherwise = f <> ":" <> show l1 <> ":" <> show c1 <> "-" <> show l2 <> ":" <> show c2
 
 instance Semigroup Range where
-  Range s1 e1 <> Range s2 e2 = Range (min s1 s2) (max e1 e2)
+  Range f1 s1 e1 <> Range f2 s2 e2
+    | f1 == f2 = Range f1 (min s1 s2) (max e1 e2)
+    | otherwise = compErr "P1Lexing.Types.<>" $ "mappending ranges from different files: " <> f1 <> " and " <> f2
   Nowhere <> r = r
   r <> Nowhere = r
 instance Monoid Range where
