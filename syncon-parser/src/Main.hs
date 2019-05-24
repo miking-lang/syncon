@@ -99,7 +99,7 @@ parse4Test = do
 parseToHTMLDebug :: [FilePath] -> FilePath -> FilePath -> IO ()
 parseToHTMLDebug defFiles sourceFile outFile = do
   defSource :: HashMap Text Text <- defFiles <&> toS & S.fromList & S.toMap & M.traverseWithKey (\path _ -> readFile $ toS path)
-  putStrLn @Text "Parsing definition file"
+  putStrLn @Text "Parsing definition file(s)"
   tops <- M.traverseWithKey (\defFile _ -> LD.parseFile $ toS defFile) defSource
           >>= (fold >>> dataOrError defSource)
   df <- LD.mkDefinitionFile tops & dataOrError defSource
@@ -159,7 +159,7 @@ testReduce = do
     post = NVA.reduce nva
 
 test :: IO ()
-test = parseToHTMLDebug ["case-studies/ocaml.syncon"] "case-studies/fizzbuzz.ml" "out.html"
+test = parseToHTMLDebug ["examples/split1.syncon", "examples/split2.syncon"] "examples/split.test" "out.html"
 
 getArgsSeq :: IO (Seq [Char])
 getArgsSeq = getArgs <&> Seq.fromList

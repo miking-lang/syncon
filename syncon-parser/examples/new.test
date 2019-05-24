@@ -1,0 +1,7 @@
+nest {
+  nest {
+    keyword
+    a + !b + c - d + e
+  }
+  keyword
+}

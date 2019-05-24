@@ -345,7 +345,9 @@ checkPrecedences names tops = consistentTypes *> matrix
           & fmap (uncurry $ mkEntry EQ)
           & foldl' mergePreMatrices M.empty
         exceptions :: HashMap (Name, Name) ()
-        exceptions = foldMap orderedPairs eList & S.fromList & S.toMap
+        exceptions = foldMap orderedPairs eList <&> uncurry (mkEntry EQ)
+          & foldl' mergePreMatrices M.empty
+          & void
         mkEntry :: Ordering -> Name -> Name -> HashMap (Name, Name) (HashMap Ordering (HashSet Range))
         mkEntry ordering n1@(Name t1) n2@(Name t2)
           | t1 <= t2 = M.singleton (n1, n2) $ M.singleton ordering $ S.singleton r
