@@ -1,0 +1,13 @@
+type Exp
+grouping "(" Exp ")"
+
+token Integer = "\\d+"
+
+infix left plus: Exp = "+"
+infix left times: Exp = "*"
+syncon intLit: Exp = i:Integer
+
+precedence {
+  times;
+  plus;
+}

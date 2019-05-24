@@ -1,0 +1,36 @@
+token Ident = "[[:alpha:]]+"
+
+// NOTE: most of the time pre- and postfix should bind stronger, but "let" is a prefix
+// NOTE: forbids are separate to accomodate for composition
+
+syncon word: Inner = "keyword" { builtin }
+
+type Inner
+
+syncon nested: Top = "nest" "{" t:(Exp|Inner|Top)* "}" { builtin }
+
+prefix not: Exp = "!" { builtin }
+
+type Exp
+
+// infix add: Exp = "+" { #assoc left; builtin }
+syncon add: Exp = left:rec "+" right:rec { builtin }
+infix right sub: Exp = "-" { builtin }
+syncon var: Exp = id:Ident { builtin }
+
+infix left and: Exp = "&&" { builtin }
+infix or: Exp = "||" { builtin }
+
+precedence {
+  not;
+  add sub;
+  and or;
+} except {
+  and or;
+}
+
+syncon list: Exp = "[" (head:Exp (";" tail:Exp)*)? "]" { builtin }
+infix seqComp: Exp = ";" { builtin }
+
+forbid list.head = seqComp
+forbid list.tail = seqComp

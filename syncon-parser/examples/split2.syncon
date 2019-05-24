@@ -1,0 +1,16 @@
+syncon true: Exp = "true"
+syncon false: Exp = "false"
+infix equal: Exp = "="
+infix left and: Exp = "&&"
+infix left or: Exp = "||"
+
+precedence {
+  times plus;
+  equal;
+  and or;
+} except {
+  times plus;
+  and or;
+}
+
+syncon oneExp: Top = e:Exp
