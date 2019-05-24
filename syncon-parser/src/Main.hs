@@ -98,7 +98,11 @@ parse4Test = do
 
 parseToHTMLDebug :: [FilePath] -> FilePath -> FilePath -> IO ()
 parseToHTMLDebug defFiles sourceFile outFile = do
-  defSource :: HashMap Text Text <- defFiles <&> toS & S.fromList & S.toMap & M.traverseWithKey (\path _ -> readFile $ toS path)
+  defSource :: HashMap Text Text <- defFiles
+    <&> toS
+    & S.fromList
+    & S.toMap
+    & M.traverseWithKey (\path _ -> readFile $ toS path)
   putStrLn @Text "Parsing definition file(s)"
   tops <- M.traverseWithKey (\defFile _ -> LD.parseFile $ toS defFile) defSource
           >>= (fold >>> dataOrError defSource)
