@@ -5,6 +5,7 @@ module P4Parsing.Parser
 ( Error(..)
 , SingleLanguage(..)
 , parseSingleLanguage
+, mkParser
 ) where
 
 import Pre
@@ -72,6 +73,16 @@ parseSingleLanguage df = do
       (res, _) -> return $ S.fromList res
   where
     lexer = Lexer.allOneLanguage SingleLanguage (dfToLanguageTokens df) & first (fmap LexingError)
+
+-- | Given a 'DefinitionFile', produce a parser function for a single language. This function does
+-- is to be applied directly to a list of tokens, as opposed to a file.
+mkParser :: DefinitionFile -> Res SL ([Tok SL] -> Res SL (HashSet (Node SL TypeName)))
+mkParser df = do
+  parser <- generateGrammar df
+  pure $ Earley.fullParses (Earley.parser $ unquant parser) >>> \case
+    ([], Report{expected, unconsumed = next : _}) -> Error [UnexpectedToken (S.fromList expected) next]
+    ([], Report{expected, unconsumed = []}) -> Error [UnexpectedEOF $ S.fromList expected]
+    (res, _) -> return $ S.fromList res
 
 -- | Look up keywords, comment syntax, etc., to produce the parameters for the lexer.
 dfToLanguageTokens :: DefinitionFile -> LanguageTokens TypeName

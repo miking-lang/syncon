@@ -30,7 +30,8 @@ import qualified P2LanguageDefinition.Elaborator as LD
 
 import qualified P4Parsing.Types as Parser
 import qualified P4Parsing.Parser as Parser
-import qualified P4Parsing.AmbiguityReporter as Parser
+
+import qualified P5DynamicAmbiguity.AmbiguityReporter as DynAmb
 
 import qualified Data.Automaton.NVA as NVA
 import qualified Data.Automaton.GraphViz as GraphViz
@@ -111,7 +112,7 @@ parseToHTMLDebug defFiles sourceFile outFile = do
   fileSource <- readFile sourceFile <&> M.singleton (toS sourceFile)
   putStrLn @Text "Parsing source file"
   setOfNodes <- parseFile sourceFile >>= dataOrError fileSource
-  case Parser.report df setOfNodes of
+  case DynAmb.report df setOfNodes of
     Data node -> universe node >>= nodeAnnotation
       & annotate fileSource
       & putInTextTemplate (toS $(embedFile "resources/htmlTemplate.html"))

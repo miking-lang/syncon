@@ -1,117 +1,53 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module P4Parsing.AmbiguityReporter
-( report
-, Error(..)
-) where
+module P5DynamicAmbiguity.TreeLanguage (treeLanguage) where
 
 import Pre hiding (reduce)
-import Result (Result(..))
 
-import Text.Printf (printf)
-import qualified Data.Text as Text
 import qualified Data.HashSet as S
-import qualified Data.HashMap.Lazy as M
+import qualified Data.HashMap.Strict as M
 import qualified Data.Sequence as Seq
 import Data.Sequence (pattern Empty, pattern (:<|), pattern (:|>))
-import Data.Semigroup (Max(..))
-import System.IO.Unsafe (unsafePerformIO)
 
 import Data.Generics.Uniplate.Data (universe)
-import Data.Functor.Foldable (project)
 
-import Data.Automaton.NVA (fromEpsNVA, NVA, reduce, shortestUniqueWord, shortestWord, renumber)
-import Data.Automaton.EpsilonNVA (EpsNVA(..), untag, fromNFA, TaggedTerminal(..))
+import Data.Automaton.EpsilonNVA (EpsNVA(..), fromNFA, TaggedTerminal(..))
 import qualified Data.Automaton.EpsilonNVA as EpsNVA
+import Data.Automaton.NVA (fromEpsNVA, NVA, reduce, renumber)
 import Data.Automaton.Regex (Regex(..))
 import qualified Data.Automaton.Regex as Regex
 
-import ErrorMessage (FormatError(..), simpleErrorMessage)
-
-import P1Lexing.Types (Range, range, textualRange)
+import P1Lexing.Types (range)
 import qualified P1Lexing.Types as P1
-import P2LanguageDefinition.Types (Name(..), SDName(..), TypeName(..), Syncon(..), SyntaxDescription(..), BracketKind(..), DefinitionFile(..), Repetition(..))
 import P2LanguageDefinition.Elaborator (elaborate)
+import P2LanguageDefinition.Types (Name(..), SDName(..), TypeName(..), Syncon(..), SyntaxDescription(..), BracketKind(..), DefinitionFile(..), Repetition(..))
+import P4Parsing.Parser (SingleLanguage(..))
 import P4Parsing.Types (pattern Node, n_name, n_contents, NodeInternals(..))
 import qualified P4Parsing.Types as P4
-import P4Parsing.Parser (SingleLanguage(..))
-
-data Error
-  = Ambiguity Range [Text]
-  | Unresolvable Range [Text] [Node]  -- ^ Resolvable alternatives, and unresolvable alternatives
-  deriving (Show)
+import P5DynamicAmbiguity.Types
 
 type Node = P4.Node SingleLanguage TypeName
 
--- TODO: pluralize the text below appropriately
-instance FormatError Error where
-  formatError (Unresolvable r resolvable trees) = simpleErrorMessage r $
-    "Unresolvable ambiguity error with " <> show (length trees + length resolvable) <> " alternatives.\n" <>
-    formattedResolvable <> "\n" <>
-    "Unresolvable alternatives:\n" <>
-    fold unresolvables
-    where
-      format (name, children) = "  " <> coerce name <> formatChildren children <> "\n"
-      formatChildren = sortBy (compare `on` range) >>> foldMap formatNode
-      formatNode n@Node{n_name = Name n'} =
-        printf "\n   - %- 20s %s" n' (textualRange $ range n) & Text.pack
-      formattedResolvable
-        | null resolvable = ""
-        | otherwise = "\nResolvable alternatives:\n" <> foldMap (\t -> "  " <> t <> "\n") resolvable
-      unresolvables = trees
-        <&> (n_name &&& (project >>> toList))
-        <&> format
-        & S.fromList
-  formatError (Ambiguity r resolvable) = simpleErrorMessage r $
-    "Ambiguity error with " <> show (length resolvable) <> " alternatives:\n\n" <>
-    foldMap (\t -> "  " <> t <> "\n") resolvable
-
--- | If the argument is a singleton set, return the element, otherwise produce
--- one or more localized ambiguity errors.
-report :: DefinitionFile -> HashSet Node -> Result [Error] Node
-report df = toList >>> \case
-  [] -> compErr "P4Parsing.AmbiguityReporter.report" "Expected one or more parse trees, got zero."
-  [top] -> Data top
-  forest -> localizeAmbiguities forest
-    <&> ((head >>> foldMap range) &&& S.fromList)
-    <&> uncurry (resolvability df)
-    & Error
-
-localizeAmbiguities :: (Eq l, Eq n) => [P4.Node l n] -> [[P4.Node l n]]
-localizeAmbiguities forest
-  | equalBy (project >>> void) forest
-  , let subforests = transpose $ map (project >>> toList) forest
-  , all (equalBy range) subforests
-    = concatMap localizeAmbiguities subforests
-  | otherwise = [forest]
-
--- |
--- = Parse-time resolvability
-
-type ResLang = NVA Int Int Token Token Token
-
-resolvability :: DefinitionFile -> Range -> HashSet Node -> Error
-resolvability df r nodes = M.toList languages
-  <&> (\(node, lang) ->
-         case M.lookup lang shortest of
-           Nothing -> Left node
-           Just w -> untag identity identity identity <$> w
-             & fmap textualToken
-             & Text.unwords
-             & Right)
-  & partitionEithers
-  & \case
-    ([], resolvable) -> Ambiguity r resolvable
-    (unresolvable, resolvable) -> Unresolvable r resolvable unresolvable
+-- | Take a 'DefinitionFile' and a 'Node' parsed using that language definition, then
+-- produce a reduced NVA recognizing the language of words that can be parsed as that
+-- node. Note that partially applying this function with only a definition file and then
+-- reusing the result will share some work, or conversly, calling it from scratch will
+-- perform unnecessary extra work.
+--
+-- Note that the 'Node' doesn't have to be of syntax type Top, it can be any syntax type.
+treeLanguage :: DefinitionFile -> Node -> NVA Int Int Token Token Token
+treeLanguage df =
+  mkLanguage
+    isForbidden
+    (bracketKind df)
+    getSyTy
+    getGrouping
+    info
+  >>> fromEpsNVA
+  >>> reduce
+  >>> renumber
   where
-    info :: HashMap Name (SyntaxDescription, HashMap (SavedPoint ()) Path, HashSet Path)
-    info = syncons df <&> \Syncon{..} ->
-      let sd = s_syntaxDescription
-          sps = discoverSavePoints isSyTy (snd s_syntaxType) sd
-          paths = S.fromList $ toList sps
-      in (sd, sps, paths)
-
     elaboration = elaborate (syncons df) (forbids df) (precedences df)
     elaborationWithRecs :: HashMap (Name, SDName) (HashSet Name)
     elaborationWithRecs = M.unionWith S.union fixedOriginals recAdditions
@@ -133,57 +69,26 @@ resolvability df r nodes = M.toList languages
       & fold
       & S.member n2
 
-    tokGroupings :: HashMap TypeName (Seq (Token, Token))
-    tokGroupings = groupings df <&> fmap (mkTok *** mkTok)
-    getGrouping :: TypeName -> Seq (Token, Token)
-    getGrouping tyn = M.lookup tyn tokGroupings & fold
-
-    languages :: HashMap Node ResLang
-    languages = S.toMap nodes
-      & M.mapWithKey (\node _ -> mkLanguage isForbidden (bracketKind df) getSyTy getGrouping info node
-                       & fromEpsNVA
-                       & reduce
-                       & renumber)
-
-    shortest :: HashMap ResLang [TaggedTerminal Token Token Token]
-    shortest = unsafePerformIO $ shortestUniqueWord 1_000_000 (len + 10) nvas
-      where
-        Max len = foldMap (shortestWord >>> fmap (length >>> Max) >>> fold) nvas
-        nvas = foldMap S.singleton languages
-
     getSyTy :: Name -> TypeName
     getSyTy n = M.lookup n (syncons df)
       & compFromJust "P4Parsing.AmbiguityReporter.nodePoints.getSyTy" "Syncon without a type"
       & s_syntaxType
       & snd
 
+    tokGroupings :: HashMap TypeName (Seq (Token, Token))
+    tokGroupings = groupings df <&> fmap (mkTok *** mkTok)
+    getGrouping :: TypeName -> Seq (Token, Token)
+    getGrouping tyn = M.lookup tyn tokGroupings & fold
+
+    info :: HashMap Name (SyntaxDescription, HashMap (SavedPoint ()) Path, HashSet Path)
+    info = syncons df <&> \Syncon{..} ->
+      let sd = s_syntaxDescription
+          sps = discoverSavePoints isSyTy (snd s_syntaxType) sd
+          paths = S.fromList $ toList sps
+      in (sd, sps, paths)
+
     isSyTy :: TypeName -> Bool
     isSyTy tyn = M.lookup tyn (syntaxTypes df) & maybe False isLeft
-
-data Token
-  = LitTok Text
-  | OtherTokInstance TypeName Text
-  | OtherTok TypeName
-  deriving (Show)
-
-eitherRepr :: Token -> Either Text TypeName
-eitherRepr (LitTok t) = Left t
-eitherRepr (OtherTokInstance n _) = Right n
-eitherRepr (OtherTok n) = Right n
-
-textualToken :: Token -> Text
-textualToken (LitTok t) = t
-textualToken (OtherTokInstance _ t) = t
-textualToken (OtherTok tyn) = coerce tyn  -- TODO: make this more distinct somehow
-
-mkTok :: Either Text TypeName -> Token
-mkTok (Left t) = LitTok t
-mkTok (Right n) = OtherTok n
-
-instance Eq Token where
-  (==) = (==) `on` eitherRepr
-instance Hashable Token where
-  hashWithSalt = hashUsing eitherRepr
 
 -- | Generate a 'NVA' that recognizes the words that can parse as a given AST.
 -- The NVA will push and pop 'Nothing' for opening and closing brackets internal

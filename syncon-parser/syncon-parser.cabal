@@ -50,7 +50,9 @@ executable syncon-parser
                , P2LanguageDefinition.Elaborator
                , P4Parsing.Types
                , P4Parsing.Parser
-               , P4Parsing.AmbiguityReporter
+               , P5Parsing.Types
+               , P5Parsing.AmbiguityReporter
+               , P5Parsing.TreeLanguage
   default-language: Haskell2010
   default-extensions: NoImplicitPrelude
                     , EmptyCase
