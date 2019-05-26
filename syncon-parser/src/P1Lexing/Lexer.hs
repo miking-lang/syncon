@@ -16,14 +16,14 @@ import Pre
 import Result (Result(..))
 
 import System.IO.Unsafe (unsafePerformIO)
+import Data.Char (isSpace)
 import qualified Data.Array as Array
-import qualified Data.Text as Text
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.UTF8 as UTF8
 import qualified Data.Sequence as Seq
 import qualified Data.HashMap.Strict as M
 
-import ErrorMessage (FormatError(..), simpleErrorMessage)
+import ErrorMessage (FormatError(..), simpleErrorMessage, ErrorMessage(..))
 
 import Text.Regex.PCRE.ByteString (compile, execute, Regex, compUTF8, compNoAutoCapture)
 
@@ -32,17 +32,19 @@ import P1Lexing.Types
 data LanguageTokens n = LanguageTokens
   [Text] -- ^ Literals
   [(n, (Range, Text))] -- ^ Other token kinds, with regexes in the texts (paired with the range at which they were defined)
-  [(Range, Text)] -- ^ Regexes for comments (range for the string, the regex itself)
+  [((Range, Text), (Range, Text))] -- ^ Regexes for comments (range for the string, the regex itself). The regexes are presented as 'begin' 'end' pairs.
 
 data Error l n
   = RegexError l Text Position Text
   | UnicodeError UnicodeException
   | OverlappingLex l [Token l n]
   | NoLex Text Position
+  | AmbiguousCommentStart l [Range]
+  | UnclosedBlockComment l Range  -- ^ The range points to the opening bracket of the block comment, not the entire rest of the file
   deriving (Show)
 
 instance (Show l, Show n) => FormatError (Error l n) where
-  formatError (RegexError _ f pos t) = simpleErrorMessage (Range f pos pos) $
+  formatError (RegexError _ f pos@(Position l c) t) = simpleErrorMessage (Range f pos $ Position l (c+1)) $
     "Regex error: " <> t
   formatError (UnicodeError ex) = simpleErrorMessage Nowhere $
     "The file must be UTF8 encoded, got an error: " <> show ex
@@ -51,11 +53,18 @@ instance (Show l, Show n) => FormatError (Error l n) where
     <> foldMap (show >>> (<> "\n")) toks
   formatError (NoLex f pos) = simpleErrorMessage (Range f pos (Position (line pos + 4) maxBound)) $
     "There is no valid token starting here."
+  formatError (AmbiguousCommentStart _ rs) = ErrorMessage
+    { e_message = "Ambiguous comment start, this could be the beginning of multiple different kinds of block comments."
+    , e_range = fold rs
+    , e_ranges = (, "") <$> rs
+    }
+  formatError (UnclosedBlockComment _ r) = simpleErrorMessage r $
+    "Unclosed block comment."
 
 data LanguageInternal n = LanguageInternal
   { literals :: !(Seq ByteString)
   , tokenRegexes :: !(Seq (n, Regex))
-  , whitespaceRegex :: !Regex
+  , commentRegexes :: !(Seq (Regex, (Regex, Regex)))  -- ^ (begin at start of string, begin anywhere, end anywhere)
   }
 
 data Lexer l n = Lexer
@@ -74,9 +83,18 @@ runRegex reg str = case unsafePerformIO (execute reg str) of
   Right (Just arr) -> case arr Array.! fst (Array.bounds arr) of
     (start, len) -> str & ByteString.drop start & ByteString.take len & Just
 
+-- | Run a previously compiled regex. Assumes the foreign call will suceed, e.g., that there
+-- is enough memory, uses 'compErr' otherwise. Returns a tuple of (start index, length), expressed
+-- in bytes.
+runRegex' :: Regex -> ByteString -> Maybe (Int, Int)
+runRegex' reg str = case unsafePerformIO (execute reg str) of
+  Left err -> compErr "P1Lexing.Lexer.runRegex'" $ show err
+  Right Nothing -> Nothing
+  Right (Just arr) -> Just $ arr Array.! fst (Array.bounds arr)
+
 -- | Compile a regex, then get either a column and error message or a compiled regex.
 compileRegex :: Text -> Either (Int, Text) Regex
-compileRegex t = unsafePerformIO (compile compOpts execOpts (encodeUtf8 ("(*UCP)^" <> t))) & first (second toS)
+compileRegex t = unsafePerformIO (compile compOpts execOpts (encodeUtf8 ("(*UCP)" <> t))) & first (second toS)
   where
     compOpts = compUTF8 .|. compNoAutoCapture
     execOpts = 0
@@ -104,23 +122,22 @@ mkLexer langs = do
     mkLang (l, LanguageTokens lits others comments) = do
       let lits' = Seq.fromList $ encodeUtf8 <$> lits
       others' <- Seq.fromList <$> traverse (mkRegex l) others
-      whitespace <- mkWhitespace l comments
+      comments' <- Seq.fromList <$> traverse (mkComment l) comments
       return . (l,) $ LanguageInternal
         { literals = lits'
         , tokenRegexes = others'
-        , whitespaceRegex = whitespace }
+        , commentRegexes = comments' }
 
     -- Produce a regex that parses whitespace
-    mkWhitespace _ [] = case compileRegex "\\s*" of
-      Left err -> compErr "P1Lexing.Lexer.mkLexer.mkWhitespace" $ show err
-      Right reg -> Data reg
-    mkWhitespace l comments = traverse (uncurry $ compileRegex' l) comments >>= \_ ->
-      case compileRegex $ "(" <> Text.intercalate "|" (fmap (snd >>> paren) comments) <> "|\\s)*" of
-        Left err -> compErr "P1Lexing.Lexer.mkLexer.mkWhitespace" $ show err
-        Right reg -> Data reg
+    mkComment l (begin, end) = do
+      beginAnywhere <- compileRegex' l `uncurry` begin
+      let beginStrict = case snd begin & ("^" <>) & compileRegex of
+            Left e -> compErr "P1Lexing.Lexer.mkLexer.mkComment" $ "Couldn't compile begin comment when prefixed with ^: " <> show (snd begin) <> ", error: " <> show e
+            Right reg -> reg
+      endAnywhere <- compileRegex' l `uncurry` end
+      pure $ (beginStrict, (beginAnywhere, endAnywhere))
 
-    mkRegex l (n, (r, t)) = (n,) <$> compileRegex' l r t
-    paren s = "(" <> s <> ")"
+    mkRegex l (n, (r, t)) = (n,) <$> compileRegex' l r ("^" <> t)
 
 -- TODO: catch file not found stuff and put in 'Result'
 -- | Construct a new 'Lexer' positioned at the beginning of the given file.
@@ -140,16 +157,71 @@ startFileLex path lexer = do
 advancePosition :: ByteString -> Position -> Position
 advancePosition str pos = UTF8.foldl stepPosition pos str
 
+-- | Consume the leading whitespace according to the given language. Returns a tuple of
+-- (leading whitespace, remaining source).
+consumeLeadingWhitespace :: forall l n. l
+                         -> LanguageInternal n
+                         -> (Text, Position)
+                         -> ByteString
+                         -> Result [Error l n] (ByteString, ByteString)
+consumeLeadingWhitespace l LanguageInternal{commentRegexes} (path, startPos) fullStr =
+  dropWhitespace startPos fullStr
+  & dropAllComments
+  <&> \rest ->
+        (ByteString.take (ByteString.length fullStr - ByteString.length rest) fullStr, rest)
+  where
+    dropWhitespace pos = UTF8.span isSpace >>> first (flip advancePosition pos)
+
+    dropAllComments :: (Position, ByteString) -> Result [Error l n] ByteString
+    dropAllComments (pos, str) = dropOneComment pos str >>= \case
+      Nothing -> pure str
+      Just rest ->
+        dropWhitespace
+          (advancePosition (ByteString.take (ByteString.length rest - ByteString.length str) str) pos)
+          rest
+        & dropAllComments
+
+    dropOneComment :: Position -> ByteString -> Result [Error l n] (Maybe ByteString)
+    dropOneComment pos str = case mapMaybe mkStart $ toList commentRegexes of
+      [] -> pure Nothing
+      [(openRange, (rest, pair))] -> case dropComments pair 1 rest of
+        Nothing -> Error [UnclosedBlockComment l openRange]
+        Just postComment -> pure $ Just postComment
+      opens -> opens <&> fst & AmbiguousCommentStart l & pure & Error
+      where
+        mkStart :: (Regex, (Regex, Regex)) -> Maybe (Range, (ByteString, (Regex, Regex)))
+        mkStart (reg, pair) = do
+          (st, len) <- runRegex' reg str
+          let (openBracket, rest) = ByteString.splitAt (st + len) str
+              endPos = advancePosition openBracket pos
+          pure (Range path pos endPos, (rest, pair))
+
+    -- | Drop nested comments appropriately. The 'Int' is the nesting level, starts at 1
+    -- for a newly opened comment. Returns 'Nothing' if that first comment is never closed.
+    dropComments :: (Regex, Regex) -> Int -> ByteString -> Maybe ByteString
+    dropComments _ level str
+      | level <= 0 = Just str
+    dropComments regs@(openReg, closeReg) level str = str
+      & (runRegex' openReg &&& runRegex' closeReg)
+      & \case
+      (Nothing, Nothing) -> Nothing
+      (Just (sIdx, len), Nothing) -> dropComments regs (level+1) $ ByteString.drop (sIdx + len) str
+      (Nothing, Just (sIdx, len)) -> dropComments regs (level-1) $ ByteString.drop (sIdx + len) str
+      (Just (sIdx, len), Just (s2Idx, _))
+        | sIdx < s2Idx -> dropComments regs (level+1) $ ByteString.drop (sIdx + len) str
+      (Just _, Just (sIdx, len)) -> dropComments regs (level-1) $ ByteString.drop (sIdx + len) str
+
 -- | Finds the longest token at the current location for each of the supplied languages.
 -- If multiple tokens have the same length, prioritize a literal token. If there
 -- is still a tie, give an error. The first component is a length of the token. Note
 -- that this length includes whitespace, both before and after the token.
 lexHere :: (Eq l, Hashable l) => [l] -> Lexer l n -> Result [Error l n] (HashMap l (Maybe (Int, Token l n)))
 lexHere langs Lexer{..} = fmap M.fromList . forM langs $ \lang -> do
-  let LanguageInternal{..} = compFromJust "P1Lexing.Lexer.lexHere" "missing language" $ M.lookup lang languages
-      preceedingWhitespace = runRegex whitespaceRegex remainingSource & fold
-      whiteSpaceLength = UTF8.length preceedingWhitespace
-      nonWhitespace = ByteString.drop (ByteString.length preceedingWhitespace) remainingSource
+  let li@LanguageInternal{..} = compFromJust "P1Lexing.Lexer.lexHere" "missing language" $ M.lookup lang languages
+
+  (preceedingWhitespace, nonWhitespace) <- consumeLeadingWhitespace lang li (file, position) remainingSource
+
+  let whiteSpaceLength = UTF8.length preceedingWhitespace
 
       startPos = advancePosition preceedingWhitespace position
 
@@ -161,8 +233,12 @@ lexHere langs Lexer{..} = fmap M.fromList . forM langs $ \lang -> do
       lits = toList literals & filter (`ByteString.isPrefixOf` nonWhitespace) & fmap mkLitTok
       others = toList tokenRegexes & mapMaybe parseOtherTok & fmap mkOtherTok
 
-      whitespaceLengthAfter len = UTF8.drop len >>> runRegex whitespaceRegex >>> fold >>> UTF8.length
-      finish (len, tok) = (len + whiteSpaceLength + whitespaceLengthAfter len nonWhitespace, tok)
+      whitespaceLengthAfter len = UTF8.drop len nonWhitespace
+        & consumeLeadingWhitespace lang li (file, position)
+        <&> fst
+        <&> UTF8.length
+      finish (len, tok) = whitespaceLengthAfter len <&> \afterLen ->
+        (len + whiteSpaceLength + afterLen, tok)
 
       litOrOther = case (allMaxByFst lits, allMaxByFst others) of
                      (Nothing, Nothing) -> Nothing
@@ -173,7 +249,7 @@ lexHere langs Lexer{..} = fmap M.fromList . forM langs $ \lang -> do
                        | otherwise -> Just others'
   (lang, ) <$> case litOrOther of
     Nothing -> return Nothing
-    Just [t] -> return . Just $ finish t
+    Just [t] -> finish t <&> Just
     Just ts -> Error [OverlappingLex lang $ snd <$> ts]
   where
     allMaxByFst :: [(Int, a)] -> Maybe (Int, [(Int, a)])

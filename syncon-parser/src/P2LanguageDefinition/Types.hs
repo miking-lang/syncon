@@ -71,7 +71,8 @@ data TokenType = TokenType
 
 -- | A comment type declaration
 data Comment = Comment
-  { c_regex :: !(Range, Text)
+  { c_beginRegex :: !(Range, Text)
+  , c_endRegex :: !(Range, Text)
   , c_range :: !Range
   } deriving (Show, Data, Typeable)
 

@@ -38,18 +38,18 @@ import qualified P5DynamicAmbiguity.TreeLanguage as DynAmb
 import qualified Data.Automaton.NVA as NVA
 import qualified Data.Automaton.GraphViz as GraphViz
 
-synconTokens :: Lexer.LanguageTokens Text
+synconTokens :: Lexer.LanguageTokens LD.TokenKind
 synconTokens = Lexer.LanguageTokens
   -- Literal tokens
   [ "token", "=", "syncon", ":", "{", ";", "}", "prefix", "postfix", "infix"
   , "(", ")", "*", "+", "?", ".", "comment", "left", "right", "precedence", "except"
-  , "type", "builtin", "forbid" ]
+  , "type", "builtin", "forbid", "|", "rec", "grouping", "!" ]
   -- Regex tokens
-  [ ("Name", (Nowhere, "[[:lower:]][[:word:]]*"))
-  , ("TypeName", (Nowhere, "[[:upper:]][[:word:]]*"))
-  , ("String", (Nowhere, "\"(\\\\.|[^\"\\\\])*\"")) ]
+  [ (LD.NameTok, (Nowhere, "[[:lower:]][[:word:]]*"))
+  , (LD.TypeNameTok, (Nowhere, "[[:upper:]][[:word:]]*"))
+  , (LD.StringTok, (Nowhere, "\"(\\\\.|[^\"\\\\])*\"")) ]
   -- Comment regex
-  [(Nowhere, "//[^\\n]*(\\n|$)")]
+  [((Nowhere, "//[^\\n]*(\\n|$)"), (Nowhere, "^"))]
 
 lexTest :: IO ()
 lexTest = do
@@ -171,7 +171,7 @@ testReduce = do
     post = NVA.reduce nva
 
 test :: IO ()
-test = parseToHTMLDebug ["examples/split1.syncon", "examples/split2.syncon"] "examples/split.test" "out.html"
+test = parseToHTMLDebug ["examples/bootstrap.syncon"] "case-studies/ocaml.syncon" "out.html"
 
 getArgsSeq :: IO (Seq [Char])
 getArgsSeq = getArgs <&> Seq.fromList

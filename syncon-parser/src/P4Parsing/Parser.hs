@@ -87,7 +87,7 @@ mkParser df = do
 -- | Look up keywords, comment syntax, etc., to produce the parameters for the lexer.
 dfToLanguageTokens :: DefinitionFile -> LanguageTokens TypeName
 dfToLanguageTokens DefinitionFile{syncons, syntaxTypes, comments, groupings} =
-  LanguageTokens (literals <> groupLits & S.fromList & S.toList) tokens $ c_regex <$> toList comments
+  LanguageTokens (literals <> groupLits & S.fromList & S.toList) tokens $ (c_beginRegex &&& c_endRegex) <$> toList comments
   where
     literals = do
       Syncon{s_syntaxDescription = descr} <- toList syncons

@@ -81,7 +81,7 @@ synconTokens = Lexer.LanguageTokens
   , (TypeNameTok, (Nowhere, "[[:upper:]][[:word:]]*"))
   , (StringTok, (Nowhere, "\"(\\\\.|[^\"\\\\])*\"")) ]
   -- Comment regex
-  [(Nowhere, "//[^\\n]*(\\n|$)")]
+  [((Nowhere, "//[^\\n]*(\\n|$)"), (Nowhere, "^"))]
 
 -- |
 -- = Parsers for top level declarations
@@ -115,9 +115,10 @@ tokenTypeDef = rule $ constr <$> lit "token" <*> tyName <* lit "=" <*> string <?
 
 -- | Parse a comment declaration
 commentDef :: Grammar r (Prod r Comment)
-commentDef = rule $ constr <$> lit "comment" <*> string <?> "comment declaration"
+commentDef = rule $ constr <$> lit "comment" <*> string <*> optional string <?> "comment declaration"
   where
-    constr start regex@(end, _) = Comment regex (range start <> end)
+    constr start regex@(end, _) Nothing = Comment regex (Nowhere, "^") (range start <> end)
+    constr start beginRegex (Just endRegex@(end, _)) = Comment beginRegex endRegex (range start <> end)
 
 forbidDef :: Grammar r (Prod r Forbid)
 forbidDef = rule . (<?> "forbid disambiguation") $ do

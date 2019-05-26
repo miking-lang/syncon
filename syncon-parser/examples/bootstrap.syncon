@@ -10,7 +10,7 @@ token String = "\"(\\\\.|[^\"\\\\])*\""
 comment "//[^\\n]*(\\n|$)"
 
 type Decl
-syncon decls: Top = d:Decl*
+syncon decls: Top = d:Decl+
 
 // === Syntax Types ===
 
@@ -23,6 +23,7 @@ syncon tokenDef: Decl = "token" syType:TypeName "=" regex:String
 // === Comment Definitions ===
 
 syncon commentDef: Decl = "comment" regex:String
+syncon blockCommentDef: Decl = "comment" openRegex:String closeRegex:String
 
 // === Grouping Definitions ===
 
@@ -94,5 +95,5 @@ syncon forbidDef: Decl =
 
 
 syncon precedenceList: Decl =
-  "precedence" "{" line:(nonOp:"!"? name:Name+ ";")+ "}"
+  "precedence" "{" line:((nonOp:"!"? name:Name)+ ";")+ "}"
   ("except" "{" eLine:(eName:Name+ ";")+ "}")?

@@ -2,6 +2,8 @@
 // Any additions or changes made can be found at the end of the file, most of the initial stuff is made as direct a translation as possible
 // Delimitation: ignoring polymorphic variants, objects, and #-types
 
+comment "\\(\\*" "\\*\\)"
+
 type Ident
 syncon lowerIdent: Ident = id:LowerIdent
 syncon upperIdent: Ident = id:UpperIdent

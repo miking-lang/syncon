@@ -52,6 +52,22 @@ A comment, i.e., a terminal that is ignored, is defined as follows:
 comment "//[^\\n]*(\\n|$)"
 ```
 
+Alternatively, you can define a block comment as follows:
+
+```
+comment "/\\*" "\\*/"
+```
+
+The first regex matches something that begins the comment, the second something that closes it. These comments nest properly.
+
+As a sidenote, the former comment definition is syntactic sugar for the following:
+
+```
+comment "//[^\\n]*(\\n|$)" "^"
+```
+
+I.e., a block comment that is closed immediately after it is opened.
+
 ------
 
 A syncon is defined as follows:
