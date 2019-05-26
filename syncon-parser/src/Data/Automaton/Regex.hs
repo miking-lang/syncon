@@ -7,6 +7,7 @@ module Data.Automaton.Regex
 , choice
 , star
 , opt
+, shortestWord
 , toAutomaton
 ) where
 
@@ -16,6 +17,7 @@ import Data.String (fromString)
 
 import qualified Data.HashMap.Lazy as M
 import qualified Data.HashSet as S
+import qualified Data.Sequence as Seq
 
 import Data.Functor.Foldable (cata)
 import Data.Functor.Foldable.TH (makeBaseFunctor)
@@ -54,6 +56,17 @@ star = Kleene
 
 opt :: Regex a -> Regex a
 opt r = Choice Eps r
+
+-- | Produces a shortest word recognized by a given 'Regex'.
+shortestWord :: Regex a -> Seq a
+shortestWord = cata $ \case
+  TerminalF a -> Seq.singleton a
+  ConcatF a b -> a <> b
+  ChoiceF a b
+    | Seq.length a <= Seq.length b -> a
+    | otherwise -> b
+  EpsF -> Seq.empty
+  KleeneF _ -> Seq.empty
 
 type AutomataM a = State Int a
 data Automaton s a = Automaton

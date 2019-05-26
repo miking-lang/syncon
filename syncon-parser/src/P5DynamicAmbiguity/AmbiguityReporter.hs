@@ -28,7 +28,7 @@ import P2LanguageDefinition.Types (Name(..), TypeName(..), DefinitionFile(..))
 import P4Parsing.Types (pattern Node, n_name)
 import qualified P4Parsing.Types as P4
 import P4Parsing.Parser (SingleLanguage(..))
-import P5DynamicAmbiguity.TreeLanguage (treeLanguage)
+import P5DynamicAmbiguity.TreeLanguage (treeLanguage, PreLanguage, precompute)
 import P5DynamicAmbiguity.Types
 
 data Error
@@ -69,8 +69,10 @@ report df = toList >>> \case
   [top] -> Data top
   forest -> localizeAmbiguities forest
     <&> ((head >>> foldMap range) &&& S.fromList)
-    <&> uncurry (resolvability df)
+    <&> uncurry (resolvability pl)
     & Error
+  where
+    pl = precompute df
 
 localizeAmbiguities :: (Eq l, Eq n) => [P4.Node l n] -> [[P4.Node l n]]
 localizeAmbiguities forest
@@ -85,8 +87,8 @@ localizeAmbiguities forest
 
 type ResLang = NVA Int Int Token Token Token
 
-resolvability :: DefinitionFile -> Range -> HashSet Node -> Error
-resolvability df r nodes = M.toList languages
+resolvability :: PreLanguage -> Range -> HashSet Node -> Error
+resolvability pl r nodes = M.toList languages
   <&> (\(node, lang) ->
          case M.lookup lang shortest of
            Nothing -> Left node
@@ -99,7 +101,7 @@ resolvability df r nodes = M.toList languages
     ([], resolvable) -> Ambiguity r resolvable
     (unresolvable, resolvable) -> Unresolvable r resolvable unresolvable
   where
-    mkLanguage = treeLanguage df
+    mkLanguage = treeLanguage pl
 
     languages :: HashMap Node ResLang
     languages = S.toMap nodes

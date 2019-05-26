@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module P5DynamicAmbiguity.TreeLanguage (treeLanguage) where
+module P5DynamicAmbiguity.TreeLanguage (precompute, PreLanguage, treeLanguage, fastShortest) where
 
 import Pre hiding (reduce)
 
@@ -21,7 +21,8 @@ import qualified Data.Automaton.Regex as Regex
 import P1Lexing.Types (range)
 import qualified P1Lexing.Types as P1
 import P2LanguageDefinition.Elaborator (elaborate)
-import P2LanguageDefinition.Types (Name(..), SDName(..), TypeName(..), Syncon(..), SyntaxDescription(..), BracketKind(..), DefinitionFile(..), Repetition(..))
+import P2LanguageDefinition.Types (Name(..), SDName(..), TypeName(..), Syncon(..), SyntaxDescription(..), BracketKind(..), DefinitionFile, Repetition(..))
+import qualified P2LanguageDefinition.Types as P2
 import P4Parsing.Parser (SingleLanguage(..))
 import P4Parsing.Types (pattern Node, n_name, n_contents, NodeInternals(..))
 import qualified P4Parsing.Types as P4
@@ -29,26 +30,34 @@ import P5DynamicAmbiguity.Types
 
 type Node = P4.Node SingleLanguage TypeName
 
--- | Take a 'DefinitionFile' and a 'Node' parsed using that language definition, then
+-- | Take a 'PreLanguage' and a 'Node' computed/parsed using the same language definition, then
 -- produce a reduced NVA recognizing the language of words that can be parsed as that
--- node. Note that partially applying this function with only a definition file and then
--- reusing the result will share some work, or conversly, calling it from scratch will
--- perform unnecessary extra work.
+-- node.
 --
 -- Note that the 'Node' doesn't have to be of syntax type Top, it can be any syntax type.
-treeLanguage :: DefinitionFile -> Node -> NVA Int Int Token Token Token
-treeLanguage df =
-  mkLanguage
-    isForbidden
-    (bracketKind df)
-    getSyTy
-    getGrouping
-    info
+treeLanguage :: PreLanguage -> Node -> NVA Int Int Token Token Token
+treeLanguage pl =
+  mkLanguage pl
   >>> fromEpsNVA
   >>> reduce
   >>> renumber
+
+data PreLanguage = PreLanguage
+  { isForbidden :: Name -> SDName -> Name -> Bool
+  , bracketKind :: Either Text TypeName -> BracketKind
+  , getSyTy :: Name -> TypeName
+  , getGroupings :: TypeName -> Seq (Token, Token)
+  , syncons :: HashMap Name ( SyntaxDescription
+                            , HashMap (SavedPoint ()) Path
+                            , HashSet Path )
+  }
+
+-- | Do some precomputations that are useful for the remaining functions in this module, to
+-- enable sharing some work.
+precompute :: DefinitionFile -> PreLanguage
+precompute df = PreLanguage{..}
   where
-    elaboration = elaborate (syncons df) (forbids df) (precedences df)
+    elaboration = elaborate (P2.syncons df) (P2.forbids df) (P2.precedences df)
     elaborationWithRecs :: HashMap (Name, SDName) (HashSet Name)
     elaborationWithRecs = M.unionWith S.union fixedOriginals recAdditions
       where
@@ -58,11 +67,13 @@ treeLanguage df =
                          _ -> Nothing)
           & M.fromList
         recAdditions = M.fromListWith S.union $ do
-          (n, syncon) <- M.toList $ syncons df
+          (n, syncon) <- M.toList $ P2.syncons df
           universe (s_syntaxDescription syncon) >>= \case
             SDNamed _ sdname (SDRec _ sdrec) ->
               pure ((n, sdname), M.lookupDefault S.empty (n, Left sdrec) elaboration)
             _ -> []
+
+    bracketKind = P2.bracketKind df
 
     isForbidden :: Name -> SDName -> Name -> Bool
     isForbidden n1 sdname n2 = M.lookup (n1, sdname) elaborationWithRecs
@@ -70,40 +81,70 @@ treeLanguage df =
       & S.member n2
 
     getSyTy :: Name -> TypeName
-    getSyTy n = M.lookup n (syncons df)
+    getSyTy n = M.lookup n (P2.syncons df)
       & compFromJust "P4Parsing.AmbiguityReporter.nodePoints.getSyTy" "Syncon without a type"
       & s_syntaxType
       & snd
 
     tokGroupings :: HashMap TypeName (Seq (Token, Token))
-    tokGroupings = groupings df <&> fmap (mkTok *** mkTok)
-    getGrouping :: TypeName -> Seq (Token, Token)
-    getGrouping tyn = M.lookup tyn tokGroupings & fold
+    tokGroupings = P2.groupings df <&> fmap (mkTok *** mkTok)
+    getGroupings :: TypeName -> Seq (Token, Token)
+    getGroupings tyn = M.lookup tyn tokGroupings & fold
 
-    info :: HashMap Name (SyntaxDescription, HashMap (SavedPoint ()) Path, HashSet Path)
-    info = syncons df <&> \Syncon{..} ->
+    syncons :: HashMap Name (SyntaxDescription, HashMap (SavedPoint ()) Path, HashSet Path)
+    syncons = P2.syncons df <&> \Syncon{..} ->
       let sd = s_syntaxDescription
           sps = discoverSavePoints isSyTy (snd s_syntaxType) sd
           paths = S.fromList $ toList sps
       in (sd, sps, paths)
 
     isSyTy :: TypeName -> Bool
-    isSyTy tyn = M.lookup tyn (syntaxTypes df) & maybe False isLeft
+    isSyTy tyn = M.lookup tyn (P2.syntaxTypes df) & maybe False isLeft
+
+-- | Produce the shortest sequence of 'Token's that could be parsed as the given
+-- node. Note that there is no guarantee at all that the produced sequence is
+-- unambiguous, merely that it is valid.
+fastShortest :: PreLanguage -> Node -> Seq Token
+fastShortest pl@PreLanguage{..} n@Node{n_name} =
+  zipWith genSegment (toList points) (tail $ fst <$> toList points)
+  & mconcat
+  where
+    (sd, _, paths) = M.lookup n_name syncons
+      & compFromJust "P4Parsing.AmbiguityReporter.mkLanguage" "Missing syncon"
+    groupings = getGroupings $ getSyTy n_name
+
+    points = pathPoints pl n
+
+    genSegment :: (Path, Maybe (SavedPoint Node))
+               -> Path
+               -> Seq Token
+    genSegment (start, point) end =
+      foldMap genPoint point <> Regex.shortestWord (regexIntermission sd start end paths)
+
+    genPoint :: SavedPoint Node -> Seq Token
+    genPoint (TokPoint _ tok) = Seq.singleton tok
+    genPoint (NodePoint sdname _ node@Node{n_name=innerName})
+      | isForbidden n_name sdname innerName = groupings
+        & head
+        & compFromJust "P5DynamicAmbiguity.TreeLanguage.fastShortest.genPoint"
+          ("No grouping available for syncon " <> coerce innerName <> ", but it's required since it's forbidden inside " <> coerce n_name)
+        & \(pre, post) -> pre Seq.:<| (result Seq.:|> post)
+      | otherwise = result
+      where
+        result = fastShortest pl node
+
+    tail :: [a] -> [a]
+    tail [] = []
+    tail (_:as) = as
 
 -- | Generate a 'NVA' that recognizes the words that can parse as a given AST.
 -- The NVA will push and pop 'Nothing' for opening and closing brackets internal
 -- to a syncon, and Just n for the nth paren location, to ensure that grouping
 -- parens are paired appropriately. (TODO: update documentation comment)
-mkLanguage :: (Name -> SDName -> Name -> Bool)  -- ^ True if forbidden
-           -> (Either Text TypeName -> BracketKind)
-           -> (Name -> TypeName)
-           -> (TypeName -> Seq (Token, Token))
-           -> HashMap Name ( SyntaxDescription
-                           , HashMap (SavedPoint ()) Path
-                           , HashSet Path )
+mkLanguage :: PreLanguage
            -> Node
            -> EpsNVA Int (Either () Int) Token Token Token
-mkLanguage isForbidden bracketKind getSyTy getGroupings syncons n@Node{n_name} =
+mkLanguage pl@PreLanguage{..} n@Node{n_name} =
   zipWith genSegment (toList points) (tail $ fst <$> toList points)
   & mconcat
   where
@@ -113,12 +154,10 @@ mkLanguage isForbidden bracketKind getSyTy getGroupings syncons n@Node{n_name} =
       & zip [-1,-2..]
       <&> first Right
       & Seq.fromList
-    (sd, pointToPathMap, paths) = M.lookup n_name syncons
+    (sd, _, paths) = M.lookup n_name syncons
       & compFromJust "P4Parsing.AmbiguityReporter.mkLanguage" "Missing syncon"
-    pointToPath point = M.lookup (asLookupPoint point) pointToPathMap
-      & compFromJust "P4Parsing.AmbiguityReporter.mkLanguage" ("Missing path for point " <> show point <> " in " <> show pointToPathMap)
 
-    points = (Start, Nothing) Seq.:<| (((pointToPath &&& Just) <$> nodePoints getSyTy n) Seq.:|> (End, Nothing))
+    points = pathPoints pl n
 
     genSegment :: (Path, Maybe (SavedPoint Node))
                -> Path
@@ -150,7 +189,7 @@ mkLanguage isForbidden bracketKind getSyTy getGroupings syncons n@Node{n_name} =
         mkOptEdge s (sta, o) = (s, o, (sta, s))
         mkMandEdge s1 s2 (sta, o) = (s1, o, (sta, s2))
         addTransitions = M.unionWith $ M.unionWith S.union
-        innerLang = mkLanguage isForbidden bracketKind getSyTy getGroupings syncons node
+        innerLang = mkLanguage pl node
 
     regexToEpsNVA :: Regex Token -> EpsNVA Int (Either () Int) Token Token Token
     regexToEpsNVA = Regex.toAutomaton >>> fromNFA tag >>> EpsNVA.mapSta Left
@@ -179,6 +218,20 @@ asLookupPoint :: SavedPoint node -> SavedPoint ()
 asLookupPoint (TokPoint sdname (OtherTokInstance tyn _)) = TokPoint sdname (OtherTok tyn)
 asLookupPoint (TokPoint sdname tok) = TokPoint sdname tok
 asLookupPoint (NodePoint sdname tyn _) = NodePoint sdname tyn ()
+
+-- | Produce a list of paths of a given 'Node'. This is essentially the result of
+-- 'nodePoints', but converted to 'Path's, plus a 'Start' and 'End'. The original
+-- node points remain as the second component of the tuple, i.e., the second component
+-- is 'Nothing' iff the first component is 'Start' or 'End'.
+pathPoints :: PreLanguage -> Node -> Seq (Path, Maybe (SavedPoint Node))
+pathPoints PreLanguage{syncons,getSyTy} n@Node{n_name} = (Start, Nothing) Seq.:<|
+  (((pointToPath &&& Just) <$> nodePoints getSyTy n)
+   Seq.:|> (End, Nothing))
+  where
+    (_, pointToPathMap, _) = M.lookup n_name syncons
+      & compFromJust "P4Parsing.AmbiguityReporter.findPoints" "Missing syncon"
+    pointToPath point = M.lookup (asLookupPoint point) pointToPathMap
+      & compFromJust "P4Parsing.AmbiguityReporter.findPoints" ("Missing path for point " <> show point <> " in " <> show pointToPathMap)
 
 -- | Produce a list of the saved points of a single node, in the order they appeared in
 -- the original source.

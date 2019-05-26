@@ -31,7 +31,9 @@ import qualified P2LanguageDefinition.Elaborator as LD
 import qualified P4Parsing.Types as Parser
 import qualified P4Parsing.Parser as Parser
 
+import qualified P5DynamicAmbiguity.Types as DynAmb
 import qualified P5DynamicAmbiguity.AmbiguityReporter as DynAmb
+import qualified P5DynamicAmbiguity.TreeLanguage as DynAmb
 
 import qualified Data.Automaton.NVA as NVA
 import qualified Data.Automaton.GraphViz as GraphViz
@@ -113,11 +115,17 @@ parseToHTMLDebug defFiles sourceFile outFile = do
   putStrLn @Text "Parsing source file"
   setOfNodes <- parseFile sourceFile >>= dataOrError fileSource
   case DynAmb.report df setOfNodes of
-    Data node -> universe node >>= nodeAnnotation
-      & annotate fileSource
-      & putInTextTemplate (toS $(embedFile "resources/htmlTemplate.html"))
-      & writeFile outFile
-      & (>> putStrLn @Text "Done")
+    Data node -> do
+      DynAmb.fastShortest (DynAmb.precompute df) node
+        <&> DynAmb.textualToken
+        & Seq.intersperse " "
+        & fold
+        & putStrLn
+      universe node >>= nodeAnnotation
+        & annotate fileSource
+        & putInTextTemplate (toS $(embedFile "resources/htmlTemplate.html"))
+        & writeFile outFile
+        & (>> putStrLn @Text "Done")
     Error errs -> formatError <$> errs
       & formatErrors fileSource
       & putStrLn
@@ -133,9 +141,8 @@ nodeAnnotation n = (range n, Parser.n_name n & coerce)
 
 dataOrError :: (Functor f, Foldable f, FormatError e) => HashMap Text Text -> Result (f e) a -> IO a
 dataOrError _ (Data a) = return a
-dataOrError source (Error e) = do
-  putStrLn $ formatErrors source $ formatError <$> e
-  compErr "Main.dataOrError" "Got error"
+dataOrError source (Error e) =
+  die $ formatErrors source $ formatError <$> e
 
 dataOrError' :: Show e => Result e a -> IO a
 dataOrError' (Data a) = return a
