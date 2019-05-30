@@ -414,27 +414,32 @@ We can divide the productions present in a programming language grammar in two g
 Thus we wish the output of parsing to be a syntax tree consisting entirely of semantically important productions. This distinction is useful to make, because it allows us to decouple \emph{what} we want to be expressible and \emph{how} it is to be expressed.
 
 \begin{figure}
+\centering
+\begin{minipage}{.47\textwidth}
+  \centering
   \begin{tabular}{@{}ll@{}}
       Terminals & $t \in \T$ \\
       Non-terminals & $N \in \NT$ \\
       Labels & $l \in \Labels$ \\
       Marks & $m \subseteq \Labels$ \\
-      Regular expressions & $r ::= t \mid N_m \mid r \cdot r \mid r + r \mid \epsilon \mid r^{*}$ \\
+      Regular expressions & $r ::= t \mid N_m \mid r \cdot r $ \\
+      & \hphantom{$r ::=$}$\mid r + r \mid \epsilon \mid r^{*}$ \\
       Labelled productions & $N -> l : r$ \\
   \end{tabular}
-  \caption{The abstract syntax of a language definition.}
+  \captionof{figure}{The abstract syntax of a language definition.}
   \label{fig:input-language-definition}
-\end{figure}
-
-\begin{figure}
+\end{minipage}\quad
+\begin{minipage}{.45\textwidth}
+  \centering
   \begin{tabular}{@{}l@{\quad$->$\quad}c@{ $:$\quad}l@{}}
     $E$ & $l$ & \verb|'['| ($E$ (\verb|';'| $E$)$^{*}$ $+$ $\epsilon$) \verb|']'| \\
     $E$ & $a$ & $E$ \verb|'+'| $E$ \\
     $E$ & $m$ & $E_{\{a\}}$ \verb|'*'| $E_{\{a\}}$ \\
     $E$ & $n$ & $N$ \\
   \end{tabular}
-  \caption{The input language definition used as a running example, an expression language with lists, addition, and multiplication, with precedence defined, but not associativity. Assumes that $N$ matches a numeric terminal.}
+  \captionof{figure}{The input language definition used as a running example, an expression language with lists, addition, and multiplication, with precedence defined, but not associativity. Assumes that $N$ matches a numeric terminal.}
   \label{fig:running-example-definition}
+\end{minipage}
 \end{figure}
 
 With that in mind, we define a language definition $D$ as a set of labelled productions, as described in Figure~\ref{fig:input-language-definition}. Note that we require the labels to uniquely identify the production, i.e., there can be no two distinct productions in $D$ that share the same label. A \emph{mark} is used for disambiguation, and forbids certain productions from taking the place of the marked non-terminal. To lessen clutter, we will write $E_\emptyset$ as $E$. As an example, consider the language definition in Figure~\ref{fig:running-example-definition}, which will be used as a running example. In the production describing multiplication ($m$) both non-terminals are marked with $\{a\}$, which thus forbids addition from being a child of a multiplication, enforcing conventional precedence.
@@ -449,6 +454,41 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. The f
 \end{itemize}
 
 \begin{figure}
+
+  \begin{subfigure}[t]{.45\linewidth}
+    \centering
+    \begin{tabular}{@{}l@{\quad$->$\quad}c@{$($ }l@{}}
+      \toprule
+      $E$ & $l$ & \verb|'['| $(\epsilon + E($\verb|';'| $E)^{*})$ \verb|']'| $)$ \\
+      $E$ & $a$ & $E$ \verb|'+'| $E$ $)$ \\
+      $E$ & $m$ & $E$ \verb|'*'| $E$ $)$ \\
+      $E$ & $n$ & $N$ $)$ \\
+      \bottomrule
+    \end{tabular}
+    \caption{$T_D$, the parse trees of $G_D$.}
+    \label{fig:running-example-generated:t}
+  \end{subfigure}%
+%
+  \begin{subfigure}[t]{.45\linewidth}
+    \centering
+    \begin{tabular}{@{}l@{\quad$->$\quad}c@{$($ }l@{}}
+      \toprule
+      $E$ & $l$ & \verb|'['| $(\epsilon + E($\verb|';'| $E)^{*})$ \verb|']'| $)$ \\
+      $E$ & $a$ & $E$ \verb|'+'| $E$ $)$ \\
+      $E$ & $m$ & $E_{\{a\}}$ \verb|'*'| $E_{\{a\}}$ $)$ \\
+      $E$ & $n$ & $N$ $)$ \\
+      $E$ & $g$ & \verb|'('| $E$ \verb|')'| $)$ \\
+      \midrule
+      $E_{\{a\}}$ & $l$ & \verb|'['| $(\epsilon + E($\verb|';'| $E)^{*})$ \verb|']'| $)$ \\
+      $E_{\{a\}}$ & $m$ & $E_{\{a\}}$ \verb|'*'| $E_{\{a\}}$ $)$ \\
+      $E_{\{a\}}$ & $n$ & $N$ $)$ \\
+      $E_{\{a\}}$ & $g$ & \verb|'('| $E$ \verb|')'| $)$ \\
+      \bottomrule
+    \end{tabular}
+    \caption{$T'_D$, the parse trees of $G'_D$.}
+    \label{fig:running-example-generated:t-prime}
+  \end{subfigure}
+
   \begin{subfigure}[t]{.45\linewidth}
     \centering
     \begin{tabular}{@{}l@{\quad$->$\quad}l@{}}
@@ -469,20 +509,6 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. The f
     \label{fig:running-example-generated:w}
   \end{subfigure}%
 %
-  \begin{subfigure}[t]{.54\linewidth}
-    \centering
-    \begin{tabular}{@{}l@{\quad$->$\quad}c@{$($ }l@{}}
-      \toprule
-      $E$ & $l$ & \verb|'['| $(\epsilon + E($\verb|';'| $E)^{*})$ \verb|']'| $)$ \\
-      $E$ & $a$ & $E$ \verb|'+'| $E$ $)$ \\
-      $E$ & $m$ & $E$ \verb|'*'| $E$ $)$ \\
-      $E$ & $n$ & $N$ $)$ \\
-      \bottomrule
-    \end{tabular}
-    \caption{$T_D$, the parse trees of $G_D$.}
-    \label{fig:running-example-generated:t}
-  \end{subfigure}
-
   \begin{subfigure}[t]{.45\linewidth}
     \centering
     \begin{tabular}{@{}l@{\quad$->$\quad}l@{}}
@@ -507,27 +533,7 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. The f
     \end{tabular}
     \caption{$G'_D$, the generated concrete syntax.}
     \label{fig:running-example-generated:w-prime}
-  \end{subfigure}%
-%
-  \begin{subfigure}[t]{.54\linewidth}
-    \centering
-    \begin{tabular}{@{}l@{\quad$->$\quad}c@{$($ }l@{}}
-      \toprule
-      $E$ & $l$ & \verb|'['| $(\epsilon + E($\verb|';'| $E)^{*})$ \verb|']'| $)$ \\
-      $E$ & $a$ & $E$ \verb|'+'| $E$ $)$ \\
-      $E$ & $m$ & $E_{\{a\}}$ \verb|'*'| $E_{\{a\}}$ $)$ \\
-      $E$ & $n$ & $N$ $)$ \\
-      $E$ & $g$ & \verb|'('| $E$ \verb|')'| $)$ \\
-      \midrule
-      $E_{\{a\}}$ & $l$ & \verb|'['| $(\epsilon + E($\verb|';'| $E)^{*})$ \verb|']'| $)$ \\
-      $E_{\{a\}}$ & $m$ & $E_{\{a\}}$ \verb|'*'| $E_{\{a\}}$ $)$ \\
-      $E_{\{a\}}$ & $n$ & $N$ $)$ \\
-      $E_{\{a\}}$ & $g$ & \verb|'('| $E$ \verb|')'| $)$ \\
-      \bottomrule
-    \end{tabular}
-    \caption{$T'_D$, the parse trees of $G'_D$.}
-    \label{fig:running-example-generated:t-prime}
-  \end{subfigure}%
+  \end{subfigure}
   \caption{The generated grammars.}
   \label{fig:running-example-generated}
 \end{figure}
@@ -538,11 +544,7 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. The f
 \newcommand{\terminal}[1]{\ \underline{#1}\ }
 
 \begin{figure}
-  \begin{subfigure}[b]{.40\linewidth}
-    \[1 + 2 * 3\]
-    \caption{Example word in $L(G_D)$.}
-  \end{subfigure}
-  \begin{subfigure}[b]{.55\linewidth}
+  \begin{subfigure}[b]{.45\linewidth}
     \begin{center}
     \Tree [.{$m$}
         [.{$a$}
@@ -555,12 +557,7 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. The f
     \[m(a(n(\terminal{1}) \terminal{+} n(\terminal{2})) \terminal{*} n(\terminal{3}))\]
     \caption{Example tree in $L(T_D)$ and visualization.}
   \end{subfigure}
-
-  \begin{subfigure}[b]{.40\linewidth}
-    \[(1 + 2) * 3\]
-    \caption{Example word in $L(G'_D)$.}
-  \end{subfigure}
-  \begin{subfigure}[b]{.55\linewidth}
+  \begin{subfigure}[b]{.45\linewidth}
     \begin{center}
     \Tree [.{$m$}
         [.{$g$}
@@ -575,6 +572,15 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. The f
     \end{center}
     \[m(g( \terminal{(} a(n( \terminal{1} ) \terminal{+} n( \terminal{2} )) \terminal{)} ) \terminal{*} n( \terminal{3} ))\]
     \caption{Example tree in $L(T'_D)$ and visualization.}
+  \end{subfigure}
+
+  \begin{subfigure}[b]{.40\linewidth}
+    \[1 + 2 * 3\]
+    \caption{Example word in $L(G_D)$.}
+  \end{subfigure}
+  \begin{subfigure}[b]{.40\linewidth}
+    \[(1 + 2) * 3\]
+    \caption{Example word in $L(G'_D)$.}
   \end{subfigure}
   \caption{Example with elements from each generated language that correspond to each other. The leaf terminals in the tree languages appear underlined to distinguish the two kinds of parentheses.}
   \label{fig:example-words-in-square}
@@ -596,8 +602,8 @@ $$
 
 \begin{figure}
   \begin{tikzcd}
-    L(G_D) & L(T_D) \arrow[l, "\yield"] \\
-    L(G'_D) & L(T'_D) \arrow[u, "\semantic"'] \arrow[l, "\yield"]
+    L(T_D) \arrow[d, "\yield"] & L(T'_D) \arrow[l, "\semantic"'] \arrow[d, "\yield"] \\
+    L(G_D) & L(G'_D)
   \end{tikzcd}
   \caption{The grammars considered, and their relation to each other.}
   \label{fig:grammar-square}
@@ -622,7 +628,7 @@ $$
   \end{tabular}
 \end{center}
 
-\noindent This ambiguity can be resolved however, since $\parse($\verb|'1 + (2 + 3)'|$) = \{t_1\}$ and $\parse($\verb|'(1 + 2) + 3'|$) = \{t_2\}$. To demonstrate the unresolvable case, we add the production $E -> s: E$ \verb|';'| $E$, at which point we find that the word \verb|'[1 ; 2]'| is unresolvably ambiguous; $\parse($\verb|'[1 ; 2]'|$) = \{t_3, t_4\}$ where:
+\noindent This ambiguity can be resolved, since $\parse($\verb|'1 + (2 + 3)'|$) = \{t_1\}$ and $\parse($\verb|'(1 + 2) + 3'|$) = \{t_2\}$. To demonstrate the unresolvable case, we add the production $E -> s: E$ \verb|';'| $E$, at which point we find that the word \verb|'[1 ; 2]'| is unresolvably ambiguous; $\parse($\verb|'[1 ; 2]'|$) = \{t_3, t_4\}$ where:
 
 \begin{center}
   \begin{tabular}{l}
@@ -631,9 +637,9 @@ $$
   \end{tabular}
 \end{center}
 
-\noindent In this case, $t_4$ has an unambigous word (namely \verb|'[(1 ; 2)]'|), but $t_3$ does not. The solution is to modify the language definition in Figure~\ref{fig:running-example-definition} so that both non-terminals in the production $l$ are marked with $s$ (i.e., they look like $E_{\{s\}}$), at which point $\parse($\verb|'[1 ; 2]'|$) = \{t_1\}$.
+\noindent In this case, $t_4$ has an unambigous word (namely \verb|'[(1 ; 2)]'|), but $t_3$ does not. The solution is to modify the language definition in Figure~\ref{fig:running-example-definition} so that both non-terminals in the production $l$ are marked with $s$ (i.e., they look like $E_{\{s\}}$), at which point $\parse($\verb|'[1 ; 2]'|$) = \{t_3\}$.
 
-We can expand this to an entire language, stating that a language is resolvably ambiguous iff all its words are resolvably ambiguous, alternatively:
+We can expand this to an entire language, stating that a language is resolvably ambiguous iff all its words are resolvably ambiguous, or more concisely:
 
 \begin{definition}
   A language defined by the language definition $D$ is resolvably ambiguous if:
@@ -654,11 +660,11 @@ We can now state the two central problems we wish to consider:
 \item Dynamic resolvability analysis: given a language definition $D$ and a word $w \in L(G'_D)$, determine if it is resolvably ambiguous, and if so, present an unambiguous word for every tree $t \in \parse(w)$. Section~\ref{sec:dynamic} provides a full solution with one caveat: it only considers languages with balanced parentheses.
 \end{itemize}
 
-\noindent Additionally, on the dynamic side, there is another property of great practical relevance; we want ambiguities to be minimal and independent. In a practical setting, it is rarely helpful to merely state that an entire program is ambiguous. Instead, we wish to minimize the reported ambiguous portion of the program to, e.g., a sigle expression. Section~\ref{sec:local} addresses this.
+\noindent Additionally, on the dynamic side, there is another property of great practical relevance; we want ambiguities to be minimal and independent. In a practical setting, it is rarely helpful to merely state that an entire program is ambiguous. Instead, we wish to minimize the reported ambiguous portion of the program to, e.g., a single expression. Section~\ref{sec:local} addresses this.
 
 \section{Static Resolvability Analysis} \label{sec:static}
 
-This section describes a decision algorithm for detecting unresolvable ambiguities in a language definition, starting with a version with several limitations, most of which are later lifted. The overarching goal is to find a tree $t \in L(G_t)$ such that there is no $w' \in L(G'_w)$ for which $\parse(w') = \{t\}$. Alternatively, find a tree that has no unambiguous words.
+This section describes a decision algorithm for detecting unresolvable ambiguities in a language definition, starting with a version with several limitations, most of which are later lifted. The overarching goal is to find a tree $t \in L(G_t)$ such that there is no $w' \in L(G'_w)$ for which $\parse(w') = \{t\}$, or prove that no such tree exists. Alternatively, find a tree that has no unambiguous words.
 
 \subsection{An Alternative Word View} \label{sec:word-view}
 
