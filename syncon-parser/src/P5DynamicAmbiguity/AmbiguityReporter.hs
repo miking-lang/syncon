@@ -24,11 +24,11 @@ import Data.Automaton.EpsilonNVA (untag, TaggedTerminal(..))
 import ErrorMessage (FormatError(..), simpleErrorMessage)
 
 import P1Lexing.Types (Range, range, textualRange)
-import P2LanguageDefinition.Types (Name(..), TypeName(..), DefinitionFile(..))
+import P2LanguageDefinition.Types (Name(..), TypeName(..))
 import P4Parsing.Types (pattern Node, n_name)
 import qualified P4Parsing.Types as P4
 import P4Parsing.Parser (SingleLanguage(..))
-import P5DynamicAmbiguity.TreeLanguage (treeLanguage, PreLanguage, precompute)
+import P5DynamicAmbiguity.TreeLanguage (treeLanguage, PreLanguage)
 import P5DynamicAmbiguity.Types
 
 data Error
@@ -63,16 +63,14 @@ instance FormatError Error where
 
 -- | If the argument is a singleton set, return the element, otherwise produce
 -- one or more localized ambiguity errors.
-report :: DefinitionFile -> HashSet Node -> Result [Error] Node
-report df = toList >>> \case
+report :: PreLanguage -> HashSet Node -> Result [Error] Node
+report pl = toList >>> \case
   [] -> compErr "P4Parsing.AmbiguityReporter.report" "Expected one or more parse trees, got zero."
   [top] -> Data top
   forest -> localizeAmbiguities forest
     <&> ((head >>> foldMap range) &&& S.fromList)
     <&> uncurry (resolvability pl)
     & Error
-  where
-    pl = precompute df
 
 localizeAmbiguities :: (Eq l, Eq n) => [P4.Node l n] -> [[P4.Node l n]]
 localizeAmbiguities forest

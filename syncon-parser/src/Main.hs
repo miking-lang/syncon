@@ -9,15 +9,22 @@ import Result (Result(..))
 import FileAnnotation (annotate, putInTextTemplate)
 import ErrorMessage (FormatError, formatErrors, formatError)
 
+import System.Environment (withArgs)
+import System.FilePath ((</>))
+
 import Data.Data (Data)
+import Data.List (partition)
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
 import qualified Data.Sequence as Seq
+import qualified Data.Text as Text
 import Data.FileEmbed (embedFile)
 
 import Data.Generics.Uniplate.Data (universe, universeBi)
 import Data.Functor.Foldable (project, cata)
 import Text.Show.Pretty (pPrint)
+
+import qualified Options.Applicative as Opt
 
 import P1Lexing.Types (Range(..), range, textualRange)
 import qualified P1Lexing.Types as Lexer
@@ -37,98 +44,6 @@ import qualified P5DynamicAmbiguity.TreeLanguage as DynAmb
 
 import qualified Data.Automaton.NVA as NVA
 import qualified Data.Automaton.GraphViz as GraphViz
-
-synconTokens :: Lexer.LanguageTokens LD.TokenKind
-synconTokens = Lexer.LanguageTokens
-  -- Literal tokens
-  [ "token", "=", "syncon", ":", "{", ";", "}", "prefix", "postfix", "infix"
-  , "(", ")", "*", "+", "?", ".", "comment", "left", "right", "precedence", "except"
-  , "type", "builtin", "forbid", "|", "rec", "grouping", "!" ]
-  -- Regex tokens
-  [ (LD.NameTok, (Nowhere, "[[:lower:]][[:word:]]*"))
-  , (LD.TypeNameTok, (Nowhere, "[[:upper:]][[:word:]]*"))
-  , (LD.StringTok, (Nowhere, "\"(\\\\.|[^\"\\\\])*\"")) ]
-  -- Comment regex
-  [((Nowhere, "//[^\\n]*(\\n|$)"), (Nowhere, "^"))]
-
-lexTest :: IO ()
-lexTest = do
-  res <- Lexer.allOneLanguage' @Text "SynconDef" synconTokens "examples/bootstrap.syncon"
-  pPrint $ fmap Lexer.textualToken <$> res
-
-parseTest :: IO ()
-parseTest = do
-  res <- LD.parseFile "examples/bootstrap.syncon"
-  pPrint res
-
--- checkFailTest :: IO ()
--- checkFailTest = do
---   tops <- LD.parseFile "examples/broken.syncon" >>= dataOrError'
---   df <- LD.mkDefinitionFile tops & dataOrError'
---   pPrint df
-
--- checkSuccessTest :: IO ()
--- checkSuccessTest = do
---   tops <- LD.parseFile "examples/bootstrap.syncon" >>= dataOrError'
---   df <- LD.mkDefinitionFile tops & dataOrError'
---   pPrint df
-
-elaborationTest :: IO ()
-elaborationTest = do
-  tops <- LD.parseFile "examples/bootstrap.syncon" >>= dataOrError'
-  df <- LD.mkDefinitionFile tops & dataOrError'
-  pPrint $ LD.elaborate (LD.syncons df) (LD.forbids df) (LD.precedences df)
-
-parse4Test :: IO ()
-parse4Test = do
-  tops <- LD.parseFile "examples/bootstrap.syncon" >>= dataOrError'
-  df <- LD.mkDefinitionFile tops & dataOrError'
-  parseFile <- Parser.parseSingleLanguage df & dataOrError'
-  setOfNodes <- parseFile "examples/bootstrap.syncon" >>= dataOrError'
-  pPrint setOfNodes
-
--- ambigReportingTest :: IO ()
--- ambigReportingTest = do
---   tops <- LD.parseFile "examples/ambig.syncon" >>= dataOrError'
---   df <- LD.mkDefinitionFile tops & dataOrError'
---   parseFile <- Parser.parseSingleLanguage df & dataOrError'
---   setOfNodes <- parseFile "examples/ambig.test" >>= dataOrError'
---   case Parser.report (LD.syncons df) setOfNodes of
---     Data nodes -> pPrint nodes
---     Error errs -> pPrint $ errs <&> \case
---       -- Parser.Ambiguity r alts -> (r, fmap (project >>> fmap (project >>> void)) $ toList alts)
---       Parser.Ambiguity r alts -> (r, fmap (project >>> void) $ toList alts)
-
-parseToHTMLDebug :: [FilePath] -> FilePath -> FilePath -> IO ()
-parseToHTMLDebug defFiles sourceFile outFile = do
-  defSource :: HashMap Text Text <- defFiles
-    <&> toS
-    & S.fromList
-    & S.toMap
-    & M.traverseWithKey (\path _ -> readFile $ toS path)
-  putStrLn @Text "Parsing definition file(s)"
-  tops <- M.traverseWithKey (\defFile _ -> LD.parseFile $ toS defFile) defSource
-          >>= (fold >>> dataOrError defSource)
-  df <- LD.mkDefinitionFile tops & dataOrError defSource
-  parseFile <- Parser.parseSingleLanguage df & dataOrError defSource
-  fileSource <- readFile sourceFile <&> M.singleton (toS sourceFile)
-  putStrLn @Text "Parsing source file"
-  setOfNodes <- parseFile sourceFile >>= dataOrError fileSource
-  case DynAmb.report df setOfNodes of
-    Data node -> do
-      DynAmb.fastShortest (DynAmb.precompute df) node
-        <&> DynAmb.textualToken
-        & Seq.intersperse " "
-        & fold
-        & putStrLn
-      universe node >>= nodeAnnotation
-        & annotate fileSource
-        & putInTextTemplate (toS $(embedFile "resources/htmlTemplate.html"))
-        & writeFile outFile
-        & (>> putStrLn @Text "Done")
-    Error errs -> formatError <$> errs
-      & formatErrors fileSource
-      & putStrLn
 
 nodeAnnotation :: Parser.Node l LD.TypeName -> [(Range, Text)]
 nodeAnnotation n = (range n, Parser.n_name n & coerce)
@@ -171,14 +86,73 @@ testReduce = do
     post = NVA.reduce nva
 
 test :: IO ()
-test = parseToHTMLDebug ["examples/bootstrap.syncon"] "case-studies/ocaml.syncon" "out.html"
+test = withArgs ["examples/bootstrap.syncon", "--source=case-studies/ocaml.syncon", "--html=out.html"] main
+-- test = withArgs ["--help"] main
 
 getArgsSeq :: IO (Seq [Char])
 getArgsSeq = getArgs <&> Seq.fromList
 
+common :: Opt.Parser (IO ())
+common = do
+  html <- optional $ Opt.strOption
+    $ Opt.long "html"
+    <> Opt.metavar "FILE"
+    <> Opt.help "Output the result of parsing as a debug HTML file."
+  outdir <- optional $ Opt.strOption
+    $ Opt.long "out"
+    <> Opt.metavar "DIR"
+    <> Opt.help "\"Pretty\" print all src files to paths relative to DIR. Only works if all files where given as relative paths. Use '.' to overwrite the originals."
+  extraSrcFiles <- many $ Opt.strOption
+    $ Opt.long "source"
+    <> Opt.metavar "FILE"
+    <> Opt.help "Parse this file as a source file, even if its extension is syncon. Can be supplied multiple times."
+  files <- some $ Opt.argument Opt.str $
+    Opt.metavar "FILES..."
+
+  pure $ do
+    let (defFiles, srcFiles) = partition (".syncon" `Text.isSuffixOf`) files
+
+    defSources <- defFiles & S.fromList & S.toMap
+      & M.traverseWithKey (\path _ -> readFile $ toS path)
+    putStrLn @Text "Parsing definition files(s)"
+    tops <- M.traverseWithKey (\defFile _ -> LD.parseFile $ toS defFile) defSources
+      >>= (fold >>> dataOrError defSources)
+    df <- LD.mkDefinitionFile tops & dataOrError defSources
+    parseFile <- Parser.parseSingleLanguage df & dataOrError defSources
+    let pl = DynAmb.precompute df
+
+    srcSources <- extraSrcFiles <> srcFiles & S.fromList & S.toMap
+      & M.traverseWithKey (\path _ -> readFile $ toS path)
+    srcNodes <- flip M.traverseWithKey srcSources $ \path _ -> do
+      putStrLn @Text $ "Parsing \"" <> path <> "\""
+      setOfNodes <- parseFile (toS path) >>= dataOrError srcSources
+      case DynAmb.report pl setOfNodes of
+        Data node -> return node
+        Error errs -> formatError <$> errs
+          & formatErrors srcSources
+          & die
+
+    forM_ html $ \htmlPath -> do
+      putStrLn @Text $ "Writing HTML to \"" <> toS htmlPath <> "\""
+      toList srcNodes >>= universe >>= nodeAnnotation
+        & annotate srcSources
+        & putInTextTemplate (toS $(embedFile "resources/htmlTemplate.html"))
+        & writeFile htmlPath
+
+    forM_ outdir $ \outPath ->
+      forM_ (M.toList srcNodes) $ \(path, node) -> do
+        let fullPath = outPath </> toS path
+        putStrLn @Text $ "Writing to \"" <> toS fullPath <> "\""
+        DynAmb.fastShortest pl node
+          <&> DynAmb.textualToken
+          & Seq.intersperse " "
+          & fold
+          & writeFile fullPath
+
+    putStrLn @Text "All done"
+
 main :: IO ()
-main = getArgsSeq >>= \case
-  defFiles Seq.:|> sourceFile Seq.:|> outFile -> parseToHTMLDebug (toList defFiles) sourceFile outFile
-  args -> putStrLn $
-    "Expected arguments: <syncon-def-file(s)> <source-file> <output-html-file>\n"
-    <> "Got " <> show (length args) <> " arguments: " <> (intercalate " " $ show <$> toList args)
+main = join $ Opt.execParser $ Opt.info (common <**> Opt.helper)
+  $ Opt.fullDesc
+  <> Opt.progDesc "Parse files using syncons. Files with the '.syncon' extension will be treated as definition files and used to generate a parser, which will then be run on the remaining files."
+  <> Opt.header "syncon-parser -- A proof-of-concept parser based on syncons"

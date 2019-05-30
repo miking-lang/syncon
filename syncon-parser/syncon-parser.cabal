@@ -27,6 +27,8 @@ executable syncon-parser
                , uniplate
                , Earley
                , file-embed
+               , optparse-applicative
+               , filepath
   main-is: Main.hs
   other-modules: Pre
                , Result
