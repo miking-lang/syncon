@@ -198,6 +198,10 @@ prefix constrExp: Exp = c:Constr
 infix right consExp: Exp = "::"
 syncon list: Exp = "[" (head:Exp (";" tail:Exp)* ";"?)? "]"
 syncon array: Exp = "[|" (head:Exp (";" tail:Exp)* ";"?)? "|]"
+syncon record: Exp =
+  "{" f:Field (":" ty:TypExpr)? ("=" val:Exp)?
+  (";" ft:Field (":" tyt:TypExpr)? ("=" valt:Exp)?)*
+  ";"? "}"
 postfix application: Exp =
   ( e1:rec
   | "~" l1:LabelName (":" e2:rec)?
@@ -231,26 +235,26 @@ postfix arrayAccess: Exp = "." "(" e:Exp ")"
 infix right arrayUpdate: Exp = "." "(" e:Exp ")" "<-"
 postfix stringAccess: Exp = "." "[" e:Exp "]"
 infix right stringUpdate: Exp = "." "[" e:Exp "]" "<-"
-syncon if: Exp = "if" c:Exp "then" t:Exp ("else" e:Exp)?
+prefix if: Exp = "if" c:Exp "then" (t:Exp "else")?
 syncon while: Exp = "while" c:Exp "do" b:Exp "done"
 syncon for: Exp = "for" v:ValueName "=" e1:Exp "to" e2:Exp "do" b:Exp "done"
 syncon forDownto: Exp = "for" v:ValueName "=" e1:Exp "downto" e2:Exp "do" b:Exp "done"
 infix right seqComp: Exp = ";"
-syncon match: Exp =
+prefix match: Exp =
   "match" e:Exp "with"
-  "|"? p1:Pat ("when" c1:Exp)? "->" r1:Exp
-  ("|" p:Pat ("when" c:Exp)? "->" r:Exp)*
+  "|"? p1:Pat ("when" c1:Exp)? "->"
+  (r:Exp "|" p:Pat ("when" c:Exp)? "->")*
 
-syncon function: Exp =
+prefix function: Exp =
   "function"
-  "|"? p1:Pat ("when" c1:Exp)? "->" r1:Exp
-  ("|" p:Pat ("when" c:Exp)? "->" r:Exp)*
+  "|"? p1:Pat ("when" c1:Exp)? "->"
+  (r:Exp "|" p:Pat ("when" c:Exp)? "->")*
 
 prefix fun: Exp = "fun" p:Parameter+ (":" ty:TypExpr)? "->"
-syncon try:
-  Exp = "try" e:Exp "with"
-  "|"? p1:Pat ("when" c1:Exp)? "->" r1:Exp
-  ("|" p:Pat ("when" c:Exp)? "->" r:Exp)*
+prefix try: Exp =
+  "try" e:Exp "with"
+  "|"? p1:Pat ("when" c1:Exp)? "->"
+  (r:Exp "|" p:Pat ("when" c:Exp)? "->")*
 
 prefix let: Exp =
   "let" recursive:"rec"? l:LetBinding
@@ -292,7 +296,7 @@ precedence {
   application constrExp assert lazy;
   neg negFloat;
   customStarStarOp lsl lsr asr;
-  customStarOp customDivOp customPercentOp mod land lor lxor;
+  customStarOp customDivOp customPercentOp product mod land lor lxor;
   customPlusOp customMinusOp sum difference differenceFloat;
   consExp;
   customAtOp customCaretOp;
@@ -301,11 +305,12 @@ precedence {
   orText or;
   tuple;
   fieldUpdate arrayUpdate stringUpdate refAssign;
-  !if;
+  if;
   seqComp;
-  let letModule letOpen fun !match !function !try;
+  trailSemiParen;
+  let letModule letOpen fun match function try;
 }
-// TODO: write out forbids for "if", "match", "function", and "try"
+// TODO: write out forbids for "match", "function", and "try"
 
 type LetBinding
 syncon patBinding: LetBinding = p:Pat "=" e:Exp
@@ -449,6 +454,15 @@ forbid application.left = constrLit
 forbid arrayAccess.left = constrLit
 forbid fieldAccess.left = constrLit
 
+forbid list.head = seqComp
+forbid list.tail = seqComp
+forbid list.head = trailSemiParen
+forbid list.tail = trailSemiParen
+forbid array.head = seqComp
+forbid array.tail = seqComp
+forbid array.head = trailSemiParen
+forbid array.tail = trailSemiParen
+
 forbid tuple.a = tuple
 forbid tuple.b = tuple
 
@@ -462,3 +476,14 @@ forbid constrDecl.head = prodType
 forbid constrDecl.tail = prodType
 
 // Tokens: I disallowed a preceeding minus in integers, instead relying on unary negation
+
+// trailing semicolons in most places where a sequence of expressions is expected. I suspect the implementation isn't really semicolon as an infix operator at all, but rather a (optionally semicolon terminated) semicolon-separated list of expressions in certain locations
+postfix trailSemiParen: Exp = ";" // This is also inserted in the precedence list, just below seqComp. it is possible that this means that we parse more things than ocaml proper does
+forbid trailSemiParen.left = trailSemiParen
+
+forbid seqComp.left = seqComp
+forbid seqComp.right = trailSemiParen
+
+// I made if into a prefix operator, which makes the shape of the ast a little bit weird (when if.t has an entry, if.right is the else branch, otherwise it's the then branch)
+// similar changes to match, try, and function
+// fun is similarly made into a prefix operator, but the thing that we would logically consider the body is always located at fun.right, so it's not as weird
