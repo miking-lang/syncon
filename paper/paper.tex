@@ -368,7 +368,7 @@ This gives us some nice properties. Of particular relevance to this paper are th
 
 \subsection{Unranked Regular Tree Grammars} \label{sec:preliminaries-trees}
 
-Trees generalize words by allowing each terminal to have more than one successor. The successors have an associated ordering, i.e., in the presence of multiple successors, one is considered to be first, one second, etc. Most literature considers \emph{ranked} tree languages, where each terminal has a fixed arity, i.e., the same terminal must always have the same number of successors. This is as opposed to \emph{unranked} tree languages, where the arity of a terminal is not fixed. In this case, the sequence of successors to a single terminal tends to be described by a word language (referred to as a horizontal language in \cite{comonTreeAutomataTechniques2007}), often a regular language.
+Trees generalize words by allowing each terminal to have multiple ordered successors, instead of just zero or one. Most literature considers \emph{ranked} tree languages, where each terminal has a fixed arity, i.e., the same terminal must always have the same number of successors. This is as opposed to \emph{unranked} tree languages, where the arity of a terminal is not fixed. In this case, the sequence of successors to a single terminal tends to be described by a word language (referred to as a horizontal language in \cite{comonTreeAutomataTechniques2007}), often a regular language.
 
 Our later results and properties are more naturally described through unranked trees, thus all further references to trees are to unranked trees, despite ranked being more common in the literature. We further distinguish terminals used solely as leaves from terminals that may be either nodes or leaves, to give a more natural definition of $\yield$.
 
@@ -381,7 +381,7 @@ An unranked tree grammar $T$ is a tuple $(\NT, \T, X, P, S)$ where:
 \item $P$ is a set of productions, where a production has the form $N -> x(r)$ for $N \in \NT$, $x \in X$, and $r$ a regular expression over $\NT$ and $\T$.
 \end{itemize}
 
-\noindent A tree $t$ is recognized by $T$ if there is a sequence of steps starting with $S$ and ending with $t$, where each step either replaces a single non-terminal using a production in $P$, or replaces a regular expression $r$ with a sequence in $L(r)$. The set of trees recognized by $T$ is written $L(T)$\footnote{All word grammars will be named $G$ (possibly with a subscript), while all tree grammars will be named $T$ (possibly with a subscript), lessening the risk of confusion between the two cases.}, and is said to be the tree language of $T$.
+\noindent A tree $t$ (containing only terminals from $\T$ and $X$) is recognized by $T$ if there is a sequence of steps starting with $S$ and ending with $t$, where each step either replaces a single non-terminal using a production in $P$, or replaces a regular expression $r$ with a sequence in $L(r)$. The set of trees recognized by $T$ is written $L(T)$\footnote{All word grammars will be named $G$ (possibly with a subscript), while all tree grammars will be named $T$ (possibly with a subscript), lessening the risk of confusion between the two cases.}, and is said to be the tree language of $T$.
 
 $\yield$ then, is the sequence $w \in \T^{*}$ of terminals $t \in \T$ obtained by a left-to-right traversal of a tree. Informally, it is the flattening of a tree after all internal nodes have been removed.
 
@@ -454,7 +454,6 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. The f
 \end{itemize}
 
 \begin{figure}
-
   \begin{subfigure}[t]{.45\linewidth}
     \centering
     \begin{tabular}{@{}l@{\quad$->$\quad}c@{$($ }l@{}}
@@ -538,7 +537,7 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. The f
   \label{fig:running-example-generated}
 \end{figure}
 
-\noindent Examples of words in each of these four languages can be seen in Figure~\ref{fig:example-words-in-square}, along with visualizations of the syntax trees.
+\noindent Examples of words in each of these four languages can be seen in Figure~\ref{fig:example-words-in-square}, along with visualizations of the syntax trees. As a memory aid, the prime versions ($G'_D$ and $T'_D$) contain disambiguation (grouping parentheses, precedence, associativity, etc.) while the unprimed versions ($G_D$ and $T_D$) are the straightforward translations from $D$.
 
 {
 \newcommand{\terminal}[1]{\ \underline{#1}\ }
@@ -664,7 +663,32 @@ We can now state the two central problems we wish to consider:
 
 \section{Static Resolvability Analysis} \label{sec:static}
 
-This section describes a decision algorithm for detecting unresolvable ambiguities in a language definition, starting with a version with several limitations, most of which are later lifted. The overarching goal is to find a tree $t \in L(G_t)$ such that there is no $w' \in L(G'_w)$ for which $\parse(w') = \{t\}$, or prove that no such tree exists. Alternatively, find a tree that has no unambiguous words.
+To determine if a given language definition $D$ is resolvably ambiguous we are tasked with the following: find a tree $t \in L(T_D)$ such that there is no $w \in L(G'_D)$ for which $\parse(w) = \{t\}$, or prove that no such tree exists. Or, more briefly put: find a tree that has no unambiguous words or show that none exist.
+
+Before an actual algorithm, we split the problem into three different versions of increasing difficulty. We then lay the groundwork for our correctness proofs, eventually culminating in the algorithm, which we show to be sound and complete for version 1 and sound for version 2.
+
+The three versions are as follows:
+
+\begin{description}
+\item[Version 1] $\T \cap \{$ \verb|'('|$,$ \verb|')'| $\} = \emptyset$ and no non-terminals appear marked, i.e., for all non-terminals $N_m$ appearing on the right-hand side of the labelled productions in $D$, we have $m = \emptyset$.
+\item[Version 2] $\T \cap \{$ \verb|'('|$,$ \verb|')'| $\} = \emptyset$.
+\item[Version 3] There are no constraints on $D$.
+\end{description}
+
+\noindent The first restriction in version 1 states that $D$ cannot contain parentheses. This implies that all parentheses present in $G'_D$ are grouping parentheses. The second restriction implies that no parentheses are required (e.g., assuming normal precedence, the parentheses in ''$(1 + 2) * 3$'' are required, removing them would produce a semantically different tree).
+
+The reason for this split stems from the following insight: double grouping parentheses do not matter, in the sense that, e.g., $\parse($\verb|'((1 + 2)) * 3'|$) = \parse($\verb|'(1 + 2) * 3'|$)$. Version 1 and 2 have only grouping parentheses, meaning that no double parentheses matter. What follows is a brief outline of the remainder of this section, building from that observation. Note that this outline is unlikely to be easy to understand initially, but is rather there to serve as a context to place the various steps in later\footnote{The intent here is to place references to subsections dealing with each of these points. The number of referenced sections will likely not be exactly equal to the number of bulletpoints.}.
+
+\begin{itemize}
+\item We can consider an alternate representation of words that split non-parenthesis terminals from the ranges covered by parentheses, the former as a word, the latter as a multiset or a bag.
+\item In version 1 and 2 the rangebag can be treated as a set, since double parentheses do not matter.
+\item This gives rise to a partitioning of $\words(t)$ for any given $t \in L(T_D)$, where the partitions form a lattice.
+\item That lattice is bounded and uniquely determined by its top and bottom elements.
+\item We can construct a linear representation (i.e., a word) of these lattices.
+\item We can construct a visibly pushdown automaton that recognizes these linear representations, where each successful run corresponds exactly to the tree that generates that lattice.
+\item We can modify the VPDA to recognize larger lattices, i.e., where the top element is greater and/or the bottom element is lesser, while still retaining the connection to the generating trees.
+\item By examining the product automaton of these two automata we can determine whether there exists a pair of distinct trees, such that the lattice of one entirely covers the lattice of the other. This is sufficient for completeness in version 1, but not in version 2.
+\end{itemize}
 
 \subsection{An Alternative Word View} \label{sec:word-view}
 
