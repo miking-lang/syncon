@@ -11,10 +11,10 @@ To run you need to have [stack](https://docs.haskellstack.org/en/stable/README/)
 cd syncon-parser # Ensure you are in the correct directory
 stack setup      # Might not be needed, but eh
 stack build
-stack exec syncon-parser -- examples/bootstrap.syncon examples/broken.syncon out.html
+stack exec syncon-parser -- examples/split1.syncon examples/split2.syncon examples/split.test --html=out.html
 ```
 
-Here `examples/bootstrap.syncon` is the definition file of the language to parse, `examples/broken.syncon` is the source code file to parse, and `out.html` is the output file. If there are errors, those will be printed, otherwise `out.html` will contain an interactive visualization of the parsed syntax tree.
+Here `examples/split1.syncon` and `examples/split2.syncon` are the definition files of the language to parse, `examples/split.test` is the source code file to parse, and `out.html` is the output file. If there are errors, those will be printed, otherwise `out.html` will contain an interactive visualization of the parsed syntax tree. For more options, run `stack exec syncon-parser -- --help`.
 
 
 ## Basics of Defining the Syntactical Aspects of a Language
