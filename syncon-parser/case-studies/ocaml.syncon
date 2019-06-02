@@ -10,7 +10,7 @@ syncon upperIdent: Ident = id:UpperIdent
 token UpperIdent = "[[:upper:]][[:alnum:]_']*"   // was called "capitalized-ident"
 token LowerIdent = "[[:lower:]_][[:alnum:]_']*"  // was called "lowercase-ident"
 
-token Integer = "([0-9][0-9_]*|(0x|0X)[0-9a-fA-F][0-9a-fA-F_]*|(0o|0O)[0-7][0-7_]*|(0b|0B)[0-1][0-1_]*)"  // was called "integer-literal"
+token Integer = "(((0x|0X)[0-9a-fA-F][0-9a-fA-F_]*)|((0o|0O)[0-7][0-7_]*)|((0b|0B)[0-1][0-1_]*)|([0-9][0-9_]*))[lLn]?"  // was called "integer-literal"
 
 // TODO: this does not include hexadecimal notation for floats
 // NOTE: the original made both decimal point and e notation optional, but that makes it overlap with
@@ -25,6 +25,7 @@ token String = "\"([^\"\\\\]|\\\\[\\\\nrtb\"[:space:]]|\\\\[0-9][0-9][0-9]|\\\\x
 token Label = "~[[:lower:]_][[:alnum:]_']*"
 token OptLabel = "\\?[[:lower:]_][[:alnum:]_']*"
 
+token PrefixSymbol = "![!$%&*+\\-./:<=>?@^|~]*|[?!][!$%&*+\\-./:<=>?@^|~]+"
 token HashSymbol = "#[!$%&*+\\-./:<=>?@^|~]+"
 token StarStarSymbol = "\\*\\*[!$%&*+\-./:<=>?@^|~]*"
 token StarSymbol = "\\*([!$%&+\-./:<=>?@^|~][!$%&+\-./:<=>?@^|~]*)?"
@@ -92,25 +93,27 @@ type Constr
 syncon constr: Constr = (mn:ModulePath ".")? n:ConstrName
 
 type TypeConstr
-syncon typeConstr: TypeConstr = (mn:ModulePath ".")? n:TypeConstrName
+syncon typeConstr: TypeConstr = (mn:ExtendedModulePath ".")? n:TypeConstrName
 
 type Field
 syncon field: Field = (mn:ModulePath ".")? n:FieldName
 
 type ModTypePath
-syncon modTypePath: ModTypePath = (mn:ModulePath ".")? n:ModTypeName
+syncon modTypePath: ModTypePath = (mn:ExtendedModulePath ".")? n:ModTypeName
 
 type ClassPath
 syncon classPath: ClassPath = (mn:ModulePath ".")? n:ClassName
 
 type ClassTypePath
-syncon classTypePath: ClassTypePath = (mp:ModulePath ".")? n:ClassName
+syncon classTypePath: ClassTypePath = (mp:ExtendedModulePath ".")? n:ClassName
 
 type ModulePath
 syncon modulePath: ModulePath = (mn:ModuleName ".")* m:ModuleName
 
 type ExtendedModulePath
-syncon extendedModulePath: ExtendedModulePath = mp:ModulePath  // TODO: implement extended modulepaths
+syncon extendedModulePath: ExtendedModulePath =
+  mh:ModuleName ("(" mhp:ExtendedModulePath ")")?
+  ("." mt:ModuleName ("(" mtp:ExtendedModulePath ")")?)*
 
 // === 7.4 Type Expressions ===
 
@@ -204,8 +207,8 @@ syncon record: Exp =
   ";"? "}"
 postfix application: Exp =
   ( e1:rec
-  | "~" l1:LabelName (":" e2:rec)?
-  | "?" l2:LabelName (":" e3:rec)?
+  | l1:Label (":" e2:rec)?
+  | l2:OptLabel (":" e3:rec)?
   )+
 prefix neg: Exp = "-"
 prefix negFloat: Exp = "-."
@@ -269,11 +272,15 @@ prefix letModule: Exp =
   (":" mt:ModuleType)
   "=" me:ModuleExp "in"
 
+postfix methodInvocation: Exp = "#" mn:MethodName
+syncon coercion: Exp = "(" e:Exp (":" fromty:TypExpr)? ":>" ty:TypExpr ")"
+
 prefix letOpen: Exp = "let" "open" mp:ModulePath "in"
 syncon anonOpen: Exp = mp:ModulePath "." "(" e:Exp ")"
 syncon anonOpenList: Exp = mp:ModulePath "." "[" (head:Exp (";" tail:Exp)* ";"?)? "]"  // NOTE: the informal grammar suggests that this is only valid if it's a length 1 list, but the text and compiler clarifies that it works fine for multiple elements
 syncon anonOpenArray: Exp = mp:ModulePath "." "[|" (head:Exp (";" tail:Exp)* ";"?)? "|]"
 
+prefix customPrefixOp: Exp = p:PrefixSymbol
 infix customHashOp: Exp = o:HashSymbol
 infix right customStarStarOp: Exp = o:StarStarSymbol
 infix left customStarOp: Exp = o:StarSymbol
@@ -291,8 +298,9 @@ infix left customAndOp: Exp = o:AndSymbol
 infix left customDollarOp: Exp = o:DollarSymbol
 
 precedence {
+  customPrefixOp;
   fieldAccess arrayAccess stringAccess;
-  customHashOp;
+  customHashOp methodInvocation;
   application constrExp assert lazy;
   neg negFloat;
   customStarStarOp lsl lsr asr;
@@ -307,8 +315,8 @@ precedence {
   fieldUpdate arrayUpdate stringUpdate refAssign;
   if;
   seqComp;
-  trailSemiParen;
   let letModule letOpen fun match function try;
+  trailSemi;
 }
 // TODO: write out forbids for "match", "function", and "try"
 
@@ -448,6 +456,9 @@ forbid application.left = application
 forbid application.e1 = application
 forbid application.e2 = application
 forbid application.e3 = application
+forbid application.e1 = constrExp
+forbid application.e2 = constrExp
+forbid application.e3 = constrExp
 
 forbid application.left = constrLit
 
@@ -456,12 +467,15 @@ forbid fieldAccess.left = constrLit
 
 forbid list.head = seqComp
 forbid list.tail = seqComp
-forbid list.head = trailSemiParen
-forbid list.tail = trailSemiParen
+forbid list.head = trailSemi
+forbid list.tail = trailSemi
 forbid array.head = seqComp
 forbid array.tail = seqComp
-forbid array.head = trailSemiParen
-forbid array.tail = trailSemiParen
+forbid array.head = trailSemi
+forbid array.tail = trailSemi
+
+forbid record.val = seqComp
+forbid record.valt = seqComp
 
 forbid tuple.a = tuple
 forbid tuple.b = tuple
@@ -478,11 +492,9 @@ forbid constrDecl.tail = prodType
 // Tokens: I disallowed a preceeding minus in integers, instead relying on unary negation
 
 // trailing semicolons in most places where a sequence of expressions is expected. I suspect the implementation isn't really semicolon as an infix operator at all, but rather a (optionally semicolon terminated) semicolon-separated list of expressions in certain locations
-postfix trailSemiParen: Exp = ";" // This is also inserted in the precedence list, just below seqComp. it is possible that this means that we parse more things than ocaml proper does
-forbid trailSemiParen.left = trailSemiParen
-
-forbid seqComp.left = seqComp
-forbid seqComp.right = trailSemiParen
+postfix trailSemi: Exp = ";" // This is also inserted in the precedence list, at lowest precedence. it is possible that this means that we parse more things than ocaml proper does
+forbid trailSemi.left = trailSemi
+forbid application.left = trailSemi
 
 // I made if into a prefix operator, which makes the shape of the ast a little bit weird (when if.t has an entry, if.right is the else branch, otherwise it's the then branch)
 // similar changes to match, try, and function

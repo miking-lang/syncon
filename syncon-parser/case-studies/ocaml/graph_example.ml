@@ -62,6 +62,7 @@ and c = 0xDDDDDD
 and t = transp
 ;;
 
+
 let caml = make_image [|
   [|t;t;t;t;t;t;t;t;t;t;t;n;n;n;n;n;n;t;t;t;t;t;t;t;t;t;t;t;t;t;t;t;|];
   [|t;t;t;t;t;t;t;t;t;t;n;n;n;n;n;n;n;n;n;t;t;t;t;t;t;t;t;t;t;t;t;t;|];
@@ -109,31 +110,31 @@ while true do
   draw_image caml !x !y;
 done;;
 *)
-(* set_color (rgb 0 0 0);
- * remember_mode false;
- * try while true do
- *   let st = wait_next_event [Mouse_motion; Button_down; Key_pressed] in
- *   synchronize ();
- *   if st.keypressed then raise Exit;
- *   if st.button then begin
- *     remember_mode true;
- *     draw_image caml st.mouse_x st.mouse_y;
- *     remember_mode false;
- *   end;
- *   let x = st.mouse_x + 16 and y = st.mouse_y + 16 in
- *
- *   moveto 0 y;
- *   lineto (x - 25) y;
- *   moveto 10000 y;
- *   lineto (x + 25) y;
- *
- *   moveto x 0;
- *   lineto x (y - 25);
- *   moveto x 10000;
- *   lineto x (y + 25);
- *
- *   draw_image caml st.mouse_x st.mouse_y;
- * done with Exit -> () *)
+set_color (rgb 0 0 0);
+remember_mode false;
+try while true do
+  let st = wait_next_event [Mouse_motion; Button_down; Key_pressed] in
+  synchronize ();
+  if st.keypressed then raise Exit;
+  if st.button then begin
+    remember_mode true;
+    draw_image caml st.mouse_x st.mouse_y;
+    remember_mode false;
+  end;
+  let x = st.mouse_x + 16 and y = st.mouse_y + 16 in
+
+  moveto 0 y;
+  lineto (x - 25) y;
+  moveto 10000 y;
+  lineto (x + 25) y;
+
+  moveto x 0;
+  lineto x (y - 25);
+  moveto x 10000;
+  lineto x (y + 25);
+
+  draw_image caml st.mouse_x st.mouse_y;
+done with Exit -> ()
 ;;
 
 (* To run this example:
