@@ -16,6 +16,10 @@ import P2LanguageDefinition.Types
 -- associativities on the same levels merely have to stay undefined, there is no good definition.
 data Assoc = AssocLeft | AssocRight
 
+-- | The forbids are generated differently depending on what kind of operator it is, e.g.,
+-- a prefix operator will never be forbidden in RRec, since there's no ambiguity there.
+data OpKind = InfixOp | PrefixOp | PostfixOp | OtherOp
+
 -- | Produce a single structure containing all disambiguation. Note that there won't be a mapping
 -- for the (qualified) sdnames that have no marks, i.e., conceptually the total map is obtained
 -- through `M.lookupDefault S.empty (name, sdname) (elaborate ...)`.
@@ -50,6 +54,16 @@ elaborate syncons forbids (PrecedenceMatrix mat) = elaboratedForbids : assocEntr
     hasAssocForbid :: Name -> Rec -> Bool
     hasAssocForbid name r = M.lookup (name, Left r) elaboratedForbids & fold & S.member name
 
+    opKinds :: HashMap Name OpKind
+    opKinds = recs & M.mapMaybe getKind
+    getKind :: HashSet Rec -> Maybe OpKind
+    getKind recs' = case (LRec `S.member` recs', Rec `S.member` recs', RRec `S.member` recs') of
+      (_, True, _) -> Just OtherOp
+      (True, _, True) -> Just InfixOp
+      (True, _, False) -> Just PostfixOp
+      (False, _, True) -> Just PrefixOp
+      (False, _, False) -> Nothing
+
     -- NOTE: (<>) is ok here because we know that their keySets are disjoint
     processEntry :: (Name, Name) -> Ordering -> Elaboration
     processEntry (n1, n2) EQ = case (M.lookup n1 assocs, M.lookup n2 assocs) of
@@ -63,9 +77,16 @@ elaborate syncons forbids (PrecedenceMatrix mat) = elaboratedForbids : assocEntr
     assocEntries = mat <&> fst & M.mapWithKey processEntry & toList
 
     forbid :: Name -> Rec -> Name -> Elaboration
-    forbid n1 r n2 = if M.lookup n1 recs & fold & S.member r
-      then M.singleton (n1, Left r) (S.singleton n2)
-      else M.empty
+    forbid n1 r n2
+      | LRec <- r
+      , Just PostfixOp <- mKind = M.empty
+      | RRec <- r
+      , Just PrefixOp <- mKind = M.empty
+      | M.lookup n1 recs & fold & S.member r
+      = M.singleton (n1, Left r) (S.singleton n2)
+      | otherwise = M.empty
+      where
+        mKind = M.lookup n2 opKinds
 
 -- | Find all 'Rec's present in the syntax description of a syncon
 getSDRecs :: Syncon -> HashSet Rec
