@@ -359,7 +359,7 @@ regexIntermission fullSd start end (S.delete end -> others) = case (recur fullSd
         result = recur sd path Start
     recur (SDRep _ RepQuestion sd) path target@Path{} = recur sd path target
     recur (SDRep _ RepQuestion sd) path Start = recur sd path Start
-      & mapResult (Choice Eps)
+      & mapPartial (Choice Eps)
       & asNonFail
 
     recur sd path target = compErr "P4Parsing.AmbiguityReporter.RegexIntermission.recur" $
@@ -374,3 +374,5 @@ regexIntermission fullSd start end (S.delete end -> others) = case (recur fullSd
     mapResult f (Done a) = Done $ f a
     mapResult f (Partial a) = Partial $ f a
     mapResult _ Fail = Fail
+    mapPartial f (Partial a) = Partial $ f a
+    mapPartial _ a = a
