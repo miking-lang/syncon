@@ -131,13 +131,15 @@ mkLexer langs = do
     -- Produce a regex that parses whitespace
     mkComment l (begin, end) = do
       beginAnywhere <- compileRegex' l `uncurry` begin
-      let beginStrict = case snd begin & ("^" <>) & compileRegex of
+      let beginStrict = case snd begin & paren & ("^" <>) & compileRegex of
             Left e -> compErr "P1Lexing.Lexer.mkLexer.mkComment" $ "Couldn't compile begin comment when prefixed with ^: " <> show (snd begin) <> ", error: " <> show e
             Right reg -> reg
       endAnywhere <- compileRegex' l `uncurry` end
       pure $ (beginStrict, (beginAnywhere, endAnywhere))
 
-    mkRegex l (n, (r, t)) = (n,) <$> compileRegex' l r ("^" <> t)
+    mkRegex l (n, (r, t)) = (n,) <$> compileRegex' l r ("^" <> paren t)
+
+    paren t = "(" <> t <> ")"
 
 -- TODO: catch file not found stuff and put in 'Result'
 -- | Construct a new 'Lexer' positioned at the beginning of the given file.
