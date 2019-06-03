@@ -106,7 +106,15 @@ resolvability pl r nodes = M.toList languages
       & M.mapWithKey (\node _ -> mkLanguage node)
 
     shortest :: HashMap ResLang [TaggedTerminal Token Token Token]
-    shortest = unsafePerformIO $ shortestUniqueWord 1_000_000 (len + 10) nvas
+    shortest = S.toMap nvas & M.mapMaybeWithKey getResult
       where
         Max len = foldMap (shortestWord >>> fmap (length >>> Max) >>> fold) nvas
         nvas = foldMap S.singleton languages
+        duplicateLangs = toList languages
+          <&> (, Sum @Int 1)
+          & M.fromListWith (<>)
+          & M.filter (getSum >>> (> 1))
+        result = unsafePerformIO $ shortestUniqueWord 1_000_000 (len + 10) nvas
+        getResult nva _
+          | M.member nva duplicateLangs = Nothing
+          | otherwise = M.lookup nva result

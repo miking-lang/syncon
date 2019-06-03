@@ -29,7 +29,7 @@ data TaggedTerminal i o c
   = Open o
   | Inner i
   | Close c
-  deriving (Eq, Generic)
+  deriving (Eq, Generic, Show)
 instance (Hashable i, Hashable o, Hashable c) => Hashable (TaggedTerminal i o c)
 
 untag :: (o -> a) -> (i -> a) -> (c -> a) -> TaggedTerminal i o c -> a

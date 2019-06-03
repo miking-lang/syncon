@@ -86,7 +86,7 @@ testReduce = do
     post = NVA.reduce nva
 
 test :: IO ()
-test = withArgs ["examples/bootstrap.syncon", "--source=case-studies/ocaml.syncon", "--html=out.html"] main
+test = withArgs ["case-studies/ocaml.syncon", "case-studies/ocaml/inside_out.ml", "--html=out.html"] main
 -- test = withArgs ["--help"] main
 
 getArgsSeq :: IO (Seq [Char])
