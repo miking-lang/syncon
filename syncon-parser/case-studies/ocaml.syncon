@@ -4,6 +4,8 @@
 
 comment "\\(\\*" "\\*\\)"
 
+comment "#\\d+ *(\"([^\"\\\\]|\\\\[\\\\nrtb'\"[:space:]]|\\\\[0-9][0-9][0-9]|\\\\x[0-9a-fA-F][0-9a-fA-F]|\\\\o[0-7][0-7][0-7])*\")?"
+
 type Ident
 syncon lowerIdent: Ident = id:LowerIdent
 syncon upperIdent: Ident = id:UpperIdent
@@ -15,11 +17,12 @@ token Integer = "(((0x|0X)[0-9a-fA-F][0-9a-fA-F_]*)|((0o|0O)[0-7][0-7_]*)|((0b|0
 // TODO: this does not include hexadecimal notation for floats
 // NOTE: the original made both decimal point and e notation optional, but that makes it overlap with
 //       Integer, so I've here changed it to require at least one of them (messy regex)
-token Float = "-?([0-9][0-9_]*((\\.[0-9_]*)([eE][+\\-]?[0-9][0-9_])?|(\\.[0-9_]*)?([eE][+\\-]?[0-9][0-9_])))" // was called "float-literal"
+token Float = "-?(0[xX][0-9a-fA-F][0-9a-fA-F_]*\\.[0-9a-fA-F_]*([pP][-+]?\\d[0-9_]*)?)|[0-9][0-9_]*((\\.[0-9_]*)([eE][+\\-]?[0-9][0-9_])?|(\\.[0-9_]*)?([eE][+\\-]?[0-9][0-9_]))" // was called "float-literal"
 
-token Character = "'([^'\\\\]|\\\\[\\\\nrtb\"[:space:]]|\\\\[0-9][0-9][0-9]|\\\\x[0-9a-fA-F][0-9a-fA-F]|\\\\o[0-7][0-7][0-7])'"
+token Character = "'([^'\\\\]|\\\\[\\\\nrtb'\"[:space:]]|\\\\[0-9][0-9][0-9]|\\\\x[0-9a-fA-F][0-9a-fA-F]|\\\\o[0-7][0-7][0-7])'"
 // TODO: strings also have \u{} and \<newline>
-token String = "\"([^\"\\\\]|\\\\[\\\\nrtb\"[:space:]]|\\\\[0-9][0-9][0-9]|\\\\x[0-9a-fA-F][0-9a-fA-F]|\\\\o[0-7][0-7][0-7])*\""
+token String = "\"([^\"\\\\]|\\\\[\\\\nrtb'\"[:space:]]|\\\\[0-9][0-9][0-9]|\\\\x[0-9a-fA-F][0-9a-fA-F]|\\\\o[0-7][0-7][0-7])*\""
+token QuotString = "({\\|([^|]|\\|[^}])*\\|})"
 
 // TODO: these are defined as tokens as opposed to a sequence of other terminals to avoid ambiguity, see if we can get away with the "proper" way to do it
 token Label = "~[[:lower:]_][[:alnum:]_']*"
@@ -48,6 +51,30 @@ token DollarSymbol = "$[!$%&*+\-./:<=>?@^|~]*"
 
 type ValueName
 syncon valueName: ValueName = n:LowerIdent
+syncon operatorName: ValueName = "(" on:OperatorName ")"
+
+type OperatorName
+syncon preOpName: OperatorName = n:PrefixSymbol
+syncon hashOpName: OperatorName = n:HashSymbol
+syncon starStarOpName: OperatorName = n:StarStarSymbol
+syncon starOpName: OperatorName = n:StarSymbol
+syncon divOpName: OperatorName = n:DivSymbol
+syncon percentOpName: OperatorName = n:PercentSymbol
+syncon plusOpName: OperatorName = n:PlusSymbol
+syncon minusOpName: OperatorName = n:MinusSymbol
+syncon atOpName: OperatorName = n:AtSymbol
+syncon caretOpName: OperatorName = n:CaretSymbol
+syncon equalOpName: OperatorName = n:EqualSymbol
+syncon lessThanOpName: OperatorName = n:LessThanSymbol
+syncon greaterThanOpName: OperatorName = n:GreaterThanSymbol
+syncon barOpName: OperatorName = n:BarSymbol
+syncon andOpName: OperatorName = n:AndSymbol
+syncon dollarOpName: OperatorName = n:DollarSymbol
+syncon reservedOpName: OperatorName =
+ (star:"*" | plus:"+" | minus:"-" | floatMinus:"-." | eq:"=" | neq:"!=" |
+  lt:"<" | gt:">" | or:"or" | barOr:"||" | and:"&" | doubleAnd:"&&" |
+  assign:":=" | mod:"mod" | land:"land" | lor:"lor" | lxor:"lxor" |
+  lsl:"lsl" | lsr:"lsr" | asr:"asr")
 // TODO: insert parenthesized operator names here (maybe)
 
 type LabelName
@@ -129,6 +156,23 @@ syncon simpleTypeConstr: TypExpr = n:TypeConstr
 postfix unaryTypeConstr: TypExpr = n:TypeConstr
 syncon manyTypeConstr: TypExpr = "(" head:TypExpr ("," tail:TypExpr)+ ")" n:TypeConstr
 postfix asTyVar: TypExpr = "as" "'" id:Ident
+syncon knownPolyTag: TypExpr =
+  "[" ( ty1:TypExpr? "|" ts1:TagSpec
+      | "`" tn1:TagName ("of" tyo1:TypExpr)?)
+   ("|" ts2:TagSpec)* "]"
+syncon openPolyTag: TypExpr =
+  "[>" ts1:TagSpec? ("|" ts2:TagSpec)* "]"
+syncon closedPolyTag: TypExpr =
+  "[<" "|"? ts1:TagSpecFull ("|" ts2:TagSpecFull)* (">" ("`" tn:TagName)+)? "]"
+
+type TagSpec
+syncon explicitTagSpec: TagSpec = "`" tn1:TagName ("of" tyo1:TypExpr)?
+syncon exprTagSpec: TagSpec = ty:TypExpr
+
+type TagSpecFull
+syncon explicitTagSpecFull: TagSpecFull =
+  "`" tn1:TagName ("of" "&"? tyo1:TypExpr ("&" tyo2:TypExpr))?
+syncon exprTagSpecFull: TagSpecFull = ty:TypExpr
 
 precedence {
   unaryTypeConstr;
@@ -147,6 +191,7 @@ syncon intLit: Exp = i:Integer
 syncon floatLit: Exp = f:Float
 syncon charLit: Exp = c:Character
 syncon stringLit: Exp = s:String
+syncon quotStringLit: Exp = s:QuotString
 syncon constrLit: Exp = c:Constr
 syncon trueLit: Exp = "true"
 syncon falseLit: Exp = "false"
@@ -172,6 +217,8 @@ postfix asPat: Pat = "as" n:ValueName
 syncon typedPat: Pat = "(" p:Pat ":" ty:TypExpr ")"
 infix left orPat: Pat = "|"
 prefix constrAppPat: Pat = c:Constr
+prefix tagAppPat: Pat = "`" t:TagName
+syncon tagShortPat: Pat = "#" ty:TypeConstr
 syncon tupPat: Pat = a:rec ("," b:rec)+
 syncon listPat: Pat = "[" (head:Pat (";" tail:Pat) ";"?)? "]"
 infix right consPat: Pat = "::"
@@ -179,9 +226,14 @@ syncon arrayPat: Pat = "[|" (head:Pat (";" tail:Pat) ";"?)? "|]"
 syncon charRangePat: Pat = a:Character ".." b:Character
 prefix lazyPat: Pat = "lazy"  // Technically from chapter 8.3, but eh
 
+syncon recordPat: Pat =
+  "{" f:Field (":" ty:TypExpr)? ("=" p:Pat)?
+  (";" ft:Field (":" tyt:TypExpr)? ("=" pt:Pat)?)*
+  (";" w:"_")? ";"? "}"
+
 precedence {
   lazyPat;
-  constrAppPat;
+  constrAppPat tagAppPat;
   consPat;
   tupPat;
   orPat;
@@ -198,6 +250,7 @@ syncon beginEnd: Exp = "begin" e:Exp "end"
 syncon typeAnnotation: Exp = "(" e:Exp ":" t:TypExpr ")"
 syncon tuple: Exp = a:rec ("," b:rec)+
 prefix constrExp: Exp = c:Constr
+prefix tagExp: Exp = "`" t:TagName
 infix right consExp: Exp = "::"
 syncon list: Exp = "[" (head:Exp (";" tail:Exp)* ";"?)? "]"
 syncon array: Exp = "[|" (head:Exp (";" tail:Exp)* ";"?)? "|]"
@@ -246,7 +299,12 @@ infix right seqComp: Exp = ";"
 prefix match: Exp =
   "match" e:Exp "with"
   "|"? p1:Pat ("when" c1:Exp)? "->"
-  (r:Exp "|" p:Pat ("when" c:Exp)? "->")*
+  ((refutation:"."|r:Exp) "|" p:Pat ("when" c:Exp)? "->")*
+syncon matchRefutation: Exp =
+  "match" e:Exp "with"
+  ( p1:Pat ("when" c1:Exp)? "->" refutation1:"."
+  | ("|" p2:Pat ("when" c2:Exp)? "->" (refutation2:"."|r2:Exp))*
+    "|" p3:Pat ("when" c3:Exp)? "->" refutation3:".")
 
 prefix function: Exp =
   "function"
@@ -269,7 +327,7 @@ prefix lazy: Exp = "lazy"
 prefix letModule: Exp =
   "let" "module" m:ModuleName
   ("(" an:ModuleName ":" amt:ModuleType ")")*
-  (":" mt:ModuleType)
+  (":" mt:ModuleType)?
   "=" me:ModuleExp "in"
 
 postfix methodInvocation: Exp = "#" mn:MethodName
@@ -301,8 +359,8 @@ precedence {
   customPrefixOp;
   fieldAccess arrayAccess stringAccess;
   customHashOp methodInvocation;
-  application constrExp assert lazy;
-  neg negFloat;
+  application constrExp tagExp assert lazy;
+  neg negFloat prefixPlus;
   customStarStarOp lsl lsr asr;
   customStarOp customDivOp customPercentOp product mod land lor lxor;
   customPlusOp customMinusOp sum difference differenceFloat;
@@ -315,7 +373,7 @@ precedence {
   fieldUpdate arrayUpdate stringUpdate refAssign;
   if;
   seqComp;
-  let letModule letOpen fun match function try;
+  let letModule letOpen fun match !matchRefutation function try;
   trailSemi;
 }
 // TODO: write out forbids for "match", "function", and "try"
@@ -323,7 +381,7 @@ precedence {
 type LetBinding
 syncon patBinding: LetBinding = p:Pat "=" e:Exp
 syncon funcBinding: LetBinding = v:ValueName p:Parameter+ (":" ty:TypExpr)? "=" e:Exp
-syncon polyBinding: LetBinding = v:ValueName ":" (("'" i:Ident)+ ".")? ty:TypExpr
+syncon polyBinding: LetBinding = v:ValueName ":" (("'" i:Ident)+ ".")? ty:TypExpr "=" e:Exp
 
 type Parameter
 syncon patParam: Parameter = p:Pat
@@ -344,13 +402,16 @@ syncon typeDef: SpecAndDef =
 
 type TypeDef
 syncon typeDefSingle: TypeDef =
-  ( (vp:"+"|vm:"-")? "'" ty:Ident
-  | "(" (vhp:"+"|vhm:"-")? tyh:Ident ("," (vtp:"+"|vtm:"-")? "'" tyt:Ident)* ")"
+  ( (vp:"+"|vm:"-")? ("'" ty:Ident | tyw:"_")
+  | "(" (vhp:"+"|vhm:"-")? ("'" tyh:Ident | tywh:"_") ("," (vtp:"+"|vtm:"-")? ("'" tyt:Ident | tywt:"_"))* ")"
   )?
   tyn:TypeConstrName
-  ("=" eq:TypExpr)? // type-equation
+  ("=" eq:TypeEquation)?
   ("=" tyrepr:TypeRepr)? // type-representation
   constraints:("constraint" "'" cvar:Ident "=" cexp:TypExpr)*
+
+type TypeEquation
+syncon tyExprEqn: TypeEquation = ty:TypExpr
 
 type TypeRepr
 syncon adtRepr: TypeRepr =
@@ -362,7 +423,10 @@ syncon emptyRepr: TypeRepr = "|"
 type ConstrDecl
 syncon constrDecl: ConstrDecl =
   (n:ConstrName | "[" "]" | "(" "::" ")")
-  ("of" head:TypExpr ("*" tail:TypExpr)*)?
+  ("of" ca:ConstrArgs)?
+
+type ConstrArgs
+syncon normalConstrArgs: ConstrArgs = head:TypExpr ("*" tail:TypExpr)*
 
 type FieldDecl
 syncon fieldDecl: FieldDecl =
@@ -392,7 +456,7 @@ syncon modTypeConstraint: ModuleConstraint =
   | "(" (vhp:"+"|vhm:"-")? tyh:Ident ("," (vtp:"+"|vtm:"-")? "'" tyt:Ident)* ")"
   )?
   tyc:TypeConstr
-  "=" tye:TypExpr
+  "=" tye:TypeEquation
   constraints:("constraint" "'" cvar:Ident "=" cexp:TypExpr)*
 syncon modModConstraint: ModuleConstraint =
   "module" mp:ModulePath "=" emp:ExtendedModulePath
@@ -450,6 +514,64 @@ syncon unitImplementation: Top =
 
 // syncon unitInterface: Top = (s:Spec ";;"?)*
 
+// === 8.1.4 Generalized algebraic datatypes ===
+
+syncon gadtConstr: ConstrDecl =
+  n:ConstrName ":" (h:TypExpr ("*" t:TypExpr)* "->")? ty:TypExpr
+
+// === 8.5.1 Private variant and record types ===
+
+syncon privateAdtRepr: TypeRepr =
+  "private" "|"? ch:ConstrDecl ("|" ct:ConstrDecl)*
+syncon privateRecordRepr: TypeRepr =
+  "private" "{" fh:FieldDecl (";" ft:FieldDecl)* ";"? "}"
+
+// === 8.5.2 Private type abbreviations ===
+
+syncon privateTypeEqn: TypeEquation = "private" ty:TypExpr
+
+// === 8.8 Locally abstract types ===
+
+syncon tyParam: Parameter = "(" "type" n:TypeConstrName+ ")"
+syncon polyLet: LetBinding = vn:ValueName ":" "type" n:TypeConstrName+ "." ty:TypExpr "=" e:Exp
+
+// === 8.16 Attributes ===
+
+type AttrId
+syncon lowerAttr: AttrId = n:LowerIdent
+syncon upperAttr: AttrId = n:UpperIdent
+infix left attrDot: AttrId = "."
+
+type AttrPayload
+syncon attrItems: AttrPayload = ";;"* (dh:Def | eh:Exp) (";;"* (dt:Def | ";;" et:Exp))* ";;"*
+syncon attrTy: AttrPayload = ":" ty:TypExpr
+syncon attrSpec: AttrPayload = ":" spec:Spec?
+syncon attrPat: AttrPayload = "?" p:Pat ("when" e:Exp)?
+
+// === 8.17 Extension nodes ===
+
+type Extension
+syncon extension: Extension = "[%" id:AttrId payload:AttrPayload "]"
+
+syncon expExt: Exp = e:Extension
+syncon tyExt: TypExpr = e:Extension
+syncon patExt: Pat = e:Extension
+syncon modExt: ModuleExp = e:Extension
+syncon modTyExt: ModuleType = e:Extension
+
+type ItemExtension
+syncon itemExtension: ItemExtension = "[%%" id:AttrId payload:AttrPayload "]"
+
+syncon defAndSpecExt: SpecAndDef = e:ItemExtension
+
+// ==== 8.19 Exception cases in pattern matching ===
+
+prefix exceptionPat: Pat = "exception"
+
+// === 8.23 Inline records ===
+
+syncon inlineRecord: ConstrArgs = "{" fh:FieldDecl (";" ft:FieldDecl)* ";"? "}"
+
 // === Appendix: added stuff for syncons ===
 
 forbid application.left = application
@@ -486,8 +608,8 @@ forbid prodType.b = prodType
 forbid tupPat.a = tupPat
 forbid tupPat.b = tupPat
 
-forbid constrDecl.head = prodType
-forbid constrDecl.tail = prodType
+forbid normalConstrArgs.head = prodType
+forbid normalConstrArgs.tail = prodType
 
 // Tokens: I disallowed a preceeding minus in integers, instead relying on unary negation
 
@@ -495,6 +617,18 @@ forbid constrDecl.tail = prodType
 postfix trailSemi: Exp = ";" // This is also inserted in the precedence list, at lowest precedence. it is possible that this means that we parse more things than ocaml proper does
 forbid trailSemi.left = trailSemi
 forbid application.left = trailSemi
+
+forbid match.r = match
+forbid match.r = function
+forbid match.r = try
+forbid function.r = match
+forbid function.r = function
+forbid function.r = try
+forbid try.r = match
+forbid try.r = function
+forbid try.r = try
+
+prefix prefixPlus: Exp = "+"
 
 // I made if into a prefix operator, which makes the shape of the ast a little bit weird (when if.t has an entry, if.right is the else branch, otherwise it's the then branch)
 // similar changes to match, try, and function
