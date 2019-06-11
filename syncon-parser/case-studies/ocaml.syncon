@@ -28,7 +28,7 @@ token QuotString = "({\\|([^|]|\\|[^}])*\\|})"
 token Label = "~[[:lower:]_][[:alnum:]_']*"
 token OptLabel = "\\?[[:lower:]_][[:alnum:]_']*"
 
-token PrefixSymbol = "![!$%&*+\\-./:<=>?@^|~]*|[?!][!$%&*+\\-./:<=>?@^|~]+"
+token PrefixSymbol = "![!$%&*+\\-./:<=>?@^|~]*|[?~][!$%&*+\\-./:<=>?@^|~]+"
 token HashSymbol = "#[!$%&*+\\-./:<=>?@^|~]+"
 token StarStarSymbol = "\\*\\*[!$%&*+\-./:<=>?@^|~]*"
 token StarSymbol = "\\*([!$%&+\-./:<=>?@^|~][!$%&+\-./:<=>?@^|~]*)?"
@@ -156,6 +156,11 @@ syncon simpleTypeConstr: TypExpr = n:TypeConstr
 postfix unaryTypeConstr: TypExpr = n:TypeConstr
 syncon manyTypeConstr: TypExpr = "(" head:TypExpr ("," tail:TypExpr)+ ")" n:TypeConstr
 postfix asTyVar: TypExpr = "as" "'" id:Ident
+syncon trivObjectTy: TypExpr = "<" row:".."? ">"
+syncon objectTy: TypExpr =
+  "<" (mn1:MethodName ":" ty1:PolyTypExpr)
+  (";" mn2:MethodName ":" ty2:PolyTypExpr)*
+  (";" | ";" row:"..")? ">"
 syncon knownPolyTag: TypExpr =
   "[" ( ty1:TypExpr? "|" ts1:TagSpec
       | "`" tn1:TagName ("of" tyo1:TypExpr)?)
@@ -173,6 +178,10 @@ type TagSpecFull
 syncon explicitTagSpecFull: TagSpecFull =
   "`" tn1:TagName ("of" "&"? tyo1:TypExpr ("&" tyo2:TypExpr))?
 syncon exprTagSpecFull: TagSpecFull = ty:TypExpr
+
+type PolyTypExpr
+syncon nonPoly: PolyTypExpr = ty:TypExpr
+syncon poly: PolyTypExpr = ("'" i:Ident)+ "." ty:TypExpr
 
 precedence {
   unaryTypeConstr;
@@ -330,6 +339,8 @@ prefix letModule: Exp =
   (":" mt:ModuleType)?
   "=" me:ModuleExp "in"
 
+syncon new: Exp = "new" cp:ClassPath
+syncon object: Exp = "object" cb:ClassBody? "end"
 postfix methodInvocation: Exp = "#" mn:MethodName
 syncon coercion: Exp = "(" e:Exp (":" fromty:TypExpr)? ":>" ty:TypExpr ")"
 
@@ -380,18 +391,25 @@ precedence {
 
 type LetBinding
 syncon patBinding: LetBinding = p:Pat "=" e:Exp
-syncon funcBinding: LetBinding = v:ValueName p:Parameter+ (":" ty:TypExpr)? "=" e:Exp
-syncon polyBinding: LetBinding = v:ValueName ":" (("'" i:Ident)+ ".")? ty:TypExpr "=" e:Exp
+// syncon typedPatBinding: LetBinding = p:Pat ":" ty:TypExpr "=" e:Exp
+syncon funcBinding: LetBinding = v:ValueName p:Parameter+ (":" ty1:TypExpr)? (":>" ty2:TypExpr)? "=" e:Exp
+syncon polyBinding: LetBinding = v:ValueName ":" ty:PolyTypExpr "=" e:Exp
 
 type Parameter
 syncon patParam: Parameter = p:Pat
-syncon simpLabelParam: Parameter = "~" l:LabelName
+syncon simpLabelParam: Parameter = ("~" l:LabelName | l2:Label)
 syncon tyLabelParam: Parameter = "~" "(" l:LabelName (":" ty:TypExpr)? ")"
-syncon labelPatParam: Parameter = "~" l:LabelName ":" p:Pat
-syncon simpOptParam: Parameter = "?" l:LabelName
+syncon labelPatParam: Parameter = ("~" l:LabelName | l2:Label) ":" p:Pat
+syncon simpOptParam: Parameter = ("?" l:LabelName | l2:OptLabel)
 syncon tyOptParam: Parameter = "?" "(" l:LabelName (":" ty:TypExpr)? ("=" def:Exp)? ")"
-syncon optPatParam: Parameter = "?" l:LabelName ":" p:Pat
-syncon optPatTyParam: Parameter = "?" l:LabelName ":" "(" p:Pat (":" ty:TypExpr)? ("=" def:Exp)? ")"
+syncon optPatParam: Parameter = ("?" l:LabelName | l2:OptLabel) ":" p:Pat
+syncon optPatTyParam: Parameter = ("?" l:LabelName | l2:OptLabel) ":" "(" p:Pat (":" ty:TypExpr)? ("=" def:Exp)? ")"
+
+type ClassBody
+syncon classBodyWithPat: ClassBody =
+  "(" p:Pat (":" ty:TypExpr)? ")"
+  fields:ClassField*
+syncon classBodyWithoutPat: ClassBody = fields:ClassField+
 
 // === 7.8 Type and exception definitions ===
 
@@ -431,12 +449,98 @@ syncon normalConstrArgs: ConstrArgs = head:TypExpr ("*" tail:TypExpr)*
 type FieldDecl
 syncon fieldDecl: FieldDecl =
   mut:"mutable"? n:FieldName ":"
-  (("'" var:Ident)+ ".")? e:TypExpr
+  ty:PolyTypExpr
 
 syncon exceptionDef: SpecAndDef =
-  "exception" cd:ConstrDecl
+  "exception" cd:ConstrDecl attr:ItemAttribute*
 syncon exceptionAlias: Spec =
-  "exception" n:ConstrName "=" c:Constr
+  "exception" n:ConstrName "=" c:Constr attr:ItemAttribute*
+
+// === 7.9.1 Class Types ===
+
+type ClassType
+prefix classFunc: ClassType = ("?"? ln:LabelName ":")? ty:TypExpr "->"
+syncon classBodyType: ClassType = cbt:ClassBodyType
+
+type ClassBodyType
+syncon objectType: ClassBodyType =
+  "object" ("(" ty:TypExpr ")")? specs:ClassFieldSpec* "end"
+syncon instancedClass: ClassBodyType =
+  ("(" ty1:TypExpr ("," ty2:TypExpr)* ")")? cp:ClassTypePath
+prefix classLetOpen: ClassBodyType =
+  "let" "open" mp:ModulePath "in"
+
+type ClassFieldSpec
+syncon inheritSpec: ClassFieldSpec = "inherit" cbt:ClassBodyType
+syncon valField: ClassFieldSpec = "val" mut:"mutable"? virt:"virtual"? ivn:InstVarName ":" ty:TypExpr
+syncon valField2: ClassFieldSpec = "val" virt:"virtual" mut:"mutable" ivn:InstVarName ":" ty:TypExpr
+syncon methodField: ClassFieldSpec = "method" priv:"private"? virt:"virtual"? mn:MethodName ":" ty:PolyTypExpr
+syncon methodField2: ClassFieldSpec = "method" virt:"virtual" priv:"private" mn:MethodName ":" ty:PolyTypExpr
+syncon constraintField: ClassFieldSpec = "constraint" ty1:TypExpr "=" ty2:TypExpr
+
+// === 7.9.2 Class Expressions ===
+
+type ClassExpr
+grouping "(" ClassExpr ")"
+syncon classPathExpr: ClassExpr = cp:ClassPath
+syncon instancedPathExpr: ClassExpr = "[" ty1:TypExpr ("," ty2:TypExpr)* "]" cp:ClassPath
+syncon classTypeAssert: ClassExpr = "(" e:ClassExpr ":" ct:ClassType ")"
+postfix classApplication: ClassExpr =
+  ( e1:Exp
+  | l1:Label (":" e2:Exp)?
+  | l2:OptLabel (":" e3:Exp)?
+  )+
+prefix classFun: ClassExpr = "fun" p:Parameter+ "->"
+prefix classLet: ClassExpr = "let" recursive:"rec" lb1:LetBinding ("and" lb2:LetBinding)* "in"
+syncon classObject: ClassExpr = "object" cb:ClassBody? "end"
+prefix classExprLetOpen: ClassExpr = "let" "open" mp:ModulePath "in"
+
+type ClassField
+syncon inherit: ClassField = (normal:"inherit" | bang:"inherit!") ce:ClassExpr ("as" li:LowerIdent)?
+syncon valFieldExpr: ClassField = (normal:"val" | bang:"val!") mut:"mutable"? (":" ty:TypExpr) "=" e:Exp
+syncon virtualVal: ClassField = "val" mut:"mutable"? "virtual" ivn:InstVarName ":" ty:TypExpr
+syncon virtualVal2: ClassField = "val" "virtual" mut:"mutable" ivn:InstVarName ":" ty:TypExpr
+syncon methodPar: ClassField =
+  (normal:"method" | bang:"method!") priv:"private"?
+  mn:MethodName p:Parameter* (":" ty:TypExpr)? "=" e:Exp
+syncon methodPoly: ClassField =
+  (normal:"method" | bang:"method!") priv:"private"?
+  mn:MethodName ":" ty:PolyTypExpr "=" e:Exp
+syncon virtualMethod: ClassField =
+  (normal:"method" | bang:"method!") priv:"private"? "virtual"
+  mn:MethodName ":" ty:PolyTypExpr
+syncon virtualMethod2: ClassField =
+  (normal:"method" | bang:"method!") "virtual" "private"
+  mn:MethodName ":" ty:PolyTypExpr
+syncon constraintExprField: ClassField = "constraint" ty1:TypExpr "=" ty2:TypExpr
+syncon initializer: ClassField = "initializer" e:Exp
+
+// === 7.9.3 Class definitions ===
+
+syncon classDef: Def = "class" cb1:ClassBinding ("and" cb2:ClassBinding)*
+
+type ClassBinding
+syncon classBinding: ClassBinding =
+  virt:"virtual"? ("[" "'" i1:Ident ("," "'" i2:Ident)* "]")?
+  cn:ClassName p:Parameter* (":" ct:ClassType)? "=" ce:ClassExpr
+
+// === 7.9.4 Class specifications ===
+
+syncon classSpec: Spec = "class" cs1:ClassSpec ("and" cs2:ClassSpec)*
+
+type ClassSpec
+syncon classSpecBody: ClassSpec =
+  virt:"virtual"? ("[" "'" i1:Ident ("," "'" i2:Ident)* "]")?
+  cn:ClassName ":" ct:ClassType
+
+// === 7.9.5 Class type definitions ===
+
+syncon classTypeDef: SpecAndDef = "class" "type" ctd1:ClassTypeDef ("and" ctd2:ClassTypeDef)*
+
+type ClassTypeDef
+syncon classTypeDefBody: ClassTypeDef =
+  virt:"virtual"? ("[" "'" i1:Ident ("," "'" i2:Ident)* "]")?
+  cn:ClassName "=" cbt:ClassBodyType
 
 // === 7.10 Module Types (module specifications) ===
 
@@ -464,19 +568,20 @@ syncon modModConstraint: ModuleConstraint =
 type Spec
 type SpecAndDef
 syncon sharedSpec: Spec = s:SpecAndDef
-syncon val: Spec = "val" vn:ValueName ":" ty:TypExpr
+syncon val: Spec = "val" vn:ValueName ":" ty:TypExpr attr:ItemAttribute*
 syncon modDecl: Spec =
   "module" mn:ModuleName
   ("(" argn:ModuleName ":" argty:ModuleType ")")*
   ":" mty:ModuleType
-syncon modTypeDecl: Spec = "module" "type" mn:ModuleName
-syncon includeModType: Spec = "include" mty:ModuleType
+  attr:ItemAttribute*
+syncon modTypeDecl: Spec = "module" "type" mn:ModuleName attr:ItemAttribute*
+syncon includeModType: Spec = "include" mty:ModuleType attr:ItemAttribute*
 
 syncon external: SpecAndDef =
-  "external" vn:ValueName ":" ty:TypExpr "=" e1:String (e2:String e3:String?)?
-syncon openMod: SpecAndDef = "open" mp:ModulePath
+  "external" vn:ValueName ":" ty:TypExpr "=" e1:String (e2:String e3:String?)? attr:ItemAttribute*
+syncon openMod: SpecAndDef = "open" mp:ModulePath attr:ItemAttribute*
 syncon modTypeAlias: SpecAndDef =
-  "module" "type" mn:ModTypeName "=" mty:ModuleType
+  "module" "type" mn:ModTypeName "=" mty:ModuleType attr:ItemAttribute*
 
 // === 7.11 Module expressions (module implementations) ===
 
@@ -505,12 +610,13 @@ syncon modDef: Def =
   ("(" pn:ModuleName ":" pty:ModuleType ")")*
   (":" mty:ModuleType)?
   "=" me:ModuleExp
-syncon includeModExp: Def = "include" me:ModuleExp
+  attr:ItemAttribute*
+syncon includeModExp: Def = "include" me:ModuleExp attr:ItemAttribute*
 
 // === 7.12 Compilation units ===
 
 syncon unitImplementation: Top =
-  ";;"* (dh:Def | eh:Exp) (";;"* (dt:Def | ";;" et:Exp))* ";;"*  // NOTE: technically there should be a ? around the entire thing
+  ";;"* (dh:Def | eh:Exp ia1:ItemAttribute*) (";;"* (dt:Def | ";;" et:Exp ia2:ItemAttribute*))* ";;"*  // NOTE: technically there should be a ? around the entire thing
 
 // syncon unitInterface: Top = (s:Spec ";;"?)*
 
@@ -548,15 +654,49 @@ syncon attrTy: AttrPayload = ":" ty:TypExpr
 syncon attrSpec: AttrPayload = ":" spec:Spec?
 syncon attrPat: AttrPayload = "?" p:Pat ("when" e:Exp)?
 
+type Attribute
+syncon attribute: Attribute = "[@" ai:AttrId ap:AttrPayload? "]"
+
+postfix expAttr: Exp = a:Attribute
+postfix typExpAttr: TypExpr = a:Attribute
+postfix patAttr: Pat = a:Attribute
+postfix modExprAttr: ModuleExp = a:Attribute
+postfix modTyAttr: ModuleType = a:Attribute
+postfix classExpAttr: ClassExpr = a:Attribute
+postfix classTyAttr: ClassType = a:Attribute
+
+syncon fieldDeclAttr: FieldDecl = mut:"mutable" fn:FieldName ":" ty:PolyTypExpr attr:Attribute+
+syncon constrDeclAttr: ConstrDecl = (cn:ConstrName | "()") ("of" ca:ConstrArgs)? attr:Attribute+
+
+type ItemAttribute
+syncon itemAttribute: ItemAttribute = "[@@" ai:AttrId ap:AttrPayload? "]"
+
+postfix typeDefAttr: TypeDef = a:ItemAttribute
+postfix classBindingAttr: ClassBinding = a:ItemAttribute
+postfix classSpecAttr: ClassSpec = a:ItemAttribute
+postfix classTypeDefAttr: ClassTypeDef = a:ItemAttribute
+postfix classFieldSpecAttr: ClassFieldSpec = a:ItemAttribute
+postfix classFieldAttr: ClassField = a:ItemAttribute
+
+type FloatingAttribute
+syncon floatingAttribute: FloatingAttribute = "[@@@" ai:AttrId ap:AttrPayload? "]"
+
+syncon floatingSpecAndDef: SpecAndDef = a:FloatingAttribute
+syncon floatingClassFieldSpec: ClassFieldSpec = a:FloatingAttribute
+syncon floatingClassField: ClassField = a:FloatingAttribute
+
+forbid classFieldSpecAttr.left = floatingClassFieldSpec
+forbid classFieldAttr.left = floatingClassField
+
 // === 8.17 Extension nodes ===
 
 type Extension
-syncon extension: Extension = "[%" id:AttrId payload:AttrPayload "]"
+syncon extension: Extension = "[%" id:AttrId payload:AttrPayload? "]"
 
 syncon expExt: Exp = e:Extension
 syncon tyExt: TypExpr = e:Extension
 syncon patExt: Pat = e:Extension
-syncon modExt: ModuleExp = e:Extension
+syncon modExt: Exp = e:Extension
 syncon modTyExt: ModuleType = e:Extension
 
 type ItemExtension
@@ -574,6 +714,7 @@ syncon inlineRecord: ConstrArgs = "{" fh:FieldDecl (";" ft:FieldDecl)* ";"? "}"
 
 // === Appendix: added stuff for syncons ===
 
+// Applications are rewritten slightly, "argument" is inlined, to get nicer forbids
 forbid application.left = application
 forbid application.e1 = application
 forbid application.e2 = application
@@ -584,6 +725,7 @@ forbid application.e3 = constrExp
 
 forbid application.left = constrLit
 
+// we actually want these to be forbids on lrec, and that the forbid goes down transitively to rrecs beneath it
 forbid arrayAccess.left = constrLit
 forbid fieldAccess.left = constrLit
 
@@ -611,6 +753,8 @@ forbid tupPat.b = tupPat
 forbid normalConstrArgs.head = prodType
 forbid normalConstrArgs.tail = prodType
 
+forbid gadtConstr.ty = funType
+
 // Tokens: I disallowed a preceeding minus in integers, instead relying on unary negation
 
 // trailing semicolons in most places where a sequence of expressions is expected. I suspect the implementation isn't really semicolon as an infix operator at all, but rather a (optionally semicolon terminated) semicolon-separated list of expressions in certain locations
@@ -633,3 +777,21 @@ prefix prefixPlus: Exp = "+"
 // I made if into a prefix operator, which makes the shape of the ast a little bit weird (when if.t has an entry, if.right is the else branch, otherwise it's the then branch)
 // similar changes to match, try, and function
 // fun is similarly made into a prefix operator, but the thing that we would logically consider the body is always located at fun.right, so it's not as weird
+
+// When defining functions (using let) with label arguments, parse either two tokens "~" Ident or one token Label (this is essentially how they do it, but we're explicit about it here)
+
+// ClassBody is split in two to make them non-nullable, then each occurrence of it is written ClassBody? instead of merely ClassBody. Same for AttrPayload.
+
+// item-attributes are added in semi-weird places, here are the syncons that are modified to include them:
+// - unitImplementation
+// - external
+// - exceptionDef
+// - exceptionAlias
+// - modDef
+// - modTypeAlias
+// - openMod
+// - includeModExp
+// - val
+// - modDecl
+// - modTypeDecl
+// - includeModType
