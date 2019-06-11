@@ -39,14 +39,14 @@ data Error l
   deriving (Show)
 
 instance Show l => FormatError (Error l) where
-  formatError (LexingError e) = formatError e
-  formatError (UnexpectedToken expected tok) = simpleErrorMessage (range tok) $
+  formatError _ (LexingError e) = formatError () e
+  formatError _ (UnexpectedToken expected tok) = simpleErrorMessage (range tok) $
     "Unexpected token " <> textualToken tok <> ", expected one of:\n"
     <> (toList expected & sort & foldMap (<> "\n"))
-  formatError (UnexpectedEOF expected) = simpleErrorMessage mempty $
+  formatError _ (UnexpectedEOF expected) = simpleErrorMessage mempty $
     "Unexpected end of file, expected one of:\n"
     <> (toList expected & sort & foldMap (<> "\n"))
-  formatError MissingTop = simpleErrorMessage mempty
+  formatError _ MissingTop = simpleErrorMessage mempty
     "You must define a syntax type named 'Top'."
 
 type Res l = Result [Error l]

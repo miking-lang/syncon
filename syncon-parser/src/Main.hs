@@ -7,7 +7,7 @@ import Pre
 import Result (Result(..))
 
 import FileAnnotation (annotate, putInTextTemplate)
-import ErrorMessage (FormatError, formatErrors, formatError)
+import ErrorMessage (FormatError, formatErrors, formatError, ErrorOpts)
 
 import System.Environment (withArgs)
 import System.FilePath ((</>))
@@ -54,10 +54,10 @@ nodeAnnotation n = (range n, Parser.n_name n & coerce)
     tokToAnno (Lexer.LitTok r _ t) = (r, "literal " <> show t)
     tokToAnno (Lexer.OtherTok r _ (LD.TypeName tyn) t) = (r, "token " <> show tyn <> " " <> show t)
 
-dataOrError :: (Functor f, Foldable f, FormatError e) => HashMap Text Text -> Result (f e) a -> IO a
-dataOrError _ (Data a) = return a
-dataOrError source (Error e) =
-  die $ formatErrors source $ formatError <$> e
+dataOrError :: (Functor f, Foldable f, FormatError e) => HashMap Text Text -> ErrorOpts e -> Result (f e) a -> IO a
+dataOrError _ _ (Data a) = return a
+dataOrError source opts (Error e) =
+  die $ formatErrors source $ formatError opts <$> e
 
 dataOrError' :: Show e => Result e a -> IO a
 dataOrError' (Data a) = return a
@@ -86,7 +86,8 @@ testReduce = do
     post = NVA.reduce nva
 
 test :: IO ()
-test = withArgs ["case-studies/ocaml.syncon", "case-studies/ocaml/inside_out.ml", "--html=out.html"] main
+-- test = withArgs ["case-studies/ocaml.syncon", "case-studies/ocaml/inside_out.ml", "--html=out.html", "--two-level"] main
+test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--two-level"] main
 -- test = withArgs ["--help"] main
 
 getArgsSeq :: IO (Seq [Char])
@@ -106,6 +107,9 @@ common = do
     $ Opt.long "source"
     <> Opt.metavar "FILE"
     <> Opt.help "Parse this file as a source file, even if its extension is syncon. Can be supplied multiple times."
+  showTwoLevel <- Opt.switch
+    $ Opt.long "two-level"
+    <> Opt.help "Always show the two level representation, even if some alternatives are resolvable."
   files <- some $ Opt.argument Opt.str $
     Opt.metavar "FILES..."
 
@@ -116,19 +120,19 @@ common = do
       & M.traverseWithKey (\path _ -> readFile $ toS path)
     putStrLn @Text "Parsing definition files(s)"
     tops <- M.traverseWithKey (\defFile _ -> LD.parseFile $ toS defFile) defSources
-      >>= (fold >>> dataOrError defSources)
-    df <- LD.mkDefinitionFile tops & dataOrError defSources
-    parseFile <- Parser.parseSingleLanguage df & dataOrError defSources
+      >>= (fold >>> dataOrError defSources ())
+    df <- LD.mkDefinitionFile tops & dataOrError defSources ()
+    parseFile <- Parser.parseSingleLanguage df & dataOrError defSources ()
     let pl = DynAmb.precompute df
 
     srcSources <- extraSrcFiles <> srcFiles & S.fromList & S.toMap
       & M.traverseWithKey (\path _ -> readFile $ toS path)
     srcNodes <- flip M.traverseWithKey srcSources $ \path _ -> do
       putStrLn @Text $ "Parsing \"" <> path <> "\""
-      setOfNodes <- parseFile (toS path) >>= dataOrError srcSources
+      setOfNodes <- parseFile (toS path) >>= dataOrError srcSources ()
       case DynAmb.report pl setOfNodes of
         Data node -> return node
-        Error errs -> formatError <$> errs
+        Error errs -> formatError (DynAmb.EO{DynAmb.showTwoLevel}) <$> errs
           & formatErrors srcSources
           & die
 

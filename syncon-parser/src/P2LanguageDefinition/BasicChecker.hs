@@ -45,20 +45,20 @@ data Error
   deriving (Show, Eq)
 
 instance FormatError Error where
-  formatError (DuplicateDefinition defname ranges) = ErrorMessage
+  formatError _ (DuplicateDefinition defname ranges) = ErrorMessage
     { e_message = defname <> " is defined multiple times."
     , e_range = fold ranges
     , e_ranges = sort ranges `zip` [1 :: Int ..]
       & fmap (second $ show >>> ("Definition " <>))
     }
-  formatError (Undefined defname r) = simpleErrorMessage r $
+  formatError _ (Undefined defname r) = simpleErrorMessage r $
     defname <> " is undefined"
-  formatError (ExpectedOther defname Op _ r) = simpleErrorMessage r $
+  formatError _ (ExpectedOther defname Op _ r) = simpleErrorMessage r $
     coerce defname <> " is an operator, but the '!' prefix suggests that it is not."
-  formatError (ExpectedOther defname NonOp inMain r) = simpleErrorMessage r $
+  formatError _ (ExpectedOther defname NonOp inMain r) = simpleErrorMessage r $
     coerce defname <> " is not an operator (it was defined with 'syncon', not 'infix', 'prefix', or 'suffix').\n"
     <> if inMain then "If you want to put it here anyway, prefix it with '!'." else ""
-  formatError (InconsistentPrecedence (n1, n2) defs) = ErrorMessage
+  formatError _ (InconsistentPrecedence (n1, n2) defs) = ErrorMessage
     { e_message = coerce n1 <> " and " <> coerce n2 <> " have inconsistent precedences."
     , e_range = foldMap (snd >>> fold) defs
     , e_ranges = defs >>= \(ordering, rs) -> (, fmt ordering) <$> sort (toList rs)
@@ -67,29 +67,29 @@ instance FormatError Error where
       fmt LT = coerce n1 <> " < " <> coerce n2
       fmt EQ = coerce n1 <> " = " <> coerce n2
       fmt GT = coerce n1 <> " > " <> coerce n2
-  formatError (NonEqSelfPrecedence defname rs) = ErrorMessage
+  formatError _ (NonEqSelfPrecedence defname rs) = ErrorMessage
     { e_message = coerce defname <> " is declared to have higher precedence than itself."
     , e_range = fold rs
     , e_ranges = toList rs <&> (, "")
     }
-  formatError (WrongSyntaxType n1 (SDName sdn) tyn1 n2 tyn2 r) = simpleErrorMessage r $
+  formatError _ (WrongSyntaxType n1 (SDName sdn) tyn1 n2 tyn2 r) = simpleErrorMessage r $
     coerce n1 <> "." <> sdn <> " has syntax type " <> coerce tyn1 <> ", but "
     <> coerce n2 <> " has syntax type " <> coerce tyn2 <> "."
-  formatError (NotASyntaxTypeOccurrence n (SDName sdn) r) = simpleErrorMessage r $
+  formatError _ (NotASyntaxTypeOccurrence n (SDName sdn) r) = simpleErrorMessage r $
     coerce n <> "." <> sdn <> " is not declared as a syntax type, cannot forbid."
-  formatError (NotAllSameSyntaxType typePartitions r) = simpleErrorMessage r $
+  formatError _ (NotAllSameSyntaxType typePartitions r) = simpleErrorMessage r $
     "All syncons in a precedence list must share the same syntax type.\n\n" <> formatted
     where
       formatted = typePartitions <&> (toList >>> fmap coerce >>> Text.intercalate ", ")
         & M.toList
         & foldMap (\(tyn, syncons) -> coerce tyn <> ":\n  " <> syncons <> "\n")
-  formatError (UnnamedSyntaxTypeOccurrence r) = simpleErrorMessage r $
+  formatError _ (UnnamedSyntaxTypeOccurrence r) = simpleErrorMessage r $
     "A syntax type occurence in a syntax description must be named, it cannot be discarded."
-  formatError (UnexpectedSyntaxType tyn r) = simpleErrorMessage r $
+  formatError _ (UnexpectedSyntaxType tyn r) = simpleErrorMessage r $
     "Expected a token type, but " <> coerce tyn <> " is a syntax type."
-  formatError (UnexpectedTokenType tyn r) = simpleErrorMessage r $
+  formatError _ (UnexpectedTokenType tyn r) = simpleErrorMessage r $
     "Expected a syntax type, but " <> coerce tyn <> " is a token type."
-  formatError (InconsistentBracketKinds tok defs) = ErrorMessage
+  formatError _ (InconsistentBracketKinds tok defs) = ErrorMessage
     { e_message = either identity coerce tok <> " is used both as both an opening bracket and a closing bracket (it may only be one of those)."
     , e_range = foldMap (snd >>> fold) defs
     , e_ranges = defs >>= \(kind, rs) -> (, fmt kind) <$> sort (toList rs)
@@ -98,7 +98,7 @@ instance FormatError Error where
       fmt OpenBracket = "Open bracket:"
       fmt NonBracket = "Non-bracket:"
       fmt CloseBracket = "Close bracket:"
-  formatError (UnequalAltDescriptions r alts) = ErrorMessage
+  formatError _ (UnequalAltDescriptions r alts) = ErrorMessage
     { e_message = "The alternatives of this description do not have the same amount of unpaired brackets."
     , e_range = r
     , e_ranges = concatMap (\(bal, rs) -> (, fmt bal) <$> sort (toList rs)) alts
@@ -111,7 +111,7 @@ instance FormatError Error where
       innerFmt 0 str = "No " <> str <> "s"
       innerFmt 1 str = "1 " <> str
       innerFmt n str = show n <> " " <> str <> "s"
-  formatError (UnbalancedDescription r closing opening) = ErrorMessage
+  formatError _ (UnbalancedDescription r closing opening) = ErrorMessage
     { e_message = "This syntax description must be balanced; all brackets must be paired (though not necessarily with the same kind of bracket)."
     , e_range = r
     , e_ranges = fmap (, "Unpaired closing bracket:") closing
@@ -119,10 +119,10 @@ instance FormatError Error where
       & sortBy (compare `on` fst)
       & ((r, "") :)
     }
-  formatError (NullableSyntaxDescription sd) = simpleErrorMessage (range sd) $
+  formatError _ (NullableSyntaxDescription sd) = simpleErrorMessage (range sd) $
     "A syncon may not match nothing (it may not be nullable, in case that is more familiar terminology)."
-  formatError (NonProductiveCycle Seq.Empty) = compErr "P2LanguageDefinition.BasicChecker.formatError.NonProductiveCycle" "got a zero-length cycle"
-  formatError (NonProductiveCycle syncons@((n, _, tyn) Seq.:<| rest)) = ErrorMessage
+  formatError _ (NonProductiveCycle Seq.Empty) = compErr "P2LanguageDefinition.BasicChecker.formatError.NonProductiveCycle" "got a zero-length cycle"
+  formatError _ (NonProductiveCycle syncons@((n, _, tyn) Seq.:<| rest)) = ErrorMessage
     { e_message = "There is a non-productive cycle in your syncons, which can lead to infinite (i.e. unresolvable) ambiguity:\n"
       <> "   " <> coerce n <> ": " <> coerce tyn <> "\n"
       <> foldMap (\(n', _, tyn') -> "-> " <> coerce n' <> ": " <> coerce tyn' <> "\n") rest

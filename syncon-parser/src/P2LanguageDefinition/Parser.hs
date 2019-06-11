@@ -31,14 +31,14 @@ data Error
   deriving (Show)
 
 instance FormatError Error where
-  formatError (LexingError e) = formatError e
-  formatError (UnexpectedToken expected tok) = simpleErrorMessage (range tok) $
+  formatError _ (LexingError e) = formatError () e
+  formatError _ (UnexpectedToken expected tok) = simpleErrorMessage (range tok) $
     "Unexpected token " <> textualToken tok <> ", expected one of:\n"
     <> (toList expected & sort & foldMap (<> "\n"))
-  formatError (UnexpectedEOF expected) = simpleErrorMessage Nowhere $
+  formatError _ (UnexpectedEOF expected) = simpleErrorMessage Nowhere $
     "Unexpected end of file, expected one of:\n"
     <> (toList expected & sort & foldMap (<> "\n"))
-  formatError AmbiguousParse = simpleErrorMessage Nowhere "Got an ambiguous parse of the definition file, go complain to your local Viktor."
+  formatError _ AmbiguousParse = simpleErrorMessage Nowhere "Got an ambiguous parse of the definition file, go complain to your local Viktor."
 
 data SynconDefinitionLanguage = SynconDefinitionLanguage deriving (Eq, Generic, Show)
 

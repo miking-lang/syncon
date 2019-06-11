@@ -27,10 +27,11 @@ data ErrorMessage = ErrorMessage
   }
 
 class FormatError a where
-  formatError :: a -> ErrorMessage
-
-instance {-# OVERLAPPABLE #-} Show e => FormatError e where
-  formatError e = ErrorMessage { e_message = ppShow e & toS, e_range = Nowhere, e_ranges = mempty }
+  type ErrorOpts a
+  type ErrorOpts a = ()
+  formatError :: ErrorOpts a -> a -> ErrorMessage
+  default formatError :: Show a => ErrorOpts a -> a -> ErrorMessage
+  formatError _ e = ErrorMessage { e_message = ppShow e & toS, e_range = Nowhere, e_ranges = mempty }
 
 -- | A simpler constructor for error messages that pertain to a single 'Range'.
 simpleErrorMessage :: Range -> Text -> ErrorMessage

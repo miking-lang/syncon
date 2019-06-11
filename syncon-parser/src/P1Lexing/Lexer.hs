@@ -44,21 +44,22 @@ data Error l n
   deriving (Show)
 
 instance (Show l, Show n) => FormatError (Error l n) where
-  formatError (RegexError _ f pos@(Position l c) t) = simpleErrorMessage (Range f pos $ Position l (c+1)) $
+  type ErrorOpts (Error l n) = ()
+  formatError _ (RegexError _ f pos@(Position l c) t) = simpleErrorMessage (Range f pos $ Position l (c+1)) $
     "Regex error: " <> t
-  formatError (UnicodeError ex) = simpleErrorMessage Nowhere $
+  formatError _ (UnicodeError ex) = simpleErrorMessage Nowhere $
     "The file must be UTF8 encoded, got an error: " <> show ex
-  formatError (OverlappingLex _ toks) = simpleErrorMessage (foldMap range toks) $
+  formatError _ (OverlappingLex _ toks) = simpleErrorMessage (foldMap range toks) $
     "Lexing needs to produce a unique longest token, but there were multiple:\n"
     <> foldMap (show >>> (<> "\n")) toks
-  formatError (NoLex f pos) = simpleErrorMessage (Range f pos (Position (line pos + 4) maxBound)) $
+  formatError _ (NoLex f pos) = simpleErrorMessage (Range f pos (Position (line pos + 4) maxBound)) $
     "There is no valid token starting here."
-  formatError (AmbiguousCommentStart _ rs) = ErrorMessage
+  formatError _ (AmbiguousCommentStart _ rs) = ErrorMessage
     { e_message = "Ambiguous comment start, this could be the beginning of multiple different kinds of block comments."
     , e_range = fold rs
     , e_ranges = (, "") <$> rs
     }
-  formatError (UnclosedBlockComment _ r) = simpleErrorMessage r $
+  formatError _ (UnclosedBlockComment _ r) = simpleErrorMessage r $
     "Unclosed block comment."
 
 data LanguageInternal n = LanguageInternal

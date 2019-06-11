@@ -4,6 +4,7 @@
 module P5DynamicAmbiguity.AmbiguityReporter
 ( report
 , Error(..)
+, ErrorOptions(..)
 ) where
 
 import Pre hiding (reduce)
@@ -32,34 +33,52 @@ import P5DynamicAmbiguity.TreeLanguage (treeLanguage, PreLanguage)
 import P5DynamicAmbiguity.Types
 
 data Error
-  = Ambiguity Range [Text]
-  | Unresolvable Range [Text] [Node]  -- ^ Resolvable alternatives, and unresolvable alternatives
+  = Ambiguity Range [(Node, Text)]
+  | Unresolvable Range [(Node, Text)] [Node]  -- ^ Resolvable alternatives, and unresolvable alternatives
   deriving (Show)
 
 type Node = P4.Node SingleLanguage TypeName
 
+data ErrorOptions = EO
+  { showTwoLevel :: Bool }
+
 -- TODO: pluralize the text below appropriately
 instance FormatError Error where
-  formatError (Unresolvable r resolvable trees) = simpleErrorMessage r $
+  type ErrorOpts Error = ErrorOptions
+  formatError eo (Unresolvable r resolvable trees) = simpleErrorMessage r $
     "Unresolvable ambiguity error with " <> show (length trees + length resolvable) <> " alternatives.\n" <>
     formattedResolvable <> "\n" <>
     "Unresolvable alternatives:\n" <>
     fold unresolvables
     where
-      format (name, children) = "  " <> coerce name <> formatChildren children <> "\n"
-      formatChildren = sortBy (compare `on` range) >>> foldMap formatNode
-      formatNode n@Node{n_name = Name n'} =
-        printf "\n   - %- 20s %s" n' (textualRange $ range n) & Text.pack
       formattedResolvable
         | null resolvable = ""
-        | otherwise = "\nResolvable alternatives:\n" <> foldMap (\t -> "  " <> t <> "\n") resolvable
+        | otherwise = "\nResolvable alternatives:\n" <> formatResolvable eo resolvable
       unresolvables = trees
-        <&> (n_name &&& (project >>> toList))
-        <&> format
+        <&> twoLevel
         & S.fromList
-  formatError (Ambiguity r resolvable) = simpleErrorMessage r $
+  formatError eo (Ambiguity r resolvable) = simpleErrorMessage r $
     "Ambiguity error with " <> show (length resolvable) <> " alternatives:\n\n" <>
-    foldMap (\t -> "  " <> t <> "\n") resolvable
+    formatResolvable eo resolvable
+
+twoLevel :: Node -> Text
+twoLevel n@Node{n_name} = "  " <> coerce n_name <> formatChildren (project n & toList) <> "\n"
+  where
+    formatChildren = sortBy (comparing range) >>> foldMap formatNode
+    formatNode n'@Node{n_name = Name name} =
+      printf "\n   - %- 20s %s" name (textualRange $ range n') & Text.pack
+
+formatResolvable :: ErrorOptions -> [(Node, Text)] -> Text
+formatResolvable EO{showTwoLevel} resolvable
+  | showTwoLevel = groupedResolvable
+    & foldMap (\(two, ts) -> foldMap (\t -> "  " <> t <> "\n") ts <> two <> "\n")
+  | otherwise = resolvable
+    & foldMap (\(_, t) -> "  " <> t <> "\n")
+  where
+    groupedResolvable = resolvable
+      <&> (twoLevel *** S.singleton)
+      & M.fromListWith S.union
+      & M.toList
 
 -- | If the argument is a singleton set, return the element, otherwise produce
 -- one or more localized ambiguity errors.
@@ -93,6 +112,7 @@ resolvability pl r nodes = M.toList languages
            Just w -> untag identity identity identity <$> w
              & fmap textualToken
              & Text.unwords
+             & (node, )
              & Right)
   & partitionEithers
   & \case
