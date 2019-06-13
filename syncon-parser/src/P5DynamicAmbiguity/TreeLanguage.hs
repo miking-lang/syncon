@@ -148,12 +148,6 @@ mkLanguage pl@PreLanguage{..} n@Node{n_name} =
   zipWith genSegment (toList points) (tail $ fst <$> toList points)
   & mconcat
   where
-    syTy = getSyTy n_name
-    groupings = getGroupings syTy
-      & toList
-      & zip [-1,-2..]
-      <&> first Right
-      & Seq.fromList
     (sd, _, paths) = M.lookup n_name syncons
       & compFromJust "P4Parsing.AmbiguityReporter.mkLanguage" "Missing syncon"
 
@@ -179,6 +173,12 @@ mkLanguage pl@PreLanguage{..} n@Node{n_name} =
           & addTransitions (EpsNVA.closeTransitions withOpt) }
       | otherwise = withOpt
       where
+        syTy = getSyTy innerName
+        groupings = getGroupings syTy
+          & toList
+          & zip [-1,-2..]
+          <&> first Right
+          & Seq.fromList
         withOpt = innerLang
           { EpsNVA.openTransitions = addTransitions (EpsNVA.openTransitions innerLang) optOpens
           , EpsNVA.closeTransitions = addTransitions (EpsNVA.closeTransitions innerLang) optCloses }
