@@ -210,55 +210,73 @@ Text of abstract \ldots.
 
 \section{Introduction}
 
-Text of paper \ldots
+Formal languages have long had the concept of ambiguity, of words that can be constructed in multiple ways, for example using multiple distinct derivations of a context-free grammar.
 
-\subsection{Motivating Ambiguity in Programming Languages}
+However, when using these formal methods to specify the syntax for programming languages, ambiguity becomes a strictly undesirable property. We tend to want to give the compiler a single interpretation of any given program, and so we work hard to make programming language grammars entirely unambiguous. This view, that eliminating ambiguity is \emph{the} correct thing to do, is highly prevalent (e.g. \cite{sudkampLanguagesMachinesIntroduction1997}).
 
-% TODO: reference PADL paper for this example
-Consider the following nested match expression in OCaml:
+Some exceptions do exist however. Closest to our approach are \citet{danielssonParsingMixfixOperators2011}, who ''feel that it is overly restrictive to require the grammar to be unambiguous'', and suggest that only ambiguous \emph{parses} should be rejected, not ambiguous grammars. This seems to stem largely from the fact that their grammars are mostly constructed from user-defined operators, and so cannot be expected to compose without ambiguity. Instead, in case of an unambiguous parse, they present an error that includes the possible parses, to assist in debugging.
 
-\begin{lstlisting}[language={[objective]caml}]
+We propose that the this idea---treating ambiguity as a parse-time error---can be beneficial even when the entire grammar is constructed by a single language designer, if done in a more rigorous fashion. Consider the following nested match expression in OCaml (from \cite{palmkvistCreatingDomainSpecificLanguages2019}), and the resulting error message:
+
+\begin{tabular}{l|l}
+\begin{lstlisting}[language={[objective]caml},numbers=left]
 match 1 with
   | 1 -> match "one" with
          | str -> str
   | 2 -> "two"
-\end{lstlisting}
-
-\noindent The OCaml compiler, when presented with this code, will give a type error for the last line:
+\end{lstlisting} &
 
 \begin{lstlisting}
+File "./nestmatch.ml", line 4, characters 4-5:
 Error: This pattern matches values of type int
-       but a pattern was expected which matches
-       values of type string
-\end{lstlisting}
+       but a pattern was expected which
+       matches values of type string
+\end{lstlisting} \\
+\end{tabular}
 
-\noindent The compiler sees the last line as belonging to the inner \ocaml{match} rather than the outer, as was intended. The fix is simple; put parentheses around the inner match:
+\noindent The compiler sees the last line as belonging to the inner \ocaml{match} rather than the outer, as was intended. The solution is simple; we put parentheses around the inner match:
 
-\begin{lstlisting}[language={[objective]caml}]
+\begin{tabular}{l}
+\begin{lstlisting}[language={[objective]caml},numbers=left]
 match 1 with
   | 1 -> (match "one" with
           | str -> str)
   | 2 -> "two"
 \end{lstlisting}
+\end{tabular}
 
-\noindent The connection between the error message and the fix is not a clear one however; adding parentheses around an expression does not change the type of anything.
+\noindent However, the connection between the error message and the solution is not particularly clear; surrounding an expression with parentheses does not change its type.
 
-To come up with an alternative error to present in this case we look to the OCaml manual for inspiration. It contains an informal description of the syntax of the language\footnote{\url{https://caml.inria.fr/pub/docs/manual-ocaml/language.html}}, in the form of an EBNF-like grammar. Below is an excerpt of the productions for expressions, written in a more standard variant of EBNF:
+Instead, we look to the OCaml manual for inspiration. It contains an informal description of the syntax of the language\footnote{\url{https://caml.inria.fr/pub/docs/manual-ocaml/language.html}}, in the form of an EBNF-like grammar. Below is an excerpt of the productions for expressions, written in a more standard variant of EBNF:
 
-\setlength{\grammarindent}{5em}
+\setlength{\grammarindent}{9.5em}
 \begin{grammar}
 <expr> ::= 'match' <expr> 'with' <pattern-matching>
 
-<pattern-matching> ::= ('|' <pattern> '->' <expr>)+
+<pattern-matching> ::= '|'? <pattern> ('when' <expr>)? \\
+('|' <pattern> ('when' <expr>)? '->' <expr>)*
 \end{grammar}
 
-Note that \synt{pattern-matching} is slightly simplified, the original grammar supports \ocaml{when} guards and makes the first \lit{|} optional. If we use this grammar to parse the nested match we find an ambiguity: the last match arm can belong to either the inner match or the outer match. The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may or may not be the alternative the user intended.
+\noindent If we use this grammar to parse the nested match we find an ambiguity: the last match arm can belong to either the inner match or the outer match. The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may or may not be the alternative the user intended. Presenting the two alternatives as parse trees would here be informative, and useful to a language designer, but would also expose implementation details to an end-user. Instead, we can present the alternatives in the form of modified codethat parses unambiguously as the corresponding alternative:
 
-We instead argue that the grammar should be left ambiguous for this sort of corner cases that are likely to trip a user, allowing the compiler to present an ambiguity error, which lets the user select the intended alternative.
+\begin{center}
+\begin{tabular}{l|l}
+\begin{lstlisting}[language={[objective]caml}]
+match 1 with
+  | 1 -> (match "one" with
+          | str -> str)
+  | 2 -> "two"
+\end{lstlisting} &
+\begin{lstlisting}[language={[objective]caml}]
+match 1 with
+  | 1 -> (match "one" with
+          | str -> str
+  | 2 -> "two")
+\end{lstlisting} \\
+\end{tabular}
+\end{center}
 
-\subsection{Unresolvable Ambiguity}
-
-Unfortunately, not all ambiguities can be resolved by adding parentheses. Again, looking to the informal OCaml grammar:
+\noindent Unfortunately, not all ambiguities can be resolved in this way. Again, looking at an extract from the informal OCaml grammar:
 
 \setlength{\grammarindent}{5em}
 \begin{grammar}
@@ -267,26 +285,30 @@ Unfortunately, not all ambiguities can be resolved by adding parentheses. Again,
   \alt <constant>
 \end{grammar}
 
-\noindent The first production is sequential composition, the second is lists (the empty list is under \synt{constant}). Now consider the following expression: ''\ocaml{[1; 2]}''.
-
-We find that it is ambiguous with two alternatives:
+\noindent The first production is sequential composition, the second is lists (the empty list is under \synt{constant}). Now consider the expression ''\ocaml{[1; 2]}''. We find that it is ambiguous with two alternatives:
 \begin{enumerate}
   \item A list with two elements.
   \item A list with one element, namely a sequential composition.
 \end{enumerate}
 
-We can select the second option by putting parentheses around ''\ocaml{1; 2}'', but there is no way to select the first. If the user intended the first option we have a problem: we can present an accurate error message, but there is no way for an end-user to solve it; it requires changes to the grammar itself.
+\noindent We can write the latter option unambiguously by putting parentheses around ''\ocaml{1; 2}'', but there is no way to unambiguously write the former. OCaml itself solves this by unambiguously parsing the expression as a two-element list. In this case, the ''arbitrary'' choice seems reasonable; there is no other way to write a two-element list, ambiguously or not\footnote{Ignoring the cons operator, since this syntax is supposed to be syntactic sugar for it.}, hence we would rather like ''\ocaml{[1; 2]}'' to be interpreted as such.
 
-To prevent the possibility of an end-user encountering such an error we must ensure that the grammar cannot give rise to an unresolvable ambiguity. It is worth mentioning here that statically checking if a context-free grammar is ambiguous has long been known to be undecidable \cite{cantorAmbiguityProblemBackus1962}. Unresolvable ambiguity, however, turns out to be decidable\footnote{With some caveats, I'll talk more about this during the meeting.}.
+The possibility of an unresolvable ambiguity is troubling however, since it represents an error that a user might encounter but only a language designer can solve; it requires a change to the grammar. As such, we propose to allow ambiguous programming language grammars, as long as all possible ambiguities can be solved, and only require \emph{programs} to be unambigous. We call this property \emph{resolvable ambiguity}.
 
-Note that, as for ambiguity, the shape of the grammar is important, since the property considers parse trees rather than merely words. For this paper, we consider context-free grammars with EBNF operators.
-
-\subsection{Contributions}
+We claim the following contributions:
 
 \begin{itemize}
-  \item Building on the work by \citet{palmkvistCreatingDomainSpecificLanguages2019}, which merely isolates ambiguities, an algorithm that suggests solutions to ambiguity errors.
-  \item A formalization of the unresolvable ambiguity property for context-free EBNF grammars.
-  \item An algorithm for deciding if a grammar is unresolvably ambiguous or not.
+\item A formal definition of \emph{resolvable ambiguity} in terms of languages where words have associated interpretations, as well as formulations of the \emph{static} (and \emph{dynamic}) problem, i.e., determine if a grammar (and word) is resolvably ambiguous (Section~\ref{sec:resolvable-definition}).
+\item A syntax definition formalism based on EBNF, where ambiguities can be resolved with grouping parentheses (Section~\ref{sec:parse-time-disambiguation}). For this formalism we also provide:
+  \begin{itemize}
+  \item A formulation of three versions of the static problem of increasing difficulty, and a decidable algorithm that is sound for the first two versions, and sound for the first (Section~\ref{sec:static}).
+  \item A decidable algorithm that solves the dynamic problem for languages that have only well-balanced parentheses (Section~\ref{sec:dynamic}).
+  \end{itemize}
+\item Two case studies of programming languages and the errors produced when we allow (resolvable) ambiguity:
+  \begin{itemize}
+  \item A large subset of OCaml where some ambiguities have been reintroduced.
+  \item A domain-specific language for cyber-physical systems.
+  \end{itemize}
 \end{itemize}
 
 \section{Preliminaries}
@@ -938,7 +960,7 @@ To show the connection between resolvable ambiguity and these lattices, consider
 
 At this point it is clear that a given tree has an unambiguous word iff its lattice has at least one partition that is not shared with any other tree.
 
-Next, we note that each lattice is uniquely determined by its top and bottom elements, it contains all elements between them:
+Next, we note that each lattice is uniquely determined by its top and bottom elements; it contains all elements between them:
 
 \begin{lemma}
   Given $t \in L(T_D)$, $w'_\top, w'_\bot \in \words(t)$ such that $\forall w'.\ w' \in \words(t) => \rangebag(w'_\bot) \subseteq \rangeset(w') \subseteq \rangebag(w'_\top)$ the following holds:\\
@@ -946,6 +968,14 @@ Next, we note that each lattice is uniquely determined by its top and bottom ele
 \end{lemma}
 
 \noindent Lemmas~\ref{lemma:possible-parentheses} and \ref{lemma:required-parentheses} guarantee the existence of two such words $w'_\top$ and $w'_\bot$.
+
+Finally, we show the difference between versions~1 and 2 in the lattice setting: in version~1, the rangeset of the bottom word is the empty set:
+
+\begin{lemma}
+  In version~1, $rangeset(w'_\bot) = \emptyset$ for all trees, where $w'_\bot$ is given by Lemma~\ref{lemma:required-parentheses}.
+\end{lemma}
+
+\noindent Since version~1 has no markings there are no required parentheses, thus the bottom word has no parentheses.
 
 We now have the tools we require to motivate our approach.
 
@@ -1121,7 +1151,7 @@ In this product automaton, if any transition pushes a stack symbol $(a, b)$ wher
 
 The dynamic resolvability problem is as follows: for a given $w' \in L(G'_D)$ determine whether $\forall t \in \parse(w').\ \exists w'_2.\ \parse(w'_2) = \{t\}$. Furthermore, for practical reasons, if the word is resolvably ambiguous we wish to produce a (minimal) witness for each tree. Additionally, while Section~\ref{sec:static} requires a language definition $D$ to not contain parentheses, this section merely requires parentheses to be balanced.
 
-Our approach centers around around $\words(t)$, which, being a set of words, can be considered a language. Each such language turns out to be a visibly pushdown language. Given a set of trees in $L(T_D)$ we can construct a corresponding set of non-overlapping visibly pushdown automata (i.e., each automaton only accepts words not accepted by any other automaton) since VPLs are closed under complement and intersection \cite{alurVisiblyPushdownLanguages2004}. These automata can then be examined to determine if they accept the empty language (which implies that the corresponding tree only has ambiguous words), or otherwise producing a witness.
+Our approach centers around around $\words(t)$, which, being a set of words, can be considered a language in the classical sense. Each such language turns out to be a visibly pushdown language. Given a set of trees in $L(T_D)$ we can construct a corresponding set of non-overlapping visibly pushdown automata (i.e., each automaton only accepts words not accepted by any other automaton) since VPLs are closed under complement and intersection \cite{alurVisiblyPushdownLanguages2004}. These automata can then be examined to determine if they accept the empty language (which implies that the corresponding tree only has ambiguous words), or otherwise produce a witness, a word accepted only by that automaton.
 
 \begin{theorem}
   Given a $t \in L(T_D)$, we can construct a visibly pushdown automaton that accepts exactly $\words(t)$.
@@ -1133,63 +1163,11 @@ Our approach centers around around $\words(t)$, which, being a set of words, can
 
 % TODO: talk about the ''low precedence unary operator'' issue.
 
+\subsection{Cyphym} \label{sec:evaluation-cyphym}
+
 \section{Related Work}
 
 \cite{afroozehSafeSpecificationOperator2013}'s operator ambiguity removal patterns bear a striking resemblance to the marks presented in this paper. However, in special-casing (what in this paper would be) marks on left and right-recursions in productions they correctly cover the edge case discussed in Section~\ref{sec:evaluation-ocaml}.
-
-% TODO: this section should be moved to be in the appropriate position {
-\newpage
-
-\begin{figure*}[ht]
-  \begin{tikzcd}
-    L(G_w) & L(G_t) \arrow[l, "\yield"] \\
-    L(G'_w) & L(G'_t) \arrow[u, "\semantic"'] \arrow[l, "\yield"]
-  \end{tikzcd}
-  \caption{The generated grammars and their relation to each other.}
-\end{figure*}
-
-
-
-\begin{figure*}[ht]
-  \begin{subfigure}[b]{.45\linewidth}
-    \begin{align*}
-      1 + 2 + 3
-    \end{align*}
-    \caption{Example word in $L(G_w)$.}
-  \end{subfigure}
-  \begin{subfigure}[b]{.45\linewidth}
-      \begin{align*}
-        [_S           [_S  &[_N 1 ]_N + \hphantom{[_S} [_N 2 ]_N           ]_S  + [_N 3 ]_N \hphantom{]_S} ]_S \\
-        [_S \hphantom{[_S} &[_N 1 ]_N +           [_S  [_N 2 ]_N \hphantom{]_S} + [_N 3 ]_N           ]_S  ]_S
-      \end{align*}
-    \caption{Example words in $L(G_T)$.}
-  \end{subfigure}
-
-  \begin{subfigure}[b]{.45\linewidth}
-    \begin{align*}
-      1 + 2 + 3
-    \end{align*}
-    \caption{Example word in $L(G'_w)$.}
-  \end{subfigure}
-  \begin{subfigure}[b]{.45\linewidth}
-      \begin{align*}
-        [_S            [_S &[_N 1 ]_N + \hphantom{[_S} [_N 2 ]_N            ]_S + [_N 3 ]_N \hphantom{]_S}]_S \\
-        [_S \hphantom{[_S} &[_N 1 ]_N +            [_S [_N 2 ]_N \hphantom{]_S} + [_N 3 ]_N ]_S ]_S
-      \end{align*}
-    \caption{Example words in $L(G'_T)$.}
-  \end{subfigure}
-  \caption{Example with an ambiguous word in $L(G'_w)$ with corresponding words from the other grammars.}
-  \label{fig:ambig-example-square}
-\end{figure*}
-
-
-
-
-\clearpage
-
-% }
-
-\section{Parsetime Ambiguity Reporting} \label{sec:parse-time-reporting}
 
 \section{Properties We May Want to Prove}
 
