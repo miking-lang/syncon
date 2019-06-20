@@ -210,13 +210,14 @@ Text of abstract \ldots.
 
 \section{Introduction}
 
-Formal languages have long had the concept of ambiguity, of words that can be constructed in multiple ways, for example using multiple distinct derivations of a context-free grammar.
+% I really don't like this paragraph. I'm trying to say that much work has been done on ambiguity, and that work in other fields include it, while PL tends to be more narrow-minded.
+Formal languages have long had the concept of ambiguity, of words that can be constructed in multiple ways, for example using multiple distinct derivations of a context-free grammar. In linguistics, this is important, since human languages tend to be highly ambiguous, and as such much work has been done on the subject. Examples include general parsing algorithms \cite{earleyEfficientContextfreeParsing1970,scottGLLParsing2010,youngerRecognitionParsingContextfree1967}, ambiguity detection (most importantly its undecidability \cite{cantorAmbiguityProblemBackus1962}, but also various pragmatic approaches \cite{brabrandAnalyzingAmbiguityContextFree2007,axelssonAnalyzingContextFreeGrammars2008,bastenAmbiguityDetectionProgramming2011})
 
-However, when using these formal methods to specify the syntax for programming languages, ambiguity becomes a strictly undesirable property. We tend to want to give the compiler a single interpretation of any given program, and so we work hard to make programming language grammars entirely unambiguous. This view, that eliminating ambiguity is \emph{the} correct thing to do, is highly prevalent (e.g. \cite{sudkampLanguagesMachinesIntroduction1997}).
+However, when using these formal methods to specify the syntax for programming languages, ambiguity becomes a strictly undesirable property. We tend to want to give the compiler a single interpretation of any given program, and so we work hard to make programming language grammars entirely unambiguous. This view, that eliminating ambiguity is \emph{the} correct thing to do, is highly prevalent (e.g. \cite{sudkampLanguagesMachinesIntroduction1997,ahoCompilersPrinciplesTechniques2006,webberModernProgrammingLanguages2003,cooperEngineeringCompiler2011,ginsburgAmbiguityContextFree1966}).
 
 Some exceptions do exist however. Closest to our approach are \citet{danielssonParsingMixfixOperators2011}, who ''feel that it is overly restrictive to require the grammar to be unambiguous'', and suggest that only ambiguous \emph{parses} should be rejected, not ambiguous grammars. This seems to stem largely from the fact that their grammars are mostly constructed from user-defined operators, and so cannot be expected to compose without ambiguity. Instead, in case of an unambiguous parse, they present an error that includes the possible parses, to assist in debugging.
 
-We propose that the this idea---treating ambiguity as a parse-time error---can be beneficial even when the entire grammar is constructed by a single language designer, if done in a more rigorous fashion. Consider the following nested match expression in OCaml (from \cite{palmkvistCreatingDomainSpecificLanguages2019}), and the resulting error message:
+We propose that this idea---treating ambiguity as a parse-time error---can be beneficial even when the entire grammar is constructed by a single language designer, if done in a more rigorous fashion. Consider the following nested match expression in OCaml (from \cite{palmkvistCreatingDomainSpecificLanguages2019}), and the resulting error message:
 
 \begin{tabular}{l|l}
 \begin{lstlisting}[language={[objective]caml},numbers=left]
@@ -245,7 +246,7 @@ match 1 with
 \end{lstlisting}
 \end{tabular}
 
-\noindent However, the connection between the error message and the solution is not particularly clear; surrounding an expression with parentheses does not change its type.
+\noindent However, the connection between error message and solution is not particularly clear; surrounding an expression with parentheses does not change its type.
 
 Instead, we look to the OCaml manual for inspiration. It contains an informal description of the syntax of the language\footnote{\url{https://caml.inria.fr/pub/docs/manual-ocaml/language.html}}, in the form of an EBNF-like grammar. Below is an excerpt of the productions for expressions, written in a more standard variant of EBNF:
 
@@ -257,7 +258,7 @@ Instead, we look to the OCaml manual for inspiration. It contains an informal de
 ('|' <pattern> ('when' <expr>)? '->' <expr>)*
 \end{grammar}
 
-\noindent If we use this grammar to parse the nested match we find an ambiguity: the last match arm can belong to either the inner match or the outer match. The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may or may not be the alternative the user intended. Presenting the two alternatives as parse trees would here be informative, and useful to a language designer, but would also expose implementation details to an end-user. Instead, we can present the alternatives in the form of modified codethat parses unambiguously as the corresponding alternative:
+\noindent If we use this grammar to parse the nested match we find an ambiguity: the last match arm can belong to either the inner match or the outer match. The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may or may not be the alternative the user intended. Presenting the two alternatives as parse trees would here be informative, and useful to a language designer, but would also expose implementation details to an end-user. Instead, we can present the alternatives in the form of modified code that parses unambiguously as the corresponding alternative:
 
 \begin{center}
 \begin{tabular}{l|l}
@@ -293,21 +294,21 @@ match 1 with
 
 \noindent We can write the latter option unambiguously by putting parentheses around ''\ocaml{1; 2}'', but there is no way to unambiguously write the former. OCaml itself solves this by unambiguously parsing the expression as a two-element list. In this case, the ''arbitrary'' choice seems reasonable; there is no other way to write a two-element list, ambiguously or not\footnote{Ignoring the cons operator, since this syntax is supposed to be syntactic sugar for it.}, hence we would rather like ''\ocaml{[1; 2]}'' to be interpreted as such.
 
-The possibility of an unresolvable ambiguity is troubling however, since it represents an error that a user might encounter but only a language designer can solve; it requires a change to the grammar. As such, we propose to allow ambiguous programming language grammars, as long as all possible ambiguities can be solved, and only require \emph{programs} to be unambigous. We call this property \emph{resolvable ambiguity}.
+The possibility of an unresolvable ambiguity is troubling however, since it represents an error that a user might encounter but only a language designer can solve; it requires a change to the grammar. As such, we propose to allow ambiguous programming language grammars, as long as all possible ambiguities can be resolved, and only require \emph{programs} to be unambigous. We call this property \emph{resolvable ambiguity}.
 
 We claim the following contributions:
 
 \begin{itemize}
-\item A formal definition of \emph{resolvable ambiguity} in terms of languages where words have associated interpretations, as well as formulations of the \emph{static} (and \emph{dynamic}) problem, i.e., determine if a grammar (and word) is resolvably ambiguous (Section~\ref{sec:resolvable-definition}).
+\item A formal definition of \emph{resolvable ambiguity} in terms of languages where words have associated interpretations, as well as formulations of the \emph{static} and \emph{dynamic} resolvability problems, i.e., determine if a grammar (resp. word) is resolvably ambiguous (Section~\ref{sec:resolvable-definition}).
 \item A syntax definition formalism based on EBNF, where ambiguities can be resolved with grouping parentheses (Section~\ref{sec:parse-time-disambiguation}). For this formalism we also provide:
   \begin{itemize}
-  \item A formulation of three versions of the static problem of increasing difficulty, and a decidable algorithm that is sound for the first two versions, and sound for the first (Section~\ref{sec:static}).
-  \item A decidable algorithm that solves the dynamic problem for languages that have only well-balanced parentheses (Section~\ref{sec:dynamic}).
+  \item A formulation of three versions of the static resolvability problem of increasing difficulty, and a decidable algorithm that is sound for the first two versions, and complete for the first (Section~\ref{sec:static}).
+  \item A decidable algorithm that solves the dynamic resolvability problem for languages that have only well-balanced parentheses (Section~\ref{sec:dynamic}).
   \end{itemize}
 \item Two case studies of programming languages and the errors produced when we allow (resolvable) ambiguity:
   \begin{itemize}
-  \item A large subset of OCaml where some ambiguities have been reintroduced.
-  \item A domain-specific language for cyber-physical systems.
+  \item A large subset of OCaml where some ambiguities have been reintroduced (Section~\ref{sec:evaluation-ocaml}).
+  \item A domain-specific language for cyber-physical systems (Section~\ref{sec:evaluation-cyphym}).
   \end{itemize}
 \end{itemize}
 
