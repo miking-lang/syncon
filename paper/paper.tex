@@ -99,6 +99,8 @@
 \newcommand{\localize}{\mathit{localize}} % go from a F \subseteq L(G_t) to a set of localized ambiguities, i.e., a set of subforests.
 \newcommand{\range}[2]{#1\!-\!#2}
 \newcommand{\regex}{\mathit{Reg}}
+\newcommand{\reqp}[1]{(#1)}
+\newcommand{\posp}[1]{[#1]}
 
 \begin{document}
 
@@ -768,7 +770,7 @@ For this section, we will use an alternative formulation of resolvable ambiguity
   The quantifier $\forall t \in T$ is equivalent with $\forall w \in \T^{*}. \forall t \in \parse(w)$, since $T = \bigcup_{w \in \T^{*}} \parse(w)$ (by definition).
 \end{proof}
 
-\noindent To determine if a given language definition $D$ is resolvably ambiguous we attempt to find a counterexample: a tree $t \in L(T_D)$ such that there is no $w' \in L(G'_D)$ for which $\parse(w') = \{t\}$, or prove that no such tree exists. Or, more briefly put: find a tree that has only ambiguous words or show that no such tree exist.
+\noindent To determine if a given language definition $D$ is resolvably ambiguous we attempt to find a counterexample: a tree $t \in L(T_D)$ such that there is no $w' \in L(G'_D)$ for which $\parse(w') = \{t\}$, or prove that no such tree exists. Or, more briefly put: find a tree that has only ambiguous words or show that no such tree exists.
 
 Before an actual algorithm, we split the problem into three different versions of increasing difficulty. We then lay the groundwork for our correctness proofs, eventually culminating in the algorithm, which we show to be sound and complete for version 1 and sound for version 2.
 
@@ -794,7 +796,9 @@ The reason for this split stems from the following insight: double grouping pare
 
 This section introduces an alternative (isomorphic) definition of a word, heavily used in sections~\ref{sec:lattice} and \ref{sec:lattice-vpl}. The method by which we generate $G_D$ and $G'_D$ limits the possible differences between them significantly. In particular, no new terminals are introduced, except '(' and ')', and they are always introduced in a well-balanced fashion.
 
-If we thus delimit ourselves to only consider languages where words have no unbalanced parentheses\footnote{I.e., the vast, vast majority of programming languages currently in use.} we can give the following alternative definition of a word: a word is a two-tuple containing a sequence of non-parenthesis terminals and a bag (or multiset) of ranges covered by parentheses. For example, the word ''$(1 + 2) * 3$'' is equivalent to $(\text{''}1 + 2 * 3\text{''}, \{\range{1}{3}\})$, while ''$((1 + 2)) * 3$'' is equivalent to $(\text{''}1 + 2 * 3\text{''}, \{\range{1}{3}, \range{1}{3}\})$. We will refer to the first component of the tuple as the \emph{basic word}, the second as the \emph{range bag}.
+If we thus delimit ourselves to only consider languages where words have no unbalanced parentheses\footnote{I.e., the vast, vast majority of programming languages currently in use.} we can give the following alternative definition of a word: a word is a two-tuple containing a sequence of non-parenthesis terminals and a bag (or multiset) of ranges covered by parentheses. For example, the word ''$(1 + 2) * 3$'' is equivalent to $(\text{''}1 + 2 * 3\text{''}, \{\range{0}{3}\})$, while ''$((1 + 2)) * 3$'' is equivalent to $(\text{''}1 + 2 * 3\text{''}, \{\range{0}{3}, \range{0}{3}\})$. We will refer to the first component of the tuple as the \emph{basic word} and the second as the \emph{range bag}.
+
+However, there is a case where this alternate representation is not fully isomorphic; namely when a pair of parentheses would yield a zero-length range. As an example, consider the two words ''$(())$'' and ''$()()$''. Both of these have an alternate representation of $(\text{''}\text{''}, \{\range{0}{0}, \range{0}{0}\})$. In versions~1 and 2 this corresponds to grouping parentheses surrounding zero-length productions. We can avoid this case by finding every production $N -> l : r$ where $\epsilon \in L(r)$, replacing it with $N -> l : r'$ where $L(r') = L(r) \setminus \{\epsilon\}$, and replacing every use of $N$ with $N + \epsilon$. The one exception is if the start symbol has a nullable production, but that we can trivially special case. As such, going forward, we will assume no zero-length grouping parentheses.
 
 We denote the function producing the alternative representation by $\alt$, while $\basic$ and $\rangebag$ directly produce the basic word and rangebag, respectively.
 
@@ -965,7 +969,7 @@ Next, we note that each lattice is uniquely determined by its top and bottom ele
 
 \begin{lemma}
   Given $t \in L(T_D)$, $w'_\top, w'_\bot \in \words(t)$ such that $\forall w'.\ w' \in \words(t) => \rangebag(w'_\bot) \subseteq \rangeset(w') \subseteq \rangebag(w'_\top)$ the following holds:\\
-  $\forall w'.\ \rangebag(w'_\bot) \subseteq \rangeset(w') \subseteq \rangebag(w'_\top) => w' \in \words(t)$.
+  $\forall w'.\ \rangebag(w'_\bot) \subseteq \rangeset(w') \subseteq \rangebag(w'_\top) => w' \in \words(t)$. \label{lemma:top-bottom-determine}
 \end{lemma}
 
 \noindent Lemmas~\ref{lemma:possible-parentheses} and \ref{lemma:required-parentheses} guarantee the existence of two such words $w'_\top$ and $w'_\bot$.
@@ -973,48 +977,58 @@ Next, we note that each lattice is uniquely determined by its top and bottom ele
 Finally, we show the difference between versions~1 and 2 in the lattice setting: in version~1, the rangeset of the bottom word is the empty set:
 
 \begin{lemma}
-  In version~1, $rangeset(w'_\bot) = \emptyset$ for all trees, where $w'_\bot$ is given by Lemma~\ref{lemma:required-parentheses}.
+  In version~1, $rangeset(w'_\bot) = \emptyset$ for all trees, where $w'_\bot$ is given by Lemma~\ref{lemma:required-parentheses}. \label{lemma:version1-bot}
 \end{lemma}
 
 \noindent Since version~1 has no markings there are no required parentheses, thus the bottom word has no parentheses.
 
-We now have the tools we require to motivate our approach.
+Our approach centers around finding a pair of lattices, such that one is entirely contained in the other. Since the former shares \emph{all} partitions with the latter, it has only ambiguous words, thus any of those words will be unresolvably ambiguous.
 
 \begin{theorem}
-  In version 1, for a given $t \in L(T_D)$, $\exists w'.\ \parse(w') = \{t\}$ iff $\parse(w'_\top) = \{t\}$ (where $w'_\top$ is given by Lemma~\ref{lemma:possible-parentheses}).
+  In versions~1 and 2, given a $t \in L(T_D)$ with a lattice determined by $w_\bot$ and $w_\top$, $\exists t' \in L(T_D).\ \basic(w_\bot) = \basic(w'_\bot) \land \rangeset(w_\bot) \subseteq \rangeset(w'_\bot) \land \rangeset(w'_\top) \subseteq \rangeset(w_\top) => \neg \exists w.\ \parse(w) = \{t\}$. \label{lemma:lattice-containment-implies-unresolvable}
 \end{theorem}
+
+
+\noindent For version~1, \emph{every} unresolvable ambiguity has this form:
+
+\begin{theorem}
+  In version 1, given a $t \in L(T_D)$ with a lattice determined by $w_\bot$ and $w_\top$, $\exists t' \in L(T_D).\ \basic(w_\bot) = \basic(w'_\bot) \land \rangeset(w'_\bot) \subseteq \rangeset(w_\bot) \land \rangeset(w_\top) \subseteq \rangeset(w'_\top) <=> \neg \exists w.\ \parse(w) = \{t\}$.
+\end{theorem}
+
+\begin{proof}
+  The left-to-right implication is already given in Theorem~\ref{lemma:lattice-containment-implies-unresolvable}, and Lemma~\ref{lemma:version1-bot} together with $\basic(w_\bot) = \basic(w'_\bot)$ implies that $w_\bot = w'_\bot$. We thus need to show that $\neg \exists w.\ \parse(w) = \{t\} => \exists t' \in L(T_D).\ \basic(w_\bot) = \basic(w'_\bot) \land \rangeset(w'_\top) \subseteq \rangeset(w_\top)$.
+
+  If all words in $\words(t)$ are ambiguous, then $\exists t' \in L(T_D).\ t' \neq t \land t' \in \parse(w_\top)$. Lemma~\ref{lemma:same-basic} gives $\basic(w_\bot) = \basic(w'_\bot)$. The definition of $w'_\top$ (Lemma~\ref{lemma:possible-parentheses}) gives $\rangeset(w_\top) \subseteq \rangebag(w'_\top)$, but since the rangebag of $w'_\top$ is a set, this also implies that $\rangeset(w_\top) \subseteq \rangeset(w'_\top)$.
+\end{proof}
 
 \subsection{A Lattice as a Word, and an Algorithm} \label{sec:lattice-vpl}
 
-Our initial limitations / assumptions are as follows:
+This section introduces a linear encoding of the lattices of the previous chapter as words. Lemmas~\ref{lemma:same-basic} and \ref{lemma:top-bottom-determine} imply that a lattice encoding requires three things: a basic word, a set of \emph{required} parentheses, and a set of \emph{possible} parentheses. We encode required parentheses with ''$\reqp{}$'' and possible parentheses with ''$\posp{}$''. For example, the lattice in Figure~\ref{fig:lattice2} is represented by ''$\posp{\posp{1} + \posp{\posp{2} + \posp{3}}}$'', while the tree for ''$(1 + 2) * 3$'' has a lattice represented by ''$\posp{\reqp{\posp{1} + \posp{2}} * \posp{3}}$''. With this encoding we can apply the formidable body of knowledge available for word languages, albeit with some extra care; the linear encoding of a lattice is not unique.
 
-\begin{enumerate}
-  \item The input language definition contains no parentheses. This implies that all parentheses in $G'_w$ are grouping parentheses, thus we only need to consider words $w' \in L(G'_w)$ whose range bag is a set.
+For example, ''$\posp{\posp{1}}$'' and ''$\posp{1}$'' represent the same lattice, as do ''$\reqp{\posp{2}}$'' and ''$\reqp{2}$''. To gain uniqueness we forbid duplicated parentheses and prioritize required parentheses over optional parentheses, e.g., ''$\posp{\posp{1}}$'' is uniquely represented as ''$\posp{1}$'' while ''$\reqp{\posp{2}}$'' is uniquely represented as ''$\reqp{2}$''.
 
-  \item No non-terminals in the input language definition are marked, i.e., there are no forbidden children. This implies that there are no required grouping parentheses.
+Lattice equality is now equvialent with equality of the linear encoding. To determine if a lattice is entirely contained in another, we make the following observation: we can move the top of the lattice ''up'' (new top rangeset is a strict superset) by adding a pair of possible parentheses, and move the bottom ''down'' (new bottom rangeset is a strict subset) by replacing a required pair with a possible pair. For example, ''$\reqp{1}2$'' is entirely contained in ''$\reqp{1}\posp{2}$'', which is entirely contained in ''$\posp{1}\posp{2}$''.
 
-  \item No production has a right-hand side that matches a single non-terminal, i.e., $\forall (N->i:r) \in D.\ \NT \cap L(r) = \emptyset$\footnote{I haven't really written a proper description for the language definition, but I'm here using $D$ for it, and considering it essentially as a set of ''productions''.}.
-\end{enumerate}
-
-\noindent The first two limitations allow us to place all words in $\words(t)$ for some given $t$ in a lattice, whose structure is formed by the subset ordering of the range sets. For example, the two trees in Figure~\ref{fig:ambig-example-square} have the lattices of words seen in Figures~\ref{fig:lattice1} and \ref{fig:lattice2} respectively.
-
-The bottom word corresponds to the set of required parentheses (i.e., the empty set, in this sub-problem), while the top word corresponds to the set of possible parentheses ranges. All trees that can be ambiguous must thus share the same bottom word, while the top may differ.
-
-Of particular use is to examine whether the top word (call it $w'$) is ambiguous. There are two cases:
+The centerpiece of our algorithm is a visibly pushdown automaton constructed in such a way that:
 
 \begin{itemize}
-\item The top word is unambiguous, then this is not a tree we are looking for (since it has at least one unambiguous word).
-\item It is ambiguous. That means that there is some other lattice for some other tree that also contains the word. Call the top word of this other lattice $w'_2$. For $w'$ to be in the lattice whose top is $w'_2$ its rangeset must be a subset of the rangeset of the latter. But this is true also for all the other words in the lattice, thus there are no unambiguous words in the lattice, i.e., this tree is what we are looking for.
+\item There is a bijection between trees in $L(T_D)$ and successful runs.
+\item The word recognized by a successful run is the linear encoding of the corresponding tree's lattice.
 \end{itemize}
 
-\noindent The algorithm thus looks for two trees, where the set of possible parentheses for one is a superset of the other. To do this, we use a linear representation of each lattice: namely the top word. If two trees have the same top word, that implies that their sets of possible parentheses are equal. If we can add parentheses to one word and get the other word, that implies that the rangeset of the former is a subset of the latter.
+\noindent Two distinct successful runs through this automaton that recognize the same word thus imply two distinct trees that have exactly the same lattice. To detect lattices contained in each other, we create a modified copy, where the copy may add arbitrary (balanced, well-nested) possible parentheses, and replace any required pair of parentheses with a possible pair. The copy maintains much of the structure of the original, and in particular, keeps the connection to trees in $L(T_D)$ (though it is no longer a bijection, there are multiple successful runs per tree since there are multiple larger lattices).
 
-We will now construct a pushdown automaton that recognizes these top words in such a way that there is a bijection between successful runs and trees in $L(G_t)$. As a running example, we will use the following (very simple) language definition $D$:
+We will now walk through the construction of this automaton, using the following language definition:
 
 \begin{center}
 \begin{tabular}{@{}l@{\quad$->$\quad}l@{ $:$\quad}l@{}}
-  \synt{N} & Succ & 's' \synt{N}\\
-  \synt{N} & Zero & 'z' \\
+  \toprule
+  $E$ & $l$ & \verb|'['| ($E$ \verb|';'|)* \verb|']'| \\
+  $E$ & $s$ & $E_{\{s\}}$ \verb|';'| $E$ \\
+  $E$ & $c$ & $C$ \\
+  \midrule
+  $C$ & $v$ & \verb|'e'| \\
+  \bottomrule
 \end{tabular}
 \end{center}
 
@@ -1026,13 +1040,21 @@ We will now construct a pushdown automaton that recognizes these top words in su
 
   \node[state,initial] (1) {$1$};
   \node[state] (2) [right of=1] {$2$};
-  \node[state,accepting] (3) [right of=2] {$3$};
-  \node[state,initial] (4) [below of=1, xshift=1cm] {$4$};
-  \node[state,accepting] (5) [right of=4] {$5$};
+  \node[state] (3) [below of=2, yshift=5mm] {$3$};
+  \node[state,accepting] (4) [right of=2] {$4$};
 
-  \path (1) edge              node {$s$} (2)
-  (2) edge              node {$N$} (3)
-  (4) edge              node {$z$} (5);
+  \node[state,initial] (5) [below of=1, yshift=-10mm] {$5$};
+  \node[state] (6) [right of=5] {$6$};
+  \node[state] (7) [right of=6] {$7$};
+  \node[state,accepting] (8) [right of=7] {$8$};
+
+  \path (1) edge node {$'['$} (2)
+  (2) edge[bend right,left] node {$E$} (3)
+  (3) edge[right] node {$';'$} (2)
+  (2) edge node {$']'$} (4);
+  \path (5) edge node {$E_{\{s\}}$} (6)
+  (6) edge node {$';'$} (7)
+  (7) edge node {$E$} (8);
 
 \end{tikzpicture}
 \end{center}
