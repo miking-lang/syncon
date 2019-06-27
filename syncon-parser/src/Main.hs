@@ -11,8 +11,10 @@ import ErrorMessage (FormatError, formatErrors, formatError, ErrorOpts)
 
 import System.Environment (withArgs)
 import System.FilePath ((</>))
+import System.Timeout (timeout)
 
 import Data.Data (Data)
+import Data.IORef (newIORef, modifyIORef', readIORef)
 import Data.List (partition)
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
@@ -59,11 +61,10 @@ dataOrError _ _ (Data a) = return a
 dataOrError source opts (Error e) =
   die $ formatErrors source $ formatError opts <$> e
 
-dataOrError' :: Show e => Result e a -> IO a
-dataOrError' (Data a) = return a
-dataOrError' (Error e) = do
-  pPrint e
-  compErr "Main.dataOrError" "Got error"
+dataOrError' :: (Functor f, Foldable f, FormatError e) => HashMap Text Text -> ErrorOpts e -> Result (f e) a -> IO a
+dataOrError' _ _ (Data a) = return a
+dataOrError' source opts (Error e) =
+  die' $ formatErrors source $ formatError opts <$> e
 
 testReduce :: IO ()
 testReduce = do
@@ -93,6 +94,13 @@ test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--two-level"] 
 getArgsSeq :: IO (Seq [Char])
 getArgsSeq = getArgs <&> Seq.fromList
 
+newtype SourceFileException = SourceFileException Text deriving (Show)
+instance Exception SourceFileException
+
+die' :: Text -> IO a
+die' t = do
+  throwIO $ SourceFileException t
+
 common :: Opt.Parser (IO ())
 common = do
   html <- optional $ Opt.strOption
@@ -110,6 +118,14 @@ common = do
   showTwoLevel <- Opt.switch
     $ Opt.long "two-level"
     <> Opt.help "Always show the two level representation, even if some alternatives are resolvable."
+  sourceTimeout <- fmap (*1_000_000) $ Opt.option Opt.auto
+    $ Opt.long "timeout"
+    <> Opt.metavar "S"
+    <> Opt.help "Timeout for attempting to parse a single source file, in seconds. A negative value means 'wait forever'."
+    <> Opt.value (-1)
+  continueAfterError <- Opt.switch
+    $ Opt.long "continue-after-error"
+    <> Opt.help "Don't abort after the first source file that gives errors."
   files <- some $ Opt.argument Opt.str $
     Opt.metavar "FILES..."
 
@@ -127,14 +143,29 @@ common = do
 
     srcSources <- extraSrcFiles <> srcFiles & S.fromList & S.toMap
       & M.traverseWithKey (\path _ -> readFile $ toS path)
+    successfulFiles <- newIORef @Int 0
+    failureFiles <- newIORef @Int 0
+    let sourceFailureHandler
+          | continueAfterError = \t -> putStrLn t >> return undefined
+          | otherwise = die
     srcNodes <- flip M.traverseWithKey srcSources $ \path _ -> do
       putStrLn @Text $ "Parsing \"" <> path <> "\""
-      setOfNodes <- parseFile (toS path) >>= dataOrError srcSources ()
-      case DynAmb.report pl setOfNodes of
-        Data node -> return node
-        Error errs -> formatError (DynAmb.EO{DynAmb.showTwoLevel}) <$> errs
-          & formatErrors srcSources
-          & die
+      handle (\(SourceFileException t) -> modifyIORef' failureFiles (+1) >> sourceFailureHandler t) $ do
+        mNode <- timeout sourceTimeout $ do
+          setOfNodes <- parseFile (toS path) >>= dataOrError' srcSources ()
+          case DynAmb.report pl setOfNodes of
+            Data node -> modifyIORef' successfulFiles (+1) >> return node
+            Error errs -> do
+              formatError (DynAmb.EO{DynAmb.showTwoLevel}) <$> errs
+                & formatErrors srcSources
+                & die'
+        maybe (die' "        timeout when parsing file") return mNode
+
+    numSuccesses <- readIORef successfulFiles
+    numFailures <- readIORef failureFiles
+    putStrLn @Text $ "Parsed " <> show numSuccesses <> " files successfully, failed on " <> show numFailures <> " files."
+
+    when (numFailures /= 0) exitFailure
 
     forM_ html $ \htmlPath -> do
       putStrLn @Text $ "Writing HTML to \"" <> toS htmlPath <> "\""
