@@ -99,8 +99,12 @@
 \newcommand{\localize}{\mathit{localize}} % go from a F \subseteq L(G_t) to a set of localized ambiguities, i.e., a set of subforests.
 \newcommand{\range}[2]{#1\!-\!#2}
 \newcommand{\regex}{\mathit{Reg}}
-\newcommand{\reqp}[1]{(#1)}
-\newcommand{\posp}[1]{[#1]}
+\newcommand{\reqpl}{(}
+\newcommand{\reqpr}{)}
+\newcommand{\reqp}[1]{\reqpl#1\reqpr}
+\newcommand{\pospl}{[}
+\newcommand{\pospr}{]}
+\newcommand{\posp}[1]{\pospl#1\pospr}
 
 \begin{document}
 
@@ -211,6 +215,16 @@ Text of abstract \ldots.
 
 
 \section{Introduction}
+
+Outline of introduction, one bullet per paragraph, roughly:
+
+\begin{itemize}
+\item Creating languages, particularly DSLs, it's nice to create pieces and compose. Composing syntax in particular quickly creates ambiguous grammars. Two broad approaches: forbid/prevent ambiguities at all (statically), or handle at parse-time (dynamically). Former more well-explored than the latter, which we focus on. The former is essentially the ambiguity problem, but the latter has not been formally defined. (To my knowledge we're first in presenting resolutions as opposed to interpretations (ASTs), which means that what we're talking about here is a little bit different from what previous approaches have done)
+
+\item Motivated by issues in \cite{palmkvistCreatingDomainSpecificLanguages2019,danielssonParsingMixfixOperators2011} ''we introduce a formal definition for resolvable ambiguity.'' (They both merely present ASTs, which are unlikely to be nice for an end-user. Probably want better motivation than ''nice.'') \ldots It turns out that this is not always possible, prompting an additional problem: can we statically determine if a language is resolvably ambiguous? We call the former the dynamic resolvability problem, and the latter the static resolvability problem.
+
+\item The dynamic problem is ''easy'' (though we haven't found any previously presented solution), but the static problem is not. We present a subclass of languages for which we have a decidable, sound, and complete decision procedure for the static problem, but also two larger classes of languages for which the algorithm is merely decidable and sound, or not applicable at all, respectively.
+\end{itemize}
 
 % I really don't like this paragraph. I'm trying to say that much work has been done on ambiguity, and that work in other fields include it, while PL tends to be more narrow-minded.
 Formal languages have long had the concept of ambiguity, of words that can be constructed in multiple ways, for example using multiple distinct derivations of a context-free grammar. In linguistics, this is important, since human languages tend to be highly ambiguous, and as such much work has been done on the subject. Examples include general parsing algorithms \cite{earleyEfficientContextfreeParsing1970,scottGLLParsing2010,youngerRecognitionParsingContextfree1967}, ambiguity detection (most importantly its undecidability \cite{cantorAmbiguityProblemBackus1962}, but also various pragmatic approaches \cite{brabrandAnalyzingAmbiguityContextFree2007,axelssonAnalyzingContextFreeGrammars2008,bastenAmbiguityDetectionProgramming2011})
@@ -551,6 +565,8 @@ With that in mind, we define a language definition $D$ as a set of labelled prod
       Terminals & $t \in \T$ \\
       Non-terminals & $N \in \NT$ \\
       Labels & $l \in \Labels$ \\
+      \multicolumn{2}{@{}l@{}}{$\T$, $\NT$, and $\Labels$ disjoint} \\
+      \addlinespace
       Marks & $m \subseteq \Labels$ \\
       Regular expressions & $r ::= t \mid N_m \mid r \cdot r $ \\
       & \hphantom{$r ::=$}$\mid r + r \mid \epsilon \mid r^{*}$ \\
@@ -1023,16 +1039,26 @@ We will now walk through the construction of this automaton, using the following
 \begin{center}
 \begin{tabular}{@{}l@{\quad$->$\quad}l@{ $:$\quad}l@{}}
   \toprule
-  $E$ & $l$ & \verb|'['| ($E$ \verb|';'|)* \verb|']'| \\
   $E$ & $s$ & $E_{\{s\}}$ \verb|';'| $E$ \\
-  $E$ & $c$ & $C$ \\
-  \midrule
-  $C$ & $v$ & \verb|'e'| \\
+  $E$ & $v$ & \verb|'e'| \\
   \bottomrule
 \end{tabular}
 \end{center}
 
-\noindent We begin by constructing a DFA per production. This can be done in the standard way by constructing an NFA, then determinizing it, and optionally minimizing it.
+\noindent We first present a simplified construction that assumes no production can match a single non-terminal, i.e., for all right-hand side regular expressions $r$, $\neg \exists N_m.\ N_m \in L(r)$, to make the base idea easier to follow. Such cases introduce duplicated parentheses if handled in a naive way, and the extra book-keeping required to correctly handle them complicate this presentation, and will so be introduce after the more naive method.
+
+Conceptually, each non-terminal represents a choice of which child production should replace it, and whether that production requires parentheses around it. We now make this explicit, to ensure that standard operations on finite automata produce the correct result. We replace each $N_m$ with a sum of the labels of productions in $N$, where each label in $m$ is distinguished by a prime, e.g., $E_{\{s\}}$ is replaced with $s' + v$.
+
+\begin{center}
+\begin{tabular}{@{}l@{\quad$->$\quad}l@{ $:$\quad}l@{}}
+  \toprule
+  $E$ & $s$ & $(s' + v)$ \verb|';'| $(s + v)$ \\
+  $E$ & $v$ & \verb|'e'| \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Next we construct a DFA per production. This can be done in the standard way by constructing an NFA, then determinizing it, and optionally minimizing it.
 
 \begin{center}
 \begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
@@ -1040,33 +1066,32 @@ We will now walk through the construction of this automaton, using the following
 
   \node[state,initial] (1) {$1$};
   \node[state] (2) [right of=1] {$2$};
-  \node[state] (3) [below of=2, yshift=5mm] {$3$};
-  \node[state,accepting] (4) [right of=2] {$4$};
+  \node[state] (3) [right of=2] {$3$};
+  \node[state,accepting] (4) [right of=3] {$4$};
 
-  \node[state,initial] (5) [below of=1, yshift=-10mm] {$5$};
-  \node[state] (6) [right of=5] {$6$};
-  \node[state] (7) [right of=6] {$7$};
-  \node[state,accepting] (8) [right of=7] {$8$};
+  \node[state,initial] (5) [below of=2] {$5$};
+  \node[state,accepting] (6) [right of=5] {$6$};
 
-  \path (1) edge node {$'['$} (2)
-  (2) edge[bend right,left] node {$E$} (3)
-  (3) edge[right] node {$';'$} (2)
-  (2) edge node {$']'$} (4);
-  \path (5) edge node {$E_{\{s\}}$} (6)
-  (6) edge node {$';'$} (7)
-  (7) edge node {$E$} (8);
+  \path (1) edge[bend left] node {$s'$} (2)
+  (1) edge[bend right] node {$v$} (2)
+  (2) edge node {$';'$} (3)
+  (3) edge[bend left] node {$s$} (4)
+  (3) edge[bend right] node {$v$} (4);
+  \path (5) edge node {$'e'$} (6);
 
 \end{tikzpicture}
 \end{center}
 
-\noindent We then combine them into a single pushdown automata by replacing each edge with a non-terminal label $p \xrightarrow{N} q$ with:
+\noindent We then combine them into a single visibly pushdown automaton. Every time we transition from a production to a child we push a symbol to the stack, which we then pop when we go back. We use $Q \times Q \times \{\text{''}\reqp{}\text{''}, \text{''}\posp{}\text{''}\}$ as our stack alphabet, where the first two components are states in the parent production automaton and the last component records whether the parenthesis pair is required or merely possible. We replace every edge $p \xrightarrow{l} q$, where $l \in \Labels$, with:
 
 \begin{itemize}
-  \item an edge $p \xrightarrow{'(', +(p, q)} p'$ for every initial state $p'$ in some DFA belonging to non-terminal $N$, and
-  \item an edge $q' \xrightarrow{')', -(p, q)} q$ for every final state $q'$ in some DFA belonging to non-terminal $N$,
+  \item an edge $p \xrightarrow{'\pospl', +(p, q, \text{''}\posp{}\text{''})} p'$, where $p'$ is the initial state in the DFA corresponding to the production with label $l$, and
+  \item an edge $q' \xrightarrow{'\pospr', -(p, q, \text{''}\posp{}\text{''})} q$ for every final state $q'$ in the DFA corresponding to the production with label $l$.
 \end{itemize}
 
-\noindent Intuitively, we parse a child node, but put parentheses around it, then return. This is where we use assumption 3, without it we might introduce double parentheses here.
+\noindent Similarly, for every edge $p \xrightarrow{l'} q$, where $l \in \Labels$, we add edges $p \xrightarrow{'\reqpl', +(p, q, \text{''}\reqp{}\text{''})} p'$ and $q' \xrightarrow{'\reqpr', -(p, q, \text{''}\reqp{}\text{''})} q$.
+
+Intuitively, we parse a child node with parentheses around it, then return. This is where our simplification is used, without it we might introduce double parentheses here. To lessen clutter in the figure below we omit the third component of the stack symbol, since it is fully determined by the input symbol, e.g., if an edge reads $'\pospl'$ then the third component of the stack symbol pushed must be ''$\posp{}$''.
 
 \begin{center}
 \begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
@@ -1074,17 +1099,23 @@ We will now walk through the construction of this automaton, using the following
 
   \node[state,initial] (1) {$1$};
   \node[state] (2) [right of=1] {$2$};
-  \node[state,accepting] (3) [right of=2] {$3$};
-  \node[state,initial] (4) [below of=1, xshift=1cm] {$4$};
-  \node[state,accepting] (5) [right of=4] {$5$};
+  \node[state] (3) [right of=2] {$3$};
+  \node[state,accepting] (4) [right of=3] {$4$};
 
-  \draw
-  (1) edge[above] node{$s$} (2)
-  (4) edge[above] node{$z$} (5)
-  (2) edge[bend left, below] node{$'(', +(2, 3)$} (1)
-  (2) edge[bend left, left] node{$'(', +(2, 3)$} (4)
-  (3) edge[loop above] node{$')', -(2, 3)$} (3)
-  (5) edge[left, bend right] node{$')', -(2, 3)$} (3);
+  \node[state,initial] (5) [below of=2] {$5$};
+  \node[state,accepting] (6) [right of=5] {$6$};
+
+  \path (2) edge[below] node {$';'$} (3);
+  \path (5) edge[below] node {$'e'$} (6);
+
+  \path (1) edge[loop above] node{$'\reqpl', +(1, 2)$} (1)
+  (4) edge[bend right, above] node{$'\reqpr', -(1, 2)$} (2);
+  \path (1) edge[bend right, left] node{$'\pospl', +(1, 2)$} (5)
+  (6) edge[left, in=270, out=90] node[xshift=-9.8mm,yshift=3mm]{$'\pospr', -(1, 2)$} (2);
+  \path (3) edge[bend right, above] node[xshift=-1mm]{$'\pospl', +(3, 4)$} (1)
+  (4) edge[loop above] node{$'\pospr', -(3, 4)$} (4);
+  \path (3) edge[in=90, out=270, right] node[xshift=9mm,yshift=3mm]{$'\pospl', +(3, 4)$} (5)
+  (6) edge[bend right, right] node[xshift=1mm]{$'\pospr', -(3, 4)$} (4);
 
 \end{tikzpicture}
 \end{center}
@@ -1095,30 +1126,40 @@ We will now walk through the construction of this automaton, using the following
 \begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
     scale = 1,transform shape]
 
+  \node[state,initial] (7) [left of=5, xshift=-1.5cm] {$7$};
+  \node[state,accepting] (8) [right of=6, xshift=1.5cm] {$8$};
+
   \node[state] (1) {$1$};
   \node[state] (2) [right of=1] {$2$};
   \node[state] (3) [right of=2] {$3$};
-  \node[state] (4) [below of=1, xshift=1cm] {$4$};
-  \node[state] (5) [right of=4] {$5$};
-  \node[state,initial] (s) [left of=4] {};
-  \node[state,accepting] (e) [right of=5] {};
+  \node[state] (4) [right of=3] {$4$};
 
-  \draw
-  (s) edge[left] node{$'(', +s$} (1)
-  (s) edge[above] node{$'(', +s$} (4)
-  (3) edge[right] node{$')', -s$} (e)
-  (5) edge[above] node{$')', -s$} (e)
-  (1) edge[above] node{$s$} (2)
-  (4) edge[above] node{$z$} (5)
-  (2) edge[bend left, below] node{$'(', +(2, 3)$} (1)
-  (2) edge[bend left, left] node{$'(', +(2, 3)$} (4)
-  (3) edge[loop above] node{$')', -(2, 3)$} (3)
-  (5) edge[left, bend right] node{$')', -(2, 3)$} (3);
+  \node[state] (5) [below of=2] {$5$};
+  \node[state] (6) [right of=5] {$6$};
+
+  \path (2) edge[below] node {$';'$} (3);
+  \path (5) edge[below] node {$'e'$} (6);
+
+  \path (1) edge[loop above] node{$'\reqpl', +(1, 2)$} (1)
+  (4) edge[bend right, above] node{$'\reqpr', -(1, 2)$} (2);
+  \path (1) edge[bend right, left] node{$'\pospl', +(1, 2)$} (5)
+  (6) edge[left, in=270, out=90] node[xshift=-9.8mm,yshift=3mm]{$'\pospr', -(1, 2)$} (2);
+  \path (3) edge[bend right, above] node[xshift=-1mm]{$'\pospl', +(3, 4)$} (1)
+  (4) edge[loop above] node{$'\pospr', -(3, 4)$} (4);
+  \path (3) edge[in=90, out=270, right] node[xshift=9mm,yshift=3mm]{$'\pospl', +(3, 4)$} (5)
+  (6) edge[bend right, right] node[xshift=1mm]{$'\pospr', -(3, 4)$} (4);
+
+  \path (7) edge[bend left, left] node{$'\pospl', +(7, 8)$} (1)
+  (7) edge[below] node{$'\pospl', +(7, 8)$} (5);
+  \path (4) edge[bend left, right] node{$'\pospr', -(7, 8)$} (8)
+  (6) edge[below] node{$'\pospr', -(7, 8)$} (8);
 
 \end{tikzpicture}
 \end{center}
 
-\noindent The resulting pushdown automaton has only a single source of non-determinism: the edges labelled \verb|'('|. Each one corresponds to one of the allowable child productions at that point in the parse tree.
+\noindent The resulting pushdown automaton has only two sources of non-determinism: the edges labelled $'\pospl'$ and $'\reqpl'$. Each one corresponds to one of the allowable child productions at that point in the tree, thus there is one run per tree. STOP HERE, THE TEXT BEYOND IS NOT UPDATED.
+
+%% TODO: Continue here. Also figure out how to handle (E + E_m).
 
 We now have a pushdown automaton (call it $A_{()}$) that recognizes the top word for each tree in $L(G_t)$. Next we need to be able to add arbitrary parentheses, to produce a word with a rangeset superset. To do this we create a copy of $A_{()}$ with one modification: for every state $s$ in $A_{()}$ (except the initial and final states), add two transitions $s \xrightarrow{'(', +p} s$ and $s \xrightarrow{')', -p} s$. To avoid cluttering the graph too much, these transitions are shown unlabeled below:
 
