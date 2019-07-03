@@ -2,6 +2,8 @@ let rec do_between f low high = match low <= high with
   | true -> f low; do_between f (low+1) high
   | false -> ()
 
+(* a test of comments *)
+
 let rec remainder n div = match n <= 0 with
   | true -> (match n = 0 with | true -> 0 | false -> n + div)
   | false -> remainder (n-div) div

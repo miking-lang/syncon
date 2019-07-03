@@ -1,13 +1,17 @@
 type Exp  // Expressions
+grouping "(" Exp ")"
 type Pat  // Patterns
+grouping "(" Pat ")"
 
 // Identifiers
 token Ident = "[[:lower:]][[:word:]]*"
 token Integer = "[0-9]+"
 token String = "\"(\\\\.|[^\"\\\\])*\""
 
+comment "\\(\\*" "\\*\\)"
+
 type Decl
-syncon decls: Top = d:Decl*
+syncon tops: Top = (d:Decl | e:Exp) (d2:Decl | ";;" e2:Exp)*
 
 syncon topLet: Decl =
   "let" x:Ident args:Pat*
