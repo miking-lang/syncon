@@ -1282,7 +1282,7 @@ Our approach centers around around $\words(t)$, which, being a set of words, can
 
 UNFINISHED
 
-\section{Evaluation} \label{sec:evaluation}
+\section{Case Studies} \label{sec:evaluation}
 
 \subsection{OCaml} \label{sec:evaluation-ocaml}
 
@@ -1292,7 +1292,13 @@ UNFINISHED
 
 \section{Related Work}
 
-\cite{afroozehSafeSpecificationOperator2013}'s operator ambiguity removal patterns bear a striking resemblance to the marks presented in this paper. However, in special-casing (what in this paper would be) marks on left and right-recursions in productions they correctly cover the edge case discussed in Section~\ref{sec:evaluation-ocaml}.
+\citet{afroozehSafeSpecificationOperator2013}'s operator ambiguity removal patterns bear a striking resemblance to the marks presented in this paper. However, in special-casing (what in this paper would be) marks on left and right-recursions in productions they correctly cover the edge case discussed in Section~\ref{sec:evaluation-ocaml}. This approach thus suggests an interesting direction for future work: to integrate it into a system designed around resolvable ambiguity, and extending the algorithms presented in this paper to cover it.
+
+\citet{danielssonParsingMixfixOperators2011} give a method for specifying grammars for expressions containing mixfix operators. They allow non-transitive, non-total precedence, and ``feel that it is overly restrictive to require the grammar to be unambiguous.'' Similar to our approach, they do not reject ambiguous grammars, only ambiguous parses. They also introduce a concept of \emph{precedence correct} expressions; expressions where direct children must be related by precedence (children must have higher precedence than parents). This is more restrictive than our approach, e.g., in a language where \verb|'+'| and \verb|'-'| have no defined relative precedence they reject \verb|'1 + 2 * 3'| as syntactically invalid, while we parse it as an ambiguous expression.
+
+Silver \cite{vanwykSilverExtensibleAttribute2010}, a system for defining extensible languages using attribute grammars, and its associated parser Copper \cite{} have a ``Modular Well-Definedness Analysis'' \cite{kaminskiModularWellDefinednessAnalysis2013}, with which extension language developers can check that their extension will compose well with other extensions, without any knowledge of any particular other extension. For this paper, only the syntactic component \cite{schwerdfegerVerifiableCompositionDeterministic2009} of this analysis is relevant. This analysis guarantees that the composition of a base language and any number of extensions that have passed it will compose to a grammar in LALR(1). This is a far more restricted class of languages than unambiguous languages, not to mention resolvably ambiguous languages, and thus places far more restrictions on language designers than our approach.
+
+Numerous language development frameworks and libraries support syntactic language composition \emph{without} any guarantees on the resulting language \cite{heeringSyntaxDefinitionFormalism1989}. These systems tend to have some form of general parser, so that they can handle arbitrary context-free grammars, but also assume that the composed language is unambiguous, which in practice precludes the composition of languages constructed independently of each other.
 
 UNFINISHED
 

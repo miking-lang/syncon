@@ -995,4 +995,35 @@ After introducing CAGs by way of an example, we provide a formal definition of C
   pages = {138-155}
 }
 
+@inproceedings{schwerdfegerVerifiableCompositionDeterministic2009,
+  address = {{New York, NY, USA}},
+  series = {{{PLDI}} '09},
+  title = {Verifiable {{Composition}} of {{Deterministic Grammars}}},
+  isbn = {978-1-60558-392-1},
+  abstract = {There is an increasing interest in extensible languages, (domain-specific) language extensions, and mechanisms for their specification and implementation. One challenge is to develop tools that allow non-expert programmers to add an eclectic set of language extensions to a host language. We describe mechanisms for composing and analyzing concrete syntax specifications of a host language and extensions to it. These specifications consist of context-free grammars with each terminal symbol mapped to a regular expression, from which a slightly-modified LR parser and context-aware scanner are generated. Traditionally, conflicts are detected when a parser is generated from the composed grammar, but this comes too late since it is the non-expert programmer directing the composition of independently developed extensions with the host language. The primary contribution of this paper is a modular analysis that is performed independently by each extension designer on her extension (composed alone with the host language). If each extension passes this modular analysis, then the language composed later by the programmer will compile with no conflicts or lexical ambiguities. Thus, extension writers can verify that their extension will safely compose with others and, if not, fix the specification so that it will. This is possible due to the context-aware scanner's lexical disambiguation and a set of reasonable restrictions limiting the constructs that can be introduced by an extension. The restrictions ensure that the parse table states can be partitioned so that each state can be attributed to the host language or a single extension.},
+  booktitle = {Proceedings of the 30th {{ACM SIGPLAN Conference}} on {{Programming Language Design}} and {{Implementation}}},
+  publisher = {{ACM}},
+  doi = {10.1145/1542476.1542499},
+  author = {Schwerdfeger, August C. and Van Wyk, Eric R.},
+  year = {2009},
+  keywords = {context-aware scanning,extensible languages,grammar composition,language composition,lr parsing},
+  pages = {199--210}
+}
+
+@inproceedings{katsPureDeclarativeSyntax2010,
+  address = {{New York, NY, USA}},
+  series = {{{OOPSLA}} '10},
+  title = {Pure and {{Declarative Syntax Definition}}: {{Paradise Lost}} and {{Regained}}},
+  isbn = {978-1-4503-0203-6},
+  shorttitle = {Pure and {{Declarative Syntax Definition}}},
+  abstract = {Syntax definitions are pervasive in modern software systems, and serve as the basis for language processing tools like parsers and compilers. Mainstream parser generators pose restrictions on syntax definitions that follow from their implementation algorithm. They hamper evolution, maintainability, and compositionality of syntax definitions. The pureness and declarativity of syntax definitions is lost. We analyze how these problems arise for different aspects of syntax definitions, discuss their consequences for language engineers, and show how the pure and declarative nature of syntax definitions can be regained.},
+  booktitle = {Proceedings of the {{ACM International Conference}} on {{Object Oriented Programming Systems Languages}} and {{Applications}}},
+  publisher = {{ACM}},
+  doi = {10.1145/1869459.1869535},
+  author = {Kats, Lennart C.L. and Visser, Eelco and Wachsmuth, Guido},
+  year = {2010},
+  keywords = {declarative,grammars,grammarware,parsers,sdf,sglr,syntax definition},
+  pages = {918--932}
+}
+
 
