@@ -254,32 +254,34 @@ This section walks through an example from OCaml where an ambiguity error can be
 
 Consider the following nested match expression (from \cite{palmkvistCreatingDomainSpecificLanguages2019}), and the resulting error message:
 
-\begin{tabular}{l|l}
+\begin{minipage}{.35\textwidth}
 \begin{lstlisting}[language={[objective]caml},numbers=left]
 match 1 with
   | 1 -> match "one" with
          | str -> str
   | 2 -> "two"
-\end{lstlisting} &
-
+\end{lstlisting}
+\end{minipage}
+\vrule
+\begin{minipage}{\textwidth}
 \begin{lstlisting}
-File "./nestmatch.ml", line 4, characters 4-5:
-Error: This pattern matches values of type int
-       but a pattern was expected which
-       matches values of type string
-\end{lstlisting} \\
-\end{tabular}
+  File "./nestmatch.ml", line 4, characters 4-5:
+  Error: This pattern matches values of type int
+         but a pattern was expected which
+         matches values of type string
+\end{lstlisting}
+\end{minipage}
 
 \noindent The compiler sees the last line as belonging to the inner \ocaml{match} rather than the outer, as was intended. The solution is simple; we put parentheses around the inner match:
 
-\begin{tabular}{l}
+\begin{minipage}{\textwidth}
 \begin{lstlisting}[language={[objective]caml},numbers=left]
 match 1 with
   | 1 -> (match "one" with
           | str -> str)
   | 2 -> "two"
 \end{lstlisting}
-\end{tabular}
+\end{minipage}
 
 \noindent However, the connection between error message and solution is not particularly clear; surrounding an expression with parentheses does not change its type.
 
