@@ -105,6 +105,9 @@
 \newcommand{\pospl}{[}
 \newcommand{\pospr}{]}
 \newcommand{\posp}[1]{\pospl#1\pospr}
+\newcommand{\dfa}{\mathit{dfa}} % Go from label to its corresponding dfa
+\newcommand{\passthrough}{\mathit{passthrough}} % Go from label to a set of (label x bool), where each element denotes a child production that can be an only child (i.e., no other terminals whatsoever), and the bool states whether it requires parentheses
+\newcommand{\nt}{\mathit{nt}} % Go from label to the non-terminal to which that labelled production belongs
 
 \begin{document}
 
@@ -216,32 +219,40 @@ Text of abstract \ldots.
 
 \section{Introduction}
 
-Outline of introduction, one bullet per paragraph, roughly:
+When constructing domain-specific programming languages there is often a desire to reuse work, to compose smaller language fragments. However, how to make such compositions well-behaved is not always obvious. In particular, composing multiple syntaxes is likely to produce an ambiguous grammar, even if all of the original grammars are unambiguous. Approaches for solving this problem can be broadly split into two categories: those that handle ambiguities on the grammar-level (detection, prevention, etc.), and those that work on particular examples of ambiguous programs. The former is well explored in the form of heuristics for ambiguity detection (e.g. \cite{bastenAmbiguityDetectionProgramming2011,axelssonAnalyzingContextFreeGrammars2008,brabrandAnalyzingAmbiguityContextFree2007}) or restrictions on the grammars to be composed (e.g. \cite{kaminskiModularWellDefinednessAnalysis2013}), while the latter has received relatively little scrutiny. This seems to stem from the view that ambiguity has no place in programming language syntax, which is highly prevalent (e.g. \cite{sudkampLanguagesMachinesIntroduction1997,ahoCompilersPrinciplesTechniques2006,webberModernProgrammingLanguages2003,cooperEngineeringCompiler2011,ginsburgAmbiguityContextFree1966}).
+
+Handling ambiguity at parse-time on the other hand, beyond just using a general parsing algorithm (e.g. \cite{earleyEfficientContextfreeParsing1970,scottGLLParsing2010,youngerRecognitionParsingContextfree1967}), seems limited to merely presenting each possible interpretation as an abstract syntax tree of some form \cite{palmkvistCreatingDomainSpecificLanguages2019,danielssonParsingMixfixOperators2011}. However, an abstract syntax tree is essentially an implementation detail, and might not provide any useful clues for an end-user to resolve the ambiguity. Another possibility, mentioned by \citet{palmkvistCreatingDomainSpecificLanguages2019} but not yet explored, is to automatically generate several unambiguous programs, one for each possible interpretation, thereby directly showing a user how to resolve the ambiguity, regardless of their desired interpretation. For example, in a language without precedence, \verb|'1 + 2 * 3'| is ambiguous, but the two possible interpretations can be written unambiguously as \verb|'(1 + 2) * 3'| and \verb|'1 + (2 * 3)'| respectively.
+
+In exploring this approach, we find that this is not always possible; some ambiguities have one or more interpretations for which no unambiguous program exists. For example, in a language with semicolon for both sequential composition and element separation in a list (e.g. OCaml), ``$[1; 2]$'' is ambiguous: it is either a list of two elements, or a list of one element, namely the sequential composition of $1$ and $2$. The latter can be written unambiguously as ``$[(1; 2)]$'', but the former has no unambiguous alternative. This presents a problem, since such an ambiguity is an error an end-user might encounter, yet it can only be solved by the language designer, since it requires a change to the language grammar. We thus have a concept of ambiguities that can be resolved by an end-user, and those that cannot. We call an instance of the former a \emph{resolvable ambiguity}, and the latter an \emph{unresolvable ambiguity}. This paper introduces these concepts in the context of language theory, thus we henceforth use terms such as ``word'' instead of ``program''.
+
+% TODO: I feel like there should be a clear transition between the more pracctical setting of programs and code, and the theoretical setting with words and terminals, but I'm not convince the above sentence is very good at that.
+
+% TODO: resolvable ambiguity cannot be defined solely in terms of a grammar, we require interpretations of words as well, thus we have to introduce a new formalism that does this, the formalism is an intuitive extension of EBNF grammars. this is probably written as a contrast with classical ambiguity, which should be described briefly for contrast
+
+Resolvable ambiguity, like classical ambiguity, gives rise to two questions: can we determine if a particular word is resolvably ambiguous (dynamic resolvability), and can we determine if all ambiguous words in a language are resolvably ambiguous (static resolvability)? For classical ambiguity in context-free grammars, the former problem is solved by any general parser, while the latter is undecidable \cite{cantorAmbiguityProblemBackus1962}. For resolvable ambiguity, in a formalism that associates trees with EBNF-grammars, the dynamic problem is similarly solvable, and the static problem is similarly difficult. We do not yet know if the latter is undecidable in general, but we have found a subclass of languages for which it is decidable.
+
+More specifically, this paper makes the following contributions:
 
 \begin{itemize}
-\item Creating languages, particularly DSLs, it's nice to create pieces and compose. Composing syntax in particular quickly creates ambiguous grammars. Two broad approaches: forbid/prevent ambiguities at all (statically), or handle at parse-time (dynamically). Former more well-explored than the latter, which we focus on. The former is essentially the ambiguity problem, but the latter has not been formally defined. (To my knowledge we're first in presenting resolutions as opposed to interpretations (ASTs), which means that what we're talking about here is a little bit different from what previous approaches have done)
-
-\item Motivated by issues in \cite{palmkvistCreatingDomainSpecificLanguages2019,danielssonParsingMixfixOperators2011} ''we introduce a formal definition for resolvable ambiguity.'' (They both merely present ASTs, which are unlikely to be nice for an end-user. Probably want better motivation than ''nice.'') \ldots It turns out that this is not always possible, prompting an additional problem: can we statically determine if a language is resolvably ambiguous? We call the former the dynamic resolvability problem, and the latter the static resolvability problem.
-
-\item The dynamic problem is ''easy'' (though we haven't found any previously presented solution), but the static problem is not. We present a subclass of languages for which we have a decidable, sound, and complete decision procedure for the static problem, but also two larger classes of languages for which the algorithm is merely decidable and sound, or not applicable at all, respectively.
+\item A formal definition of \emph{resolvable ambiguity} in terms of languages where words have associated interpretations, as well as formulations of the \emph{static} and \emph{dynamic} resolvability problems, i.e., determine if a grammar (resp. word) is resolvably ambiguous (Section~\ref{sec:resolvable-definition}).
+\item A syntax definition formalism based on EBNF, where ambiguities can be resolved with grouping parentheses (Section~\ref{sec:parse-time-disambiguation}). For this formalism we also provide:
+  \begin{itemize}
+  \item A formulation of three versions of the static resolvability problem of increasing difficulty, and a decidable algorithm that is sound and complete for the first version, and sound for the second (Section~\ref{sec:static}).
+  \item A decidable algorithm that solves the dynamic resolvability problem for languages that have only well-balanced parentheses (Section~\ref{sec:dynamic}).
+  \end{itemize}
+\item Two case studies of programming languages and the errors produced when we allow (resolvable) ambiguity:
+  \begin{itemize}
+  \item A large subset of OCaml where some ambiguities have been reintroduced (Section~\ref{sec:evaluation-ocaml}).
+  \item A domain-specific language for cyber-physical systems (Section~\ref{sec:evaluation-cyphym}).
+  \end{itemize}
+  % Briefly say something about the tool, that it lies ``on top of'' what's presented herein
 \end{itemize}
 
-\noindent\hrulefill
+\section{Motivating Example}
 
-When constructing domain-specific programming languages there is often a desire to reuse work, to compose smaller language fragments. However, how to make such compositions well-behaved is not always obvious. In particular, composing multiple syntaxes is likely to produce an ambiguous grammar, even if all of the original grammars are unambiguous. Approaches for solving this problem can be broadly split into two categories: those that handle ambiguities on the grammar-level (detection, prevention, etc.), and those that work on particular examples of ambiguous words. i.e., ambiguous programs. The former is well explored in the form of heuristics for ambiguity detection (e.g. \cite{bastenAmbiguityDetectionProgramming2011,axelssonAnalyzingContextFreeGrammars2008,brabrandAnalyzingAmbiguityContextFree2007}) or restrictions on the grammars to be composed (e.g. \cite{kaminskiModularWellDefinednessAnalysis2013}), while the latter has received relatively little scrutiny. Here, previous work is limited to merely presenting each possible interpretation as an abstract syntax tree of some form \cite{palmkvistCreatingDomainSpecificLanguages2019,danielssonParsingMixfixOperators2011}. However, an abstract syntax tree is essentially an implementation detail, and may not provide any useful clues for an end-user to resolve the ambiguity. Another possibility, mentioned by \citet{palmkvistCreatingDomainSpecificLanguages2019}, is to automatically generate several unambiguous programs, each of which produces the same abstract syntax tree as one of the posssible interpretations, thereby directly showing a user how to resolve the ambiguity, regardless of their desired interpretation. For example, in a language with out precedence, ''$1 + 2 * 3$'' is ambiguous, but the two possible interpretations can be written unambiguously as ''$(1 + 2) * 3$'' and ''$1 + (2 * 3)$'' respectively.
+This section walks through an example from OCaml where an ambiguity error can be clearer than what the actual compiler produces, suggesting that (resolvable) ambiguity has merit even in the context of a general purpose programming language.
 
-In exploring this approach, we find that this is not always possible; some ambiguities have one or more interpretations for which no unambiguous program is exists. This presents a problem, since such an ambiguity is an error an end-user might encounter, yet it can only be solved by the language designer, since it requires a change to the language grammar. We thus have a concept of ambiguities that can be resolved by an end-user, and those that cannot. We call the former \emph{resolvable ambiguities}, and the latter \emph{unresolvable ambiguities}.
-
-\noindent\hrulefill
-
-% I really don't like this paragraph. I'm trying to say that much work has been done on ambiguity, and that work in other fields include it, while PL tends to be more narrow-minded.
-Formal languages have long had the concept of ambiguity, of words that can be constructed in multiple ways, for example using multiple distinct derivations of a context-free grammar. In linguistics, this is important, since human languages tend to be highly ambiguous, and as such much work has been done on the subject. Examples include general parsing algorithms \cite{earleyEfficientContextfreeParsing1970,scottGLLParsing2010,youngerRecognitionParsingContextfree1967}, ambiguity detection (most importantly its undecidability \cite{cantorAmbiguityProblemBackus1962}, but also various pragmatic approaches \cite{brabrandAnalyzingAmbiguityContextFree2007,axelssonAnalyzingContextFreeGrammars2008,bastenAmbiguityDetectionProgramming2011})
-
-However, when using these formal methods to specify the syntax for programming languages, ambiguity becomes a strictly undesirable property. We tend to want to give the compiler a single interpretation of any given program, and so we work hard to make programming language grammars entirely unambiguous. This view, that eliminating ambiguity is \emph{the} correct thing to do, is highly prevalent (e.g. \cite{sudkampLanguagesMachinesIntroduction1997,ahoCompilersPrinciplesTechniques2006,webberModernProgrammingLanguages2003,cooperEngineeringCompiler2011,ginsburgAmbiguityContextFree1966}).
-
-Some exceptions do exist however. Closest to our approach are \citet{danielssonParsingMixfixOperators2011}, who ''feel that it is overly restrictive to require the grammar to be unambiguous'', and suggest that only ambiguous \emph{parses} should be rejected, not ambiguous grammars. This seems to stem largely from the fact that their grammars are mostly constructed from user-defined operators, and so cannot be expected to compose without ambiguity. Instead, in case of an unambiguous parse, they present an error that includes the possible parses, to assist in debugging.
-
-We propose that this idea---treating ambiguity as a parse-time error---can be beneficial even when the entire grammar is constructed by a single language designer, if done in a more rigorous fashion. Consider the following nested match expression in OCaml (from \cite{palmkvistCreatingDomainSpecificLanguages2019}), and the resulting error message:
+Consider the following nested match expression (from \cite{palmkvistCreatingDomainSpecificLanguages2019}), and the resulting error message:
 
 \begin{tabular}{l|l}
 \begin{lstlisting}[language={[objective]caml},numbers=left]
@@ -276,13 +287,13 @@ Instead, we look to the OCaml manual for inspiration. It contains an informal de
 
 \setlength{\grammarindent}{9.5em}
 \begin{grammar}
-<expr> ::= 'match' <expr> 'with' <pattern-matching>
+<expr> ::= \verb|'match'| <expr> \verb|'with'| <pattern-matching>
 
-<pattern-matching> ::= '|'? <pattern> ('when' <expr>)? \\
-('|' <pattern> ('when' <expr>)? '->' <expr>)*
+<pattern-matching> ::= \verb{'|'{$^{?}$ <pattern> (\verb|'when'| <expr>)$^{?}$ \\
+(\verb{'|'{ <pattern> (\verb|'when'| <expr>)$^{?}$ \verb|'->'| <expr>)*
 \end{grammar}
 
-\noindent If we use this grammar to parse the nested match we find an ambiguity: the last match arm can belong to either the inner match or the outer match. The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may or may not be the alternative the user intended. Presenting the two alternatives as parse trees would here be informative, and useful to a language designer, but would also expose implementation details to an end-user. Instead, we can present the alternatives in the form of modified code that parses unambiguously as the corresponding alternative:
+\noindent If we use this grammar to parse the nested match we find an ambiguity: the last match arm can belong to either the inner match or the outer match. The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may or may not be the alternative the user intended. Presenting the two alternatives as parse trees would here be informative, and useful to a language designer, but would also expose implementation details to an end-user. Instead, we can present the alternatives in the form of modified code that parses unambiguously as each corresponding alternative:
 
 \begin{center}
 \begin{tabular}{l|l}
@@ -301,48 +312,13 @@ match 1 with
 \end{tabular}
 \end{center}
 
-\noindent Unfortunately, not all ambiguities can be resolved in this way. Again, looking at an extract from the informal OCaml grammar:
-
-\setlength{\grammarindent}{5em}
-\begin{grammar}
-<expr> ::= <expr> ';' <expr>
-  \alt '[' <expr> (';' <expr>)* ';'? ']'
-  \alt <constant>
-\end{grammar}
-
-\noindent The first production is sequential composition, the second is lists (the empty list is under \synt{constant}). Now consider the expression ''\ocaml{[1; 2]}''. We find that it is ambiguous with two alternatives:
-\begin{enumerate}
-  \item A list with two elements.
-  \item A list with one element, namely a sequential composition.
-\end{enumerate}
-
-\noindent We can write the latter option unambiguously by putting parentheses around ''\ocaml{1; 2}'', but there is no way to unambiguously write the former. OCaml itself solves this by unambiguously parsing the expression as a two-element list. In this case, the ''arbitrary'' choice seems reasonable; there is no other way to write a two-element list, ambiguously or not\footnote{Ignoring the cons operator, since this syntax is supposed to be syntactic sugar for it.}, hence we would rather like ''\ocaml{[1; 2]}'' to be interpreted as such.
-
-The possibility of an unresolvable ambiguity is troubling however, since it represents an error that a user might encounter but only a language designer can solve; it requires a change to the grammar. As such, we propose to allow ambiguous programming language grammars, as long as all possible ambiguities can be resolved, and only require \emph{programs} to be unambigous. We call this property \emph{resolvable ambiguity}.
-
-We claim the following contributions:
-
-\begin{itemize}
-\item A formal definition of \emph{resolvable ambiguity} in terms of languages where words have associated interpretations, as well as formulations of the \emph{static} and \emph{dynamic} resolvability problems, i.e., determine if a grammar (resp. word) is resolvably ambiguous (Section~\ref{sec:resolvable-definition}).
-\item A syntax definition formalism based on EBNF, where ambiguities can be resolved with grouping parentheses (Section~\ref{sec:parse-time-disambiguation}). For this formalism we also provide:
-  \begin{itemize}
-  \item A formulation of three versions of the static resolvability problem of increasing difficulty, and a decidable algorithm that is sound for the first two versions, and complete for the first (Section~\ref{sec:static}).
-  \item A decidable algorithm that solves the dynamic resolvability problem for languages that have only well-balanced parentheses (Section~\ref{sec:dynamic}).
-  \end{itemize}
-\item Two case studies of programming languages and the errors produced when we allow (resolvable) ambiguity:
-  \begin{itemize}
-  \item A large subset of OCaml where some ambiguities have been reintroduced (Section~\ref{sec:evaluation-ocaml}).
-  \item A domain-specific language for cyber-physical systems (Section~\ref{sec:evaluation-cyphym}).
-  \end{itemize}
-\end{itemize}
-
 \section{Preliminaries}
 
 This section briefly describes the theoretical foundations we build upon. Sections~\ref{sec:preliminaries-cfgs} and \ref{sec:preliminaries-automata} describe context-free grammars and various forms of automata, the latter with some non-standard notation to make later sections easier to read. Section~\ref{sec:preliminaries-vpls} then describes visibly pushdown languages, which enable the analyses described in Sections~\ref{sec:static} and \ref{sec:dynamic}. Finally, Sections~\ref{sec:preliminaries-trees} and \ref{sec:preliminaries-ambiguity} describe trees and ambiguity, the former with some non-standard notation and the latter with a slightly wider definition than normal.
 
 \subsection{Bags} \label{sec:bags}
 
-A \emph{bag} (alternatively known as a \emph{multiset}) is a generalization of a set, it is an unordered collection where each element may appear multiple times. The number of times an element $a$ appears in a bag $B$ is called the \emph{multiplicity} of $a$ in $B$ and is written $m_B(a)$. A bag $A$ is included in another bag $B$, written $A \subseteq B$, iff $\forall x.\ m_A(x) \leq m_B(x)$. The underlying set of elements of a bag $B$ is called the \emph{support} of $B$, and is given by $\support(B) = \{ x \mid m_B(x) > 0 \}$.
+A \emph{bag}, or \emph{multiset}, is a generalization of a set; it is an unordered collection where each element may appear multiple times. The number of times an element $a$ appears in a bag $B$ is called the \emph{multiplicity} of $a$ in $B$ and is written $m_B(a)$. A bag $A$ is included in another bag $B$, written $A \subseteq B$, iff $\forall x.\ m_A(x) \leq m_B(x)$. The underlying set of elements of a bag $B$ is called the \emph{support} of $B$, and is given by $\support(B) = \{ x \mid m_B(x) > 0 \}$.
 
 \subsection{Regular Expressions} \label{sec:preliminaries-regexes}
 
@@ -356,26 +332,26 @@ $$
 \begin{array}{r@{\ =\ }l}
   L(t) & \{a\} \\
   L(\epsilon) & \{\epsilon\} \\
-  L(r_1 \cdot r_2) & \{ w_1 \cdot w_2 \mid w_1 \in L(r_1), w_2 \in L(r_2) \\
+  L(r_1 \cdot r_2) & \{ w_1 \cdot w_2 \mid w_1 \in L(r_1), w_2 \in L(r_2) \} \\
   L(r_1 + r_2) & L(r_1) \cup L(r_2) \\
   L(r^{*}) & L(\epsilon + r \cdot r^{*}) \\
 \end{array}
 $$
 
-\noindent We will denote the set of regular expressions with alphabet $\T$ as $\regex(\T)$.
+\noindent We denote the set of regular expressions with alphabet $\T$ as $\regex(\T)$.
 
 \subsection{Context-Free Grammars} \label{sec:preliminaries-cfgs}
 
-A context-free grammar (CFG) $G$ is a 4-tuple $(\NT, \T, P, S)$ where $\NT$ is a set of non-terminals; $\T$ a set of terminals, disjoint from $\NT$; $P$ a finite subset of $\NT \times (\NT \cup \T)^{*}$\footnote{Where $^{*}$ is Kleene-star.}, i.e., a set of productions; and $S \in \NT$ the starting non-terminal.
+A context-free grammar (CFG) $G$ is a 4-tuple $(\NT, \T, P, S)$ where $\NT$ is a set of non-terminals; $\T$ a set of terminals, disjoint from $\NT$; $P$ a finite subset of $\NT \times (\NT \cup \T)^{*}$\footnote{Where $^{*}$ is the Kleene star.}, i.e., a set of productions; and $S \in \NT$ the starting non-terminal.
 
  A word $w \in \T^{*}$ is recognized by $G$ if there is a sequence of steps starting with $S$ and ending with $w$, where each step replaces a single non-terminal using a production in $P$. Such a sequence is called a \emph{derivation}. The set of words recognized by $G$ is written $L(G)$\footnote{We will always name a regular expression $r$ (possibly with a subscript) and a CFG $G$ (possibly with a subscript), to lessen the risk of confusion}.
 
 \subsection{Ambiguity} \label{sec:preliminaries-ambiguity}
 
-The standard definition of ambiguity, given a context-free grammar $G$, is expressed in terms of \emph{left-most derivations}. A left-most derivation is a derivation where the non-terminal being replaced is always the left-most one.
+The standard definition of ambiguity, given a context-free grammar $G$, is expressed in terms of \emph{leftmost derivations}. A leftmost derivation is a derivation where the non-terminal being replaced is always the leftmost one.
 
 \begin{definition}
-A word $w \in L(G)$ is ambiguous if there are two distinct left-most derivations of that word.
+A word $w \in L(G)$ is ambiguous if there are two distinct leftmost derivations of that word.
 \end{definition}
 
 \subsection{Automata} \label{sec:preliminaries-automata}
@@ -394,7 +370,7 @@ A successful run is a sequence of states $r_0, \ldots, r_n$ and a word $a_0\cdot
 
 A deterministic finite automaton (DFA) has the same definition, except $\delta : Q \times \Sigma -> Q$, i.e., given a state and a symbol there is always a single state we can transition to. NFAs and DFAs have the same expressive power as regular expressions, i.e., for every regular expression there is an NFA and a DFA both reconizing the same language, and vice-versa. % TODO: probably reference for this
 
-A pushdown automaton extends a finite automaton with a stack from which transitions can push or pop symbols. Formally, a nondeterministic pushdown automaton is a 6-tuple $(Q, \T, \Gamma, \delta, q_0, F)$ where $Q$ is a finite set of states; $\T$ a finite set of input symbols, i.e., an input alphabet; $\Gamma$ a finite set of stack symbols, i.e., a stack alphabet; $\delta$ a transition function from $Q \times (\T \cup \{\lambda\}) \times (\Gamma \cup \{\lambda\}$ to finite subsets of $Q \times (\Gamma \cup \{\lambda\}$; $q_0 \in Q$ the initial state; and $F \subseteq Q$ a set of final states. $\lambda$ essentially means ''ignore'', i.e., $\delta(q_1, \lambda, \lambda) = \{(q_2, \lambda)\}$ means: transition from state $q_1$ without consuming an input symbol (the first $\lambda$) and without examining or popping from the current stack (the second $\lambda$), to state $q_2$ without pushing a new symbol on the stack (the third $\lambda$).
+A pushdown automaton extends a finite automaton with a stack from which transitions can push or pop symbols. Formally, a nondeterministic pushdown automaton is a 6-tuple $(Q, \T, \Gamma, \delta, q_0, F)$ where $Q$ is a finite set of states; $\T$ a finite set of input symbols, i.e., an input alphabet; $\Gamma$ a finite set of stack symbols, i.e., a stack alphabet; $\delta$ a transition function from $Q \times (\T \cup \{\lambda\}) \times (\Gamma \cup \{\lambda\}$ to finite subsets of $Q \times (\Gamma \cup \{\lambda\}$; $q_0 \in Q$ the initial state; and $F \subseteq Q$ a set of final states. $\lambda$ essentially means ``ignore'', i.e., $\delta(q_1, \lambda, \lambda) = \{(q_2, \lambda)\}$ means: transition from state $q_1$ without consuming an input symbol (the first $\lambda$) and without examining or popping from the current stack (the second $\lambda$), to state $q_2$ without pushing a new symbol on the stack (the third $\lambda$).
 
 A successful run is now a sequence of \emph{configurations}, elements of $Q \times \Gamma^{*}$, starting with $(q_0, \epsilon)$, ending with $(f, \gamma)$ for some $f \in F$ and $\gamma \in \Gamma^{*}$.
 
@@ -411,14 +387,14 @@ However, in this paper we will only consider pushdown automata with relatively l
 A visibly pushdown language \cite{alurVisiblyPushdownLanguages2004} is a language that can be recognized by a visibly pushdown automaton. A visibly pushdown automaton is a pushdown automaton where the input alphabet $\T$ can be partitioned into three disjoint sets $\T_c$, $\T_i$, and $\T_r$, such that all transitions in the automaton has one of the following three forms:
 
 \begin{itemize}
-\item $p \xrightarrow{c, +s} q$, where $c \in \T_c$ and $s \in \Gamma$.
-\item $p \xrightarrow{i} q$, where $i \in \T_i$.
-\item $p \xrightarrow{r, -s} q$, where $r \in \T_r$ and $s \in \Gamma$.
+\item $p \xrightarrow{c, +s} q$, where $c \in \T_c$ and $s \in \Gamma$; or
+\item $p \xrightarrow{i} q$, where $i \in \T_i$; or
+\item $p \xrightarrow{r, -s} q$, where $r \in \T_r$ and $s \in \Gamma$,
 \end{itemize}
 
 \noindent i.e., the terminal recognized by a transition fully determines the change to the stack height.
 
-The partition names stem from their original use in program analysis, $c$ is for \emph{call}, $i$ for \emph{internal}, and $r$ for \emph{return}. We will instead primarily use $\T_c$ and $\T_r$ for balanced parentheses.
+The names of the partitions stem from their original use in program analysis, $c$ is for \emph{call}, $i$ for \emph{internal}, and $r$ for \emph{return}.
 
 This partitioning gives us some useful properties. Of particular relevance to this paper are the following two points:
 
@@ -432,7 +408,7 @@ This partitioning gives us some useful properties. Of particular relevance to th
   \end{array}
   $$
 
-\item A visibly pushdown automaton can be trimmed \cite{caralpTrimmingVisiblyPushdown2013}, i.e., modified in such a way that all remaining states and transitions are part of at least one successful run, none are redundant. Furthermore, a successful run in the trimmed automaton corresponds to exactly one successful run in the original automaton, and vice-versa.
+\item A visibly pushdown automaton can be trimmed \cite{caralpTrimmingVisiblyPushdown2015}, i.e., modified in such a way that all remaining states and transitions are part of at least one successful run; none are redundant. Furthermore, a successful run in the trimmed automaton corresponds to exactly one successful run in the original automaton, and vice-versa.
 \end{itemize}
 
 \subsection{Unranked Regular Tree Grammars} \label{sec:preliminaries-trees}
@@ -458,7 +434,7 @@ Finally, $yield : L(T) -> \T^{*}$ is the sequence of terminals $a \in \T$ obtain
 
 This section introduces our definition of \emph{resolvable ambiguity}, and then relates it to some more standard concepts in formal languages.
 
-Normally, we define a language as a set of words, i.e., a subset of $\T^{*}$ for some alphabet $\T$, but here we additionally require the existence of a \emph{meaning} of each word, in some sense. We will call this meaning an \emph{interpretation} of a word. Note that a single word may have multiple interpretations. As such, we will define a language as:
+Normally, we define a language as a set of words, i.e., a subset of $\T^{*}$ for some alphabet $\T$, but here we additionally require the existence of a \emph{meaning} of each word, in some sense. We will call this meaning an \emph{interpretation} of a word. Note that a single word may have multiple interpretations. As such, we define a language as:
 
 \begin{itemize}
 \item An alphabet $\T$.
@@ -466,22 +442,22 @@ Normally, we define a language as a set of words, i.e., a subset of $\T^{*}$ for
 \item A function $\parse : \T^{*} -> 2^T$ that relates words to their interpretations, where $2^T$ denotes the powerset of $T$. Additionally, we require that $T = \bigcup_{w \in \T^{*}} \parse(w)$.
 \end{itemize}
 
-\noindent For example, consider a simple arithmetic language without precedence and parentheses, where the interpretations are abstract syntax trees. In such a language, $\parse(1 + 2 * 3)$ would produce a set containing the two ASTs in Figure~\ref{fig:arith-example}:
+\noindent For example, consider a simple arithmetic language without precedence and parentheses, where the interpretations are abstract syntax trees. In such a language, $\parse(1 + 2 \cdot 3)$ would produce a set containing the two ASTs in Fig.~\ref{fig:arith-example}:
 
 \begin{figure}[t]
 \begin{tabular}{cc}
   \Tree [.{$+$}
     1
-    [.{$*$}
+    [.{$\cdot$}
       2
       3 ] ] &
-  \Tree [.{$*$}
+  \Tree [.{$\cdot$}
     [.{$+$}
       1
       2 ]
     3 ] \\
 \end{tabular}
-\caption{The two allowable interpretations of $1 + 2 * 3$ in an arithmetic language without precedence.}
+\caption{The two allowable interpretations of $1 + 2 \cdot 3$ in an arithmetic language without precedence.}
 \label{fig:arith-example}
 \end{figure}
 
@@ -500,7 +476,7 @@ Normally, we define a language as a set of words, i.e., a subset of $\T^{*}$ for
 
 \begin{itemize}
 \item Given a language defined by $\parse$, the corresponding classical language (i.e., set of words) is given by $\{ w \mid \parse(w) \neq \emptyset \}$.
-\item If we select a $\parse$ that relates words to their left-most derivations in a given context-free grammar, then our definition of ambiguity corresponds exactly to the classical definition of ambiguity.
+\item If we select a $\parse$ function that relates words to their leftmost derivations in a given context-free grammar, then our definition of ambiguity corresponds exactly to the classical definition of ambiguity.
 \end{itemize}
 
 \noindent A \emph{resolvably} ambiguous word is a word where all its interpretations can be written in an unambiguous way, or more formally:
@@ -509,7 +485,7 @@ Normally, we define a language as a set of words, i.e., a subset of $\T^{*}$ for
   A word $w \in \T^{*}$ in a language given by $\parse : \T^{*} -> 2^T$ is resolvably ambiguous if $\forall t \in \parse(w).\ \exists w' \in \T^{*}.\ \parse(w') = \{t\}$. \label{def:resolvable-word}
 \end{definition}
 
-\noindent The example in Figure~\ref{fig:arith-example} is unresolvably ambiguous, since neither tree can be written in any other way. However, if we add grouping parentheses to the language we find that $1 + (2 * 3)$ and $(1 + 2) * 3$ are unambiguously interpreted as the first and second tree, respectively.
+\noindent The example in Fig.~\ref{fig:arith-example} is unresolvably ambiguous, since neither tree can be written in any other way. However, if we add grouping parentheses to the language we find that $1 + (2 \cdot 3)$ and $(1 + 2) \cdot 3$ are unambiguously interpreted as the first and second tree, respectively.
 
 Additionally, we define a \emph{language} to be resolvably ambiguous if all its words are resolvably ambiguous, or more formally:
 
@@ -526,7 +502,7 @@ Additionally, we define a \emph{language} to be resolvably ambiguous if all its 
 
 \noindent The second point suggests that resolvable ambiguity is only an interesting property if an element of $T$ does not uniquely identify an element of $\T^{*}$. Intuitively, this only happens if $\parse$ discards some information present in its argument when constructing an individual interpretation. Fortunately, this is generally true for parsing in commonly used programming languages; they tend to discard, e.g., grouping parentheses and whitespace. In general, whatever information $\parse$ discards can be used by an end-user to disambiguate an ambiguity encountered at parse-time, without changing the interpretation.
 
-We thus propose to loosen the common ''no ambiguity'' restriction on programming language grammars, and instead only require them to be resolvably ambiguous. However, merely having an arbitrary function $\parse$ gives us very little to work with, and no way to decide whether the language it defines is resolvably ambiguous or not. The remainder of this paper will thus consider $\parse$ functions defined with a particular formalism, introduced in Section~\ref{sec:parse-time-disambiguation}, that gives us some decidable properties.
+We thus propose to loosen the common ``no ambiguity'' restriction on programming language grammars, and instead only require them to be resolvably ambiguous. However, merely having an arbitrary function $\parse$ gives us very little to work with, and no way to decide whether the language it defines is resolvably ambiguous or not. The remainder of this paper will thus consider $\parse$ functions defined using a particular formalism, introduced in Section~\ref{sec:parse-time-disambiguation}, which gives us some decidable properties.
 
 Before introducing this formalism however, we introduce the two central problems we consider in this paper:
 
@@ -538,7 +514,7 @@ Before introducing this formalism however, we introduce the two central problems
 \noindent Our main concern is producing decision procedures for these problems. As such, we define soundness and completeness for the static problem:
 
 \begin{definition}
-  A decision procedure $f$ (with possible outputs $\mathit{resolvable}$, $\mathit{unresolvable}$, and $\mathit{unresolvable}$) solving the static resolvability problem is:
+  A decision procedure $f$ (with possible outputs $\mathit{resolvable}$, $\mathit{unresolvable}$, and $\mathit{unknown}$) solving the static resolvability problem is:
   \begin{itemize}
   \item Sound if $f(\parse) = \mathit{resolvable}$ implies that the language given by $\parse$ is resolvably ambiguous, and $f(\parse) = \mathit{unresolvable}$ implies that the language given by $\parse$ is not resolvably ambiguous.
   \item Complete if $f(\parse) \neq \mathit{unknown}$ for all possible inputs $\parse$.
@@ -549,7 +525,7 @@ Before introducing this formalism however, we introduce the two central problems
 \noindent Similarly, for the dynamic problem:
 
 \begin{definition}
-  A decision procedure $f$ (with possible outputs $\mathit{resolvable}$, $\mathit{unresolvable}$, and $\mathit{unresolvable}$) solving the dynamic resolvability problem is:
+  A decision procedure $f$ (with possible outputs $\mathit{resolvable}$, $\mathit{unresolvable}$, and $\mathit{unknown}$) solving the dynamic resolvability problem is:
   \begin{itemize}
   \item Sound if $f(\parse, w) = \mathit{resolvable}$ implies that $w$ is resolvably ambiguous, and $f(\parse, w) = \mathit{unresolvable}$ implies $w$ is not resolvably ambiguous.
   \item Complete if $f(\parse) \neq \mathit{unknown}$ for all possible inputs $\parse$ and $w$.
@@ -563,9 +539,9 @@ This section describes our chosen language definition formalism, and motivates i
 
 The primary purpose of this formalism is, as described in the previous section, to produce a $\parse$ function, i.e., to describe a word language and assign one or more interpretations to each word. The interpretations will be unranked trees, intended to be somewhat reminiscent of the abstract syntax trees used in most compilers. Section~\ref{sec:resolvable-definition} suggests that $\parse$ discard some information, to enable the resolution of some ambiguities; we here choose to discard grouping parentheses.
 
-With that in mind, we define a language definition $D$ as a set of labelled productions, as described in Figure~\ref{fig:input-language-definition}. Note that we require the labels to uniquely identify the production, i.e., there can be no two distinct productions in $D$ that share the same label. Also note that the right-hand side of a production is here a regular expression, rather than the theoretically simpler sequence used in a context-free grammar. For proof technical reasons (see Section~\ref{sec:lattice-vpl}) we require each regular expression to be unambiguous, in the classical sense. This can be checked using, e.g., the approach described by \citet{brabrandTypedUnambiguousPattern2010}. In practice, this is likely desireable regardless, since a user is likely to attach different semantic meaning to each occurrence of a non-terminal.
+With that in mind, we define a language definition $D$ as a set of labelled productions, as described in Fig.~\ref{fig:input-language-definition}. Note that we require the labels to uniquely identify the production, i.e., there can be no two distinct productions in $D$ that share the same label. Also note that the right-hand side of a production is a regular expression, rather than the theoretically simpler sequence used in a context-free grammar. For proof-technical reasons (see Section~\ref{sec:lattice-vpl}) we require each regular expression to be unambiguous, in the classical sense, when marks are removed. This can be checked using, e.g., the approach described by \citet{brabrandTypedUnambiguousPattern2010}. In practice, this is likely desireable regardless, since a user is likely to attach different semantic meaning to each occurrence of a non-terminal.
 
-Each non-terminal appearing in the regular expression of a production carry a \emph{mark} $m$, which is a set of labels whose productions may \emph{not} replace that non-terminal. To lessen clutter, we will write $E_\emptyset$ as $E$. As an example, consider the language definition in Figure~\ref{fig:running-example-definition}, which will be used as a running example. In the production describing multiplication ($m$) both non-terminals are marked with $\{a\}$, which thus forbids addition from being a direct child of a multiplication. By ''direct child'' we mean ''without an intermediate node'', most commonly grouping parentheses, thus this enforces conventional precedence.
+Each non-terminal appearing in the regular expression of a production carry a \emph{mark} $m$, which is a set of labels whose productions may \emph{not} replace that non-terminal. To lessen clutter, we will write $E_\emptyset$ as $E$. As an example, consider the language definition in Fig.~\ref{fig:running-example-definition}, which will be used as a running example. In the production describing multiplication ($m$) both non-terminals are marked with $\{a\}$, which thus forbids addition from being a direct child of a multiplication. By ``direct child'' we mean ``without an intermediate node'', most commonly grouping parentheses, thus this enforces conventional precedence.
 
 \begin{figure}
 \centering
@@ -603,11 +579,11 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
 \begin{itemize}
 \item $G_D$ represents a word language describing all semantically distinct programs.
 \item $T_D$ represents a tree language describing the parse trees of words in $L(G_D)$.
-\item $G'_D$ is essentially a modified version of $G_D$, e.g., adding parentheses and other forms of disambiguation (i.e., the result of marks).
+\item $G'_D$ is essentially a modified version of $G_D$, e.g., adding grouping parentheses and other forms of disambiguation (i.e., the result of marks).
 \item $T'_D$ represents a tree language describing the parse trees of words in $L(G'_D)$.
 \end{itemize}
 
-\noindent Figure~\ref{fig:running-example-generated} contains the four grammars generated from our running example in Figure~\ref{fig:running-example-definition}. The context-free grammars are produced by a rather standard translation from regular expressions to CFGs, while the primed grammars get a new non-terminal per distinctly marked non-terminal in $D$, where each new non-terminal only has the productions whose label is not in the mark. For example, the non-terminal $E_{\{a\}}$ in Figure~\ref{fig:running-example-generated:t-prime} has no production corresponding to the $a$ production in Figure~\ref{fig:running-example-definition}.
+\noindent Fig.~\ref{fig:running-example-generated} shows the four grammars generated from our running example in Fig.~\ref{fig:running-example-definition}. The context-free grammars are produced by a rather standard translation from regular expressions to CFGs, while the primed grammars get a new non-terminal per distinctly marked non-terminal in $D$, where each new non-terminal only has the productions whose label is not in the mark. For example, the non-terminal $E_{\{a\}}$ in Fig.~\ref{fig:running-example-generated:t-prime} has no production corresponding to the $a$ production in Fig.~\ref{fig:running-example-definition}.
 
 \begin{figure}
   \begin{subfigure}[t]{.45\linewidth}
@@ -693,7 +669,7 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
   \label{fig:running-example-generated}
 \end{figure}
 
-Examples of elements in each of these four languages can be seen in Figure~\ref{fig:example-words-in-square}, along with visualizations of the syntax trees. Each element corresponds to the word ''$(1 + 2) * 3$'' in $L(G'_D)$. Note that the word in $L(G_D)$ is ambiguous, and that there are other words in $L(G'_D)$ that correspond to the same element in $L(T_D)$, e.g., ''$((1 + 2)) * 3$'' and ''$(1 + 2) * (3)$''. As a memory aid, the prime versions ($G'_D$ and $T'_D$) contain disambiguation (grouping parentheses, precedence, associativity, etc.) while the unprimed versions ($G_D$ and $T_D$) are the (likely ambiguous) straightforward translations from $D$. We will generally refer to elements of $L(G_D)$ as $w$, $L(G'_D)$ as $w'$, $L(T_D)$ as $t$, and $L(T'_D)$ as $t'$.
+Examples of elements in each of these four languages can be seen in Fig.~\ref{fig:example-words-in-square}, along with visualizations of the syntax trees. Each element corresponds to the word ``$(1 + 2) * 3$'' in $L(G'_D)$. Note that the word in $L(G_D)$ is ambiguous, and that there are other words in $L(G'_D)$ that correspond to the same element in $L(T_D)$, e.g., ``$((1 + 2)) * 3$'' and ``$(1 + 2) * (3)$''. As a memory aid, the primed versions ($G'_D$ and $T'_D$) contain disambiguation (grouping parentheses, precedence, associativity, etc.) while the unprimed versions ($G_D$ and $T_D$) are the (likely ambiguous) straightforward translations (i.e., ignoring marks) from $D$. We will generally refer to elements of $L(G_D)$ as $w$, $L(G'_D)$ as $w'$, $L(T_D)$ as $t$, and $L(T'_D)$ as $t'$.
 
 {
 \newcommand{\terminal}[1]{\ \underline{#1}\ }
@@ -742,9 +718,9 @@ Examples of elements in each of these four languages can be seen in Figure~\ref{
 \end{figure}
 }
 
-At this point we also note that the shape of $D$ determines where the final concrete syntax permits grouping parentheses; they are allowed exactly where they would surround a complete production. For example, $G_D$ in Figure~\ref{fig:running-example-generated:w} can be seen as a valid language definition (if we generate new unique labels for each of the productions). However, starting with that language definition would allow the expression ''$[1(;2)]$'', which makes no intuitive sense; grouping parentheses should only be allowed around complete expressions, but ''$;2$'' is not a valid expression.
+At this point we also note that the shape of $D$ determines where the final concrete syntax permits grouping parentheses; they are allowed exactly where they would surround a complete production. For example, $G_D$ in Fig.~\ref{fig:running-example-generated:w} can be seen as a valid language definition (if we generate new unique labels for each of the productions). However, starting with that language definition would allow the expression ``$[1(;2)]$'', which makes no intuitive sense; grouping parentheses should only be allowed around complete expressions, but ``$;2$'' is not a valid expression.
 
-Finally, we require a function $\semantic : L(T'_D) -> L(T_D)$ that removes grouping parentheses from a parse tree, i.e., it replaces every subtree $g($ \verb|'('| $t$ \verb|')'| $)$ with $t$. The relation between the four grammars in terms of $\yield$ and $\semantic$ can be seen in Figure~\ref{fig:grammar-square}. With this we can define $\parse : L(G'_D) -> 2^{L(T_D)}$, along with its inverse $\words : L(T_D) -> 2^{L(G'_D)}$:
+Finally, we require a function $\semantic : L(T'_D) -> L(T_D)$ that removes grouping parentheses from a parse tree, i.e., it replaces every subtree $g($ \verb|'('| $t$ \verb|')'| $)$ with $t$. The relation between the four grammars in terms of $\yield$ and $\semantic$ can be seen in Fig.~\ref{fig:grammar-square}. With this we can define $\parse : L(G'_D) -> 2^{L(T_D)}$, along with its inverse $\words : L(T_D) -> 2^{L(G'_D)}$:
 
 \begin{figure}
   \begin{tikzcd}
@@ -762,7 +738,7 @@ $$
 \end{array}
 $$
 
-\noindent The latter is mostly useful in later sections, but $\parse$ allow us to consider some concrete examples of resolvable and unresolvable ambiguities. For example, in our running example (Figure~\ref{fig:running-example-definition}), the word \verb|'1 + 2 + 3'| is ambiguous, since $\parse($\verb|'1 + 2 + 3'|$) = \{t_1, t_2\}$ where
+\noindent The latter is mostly useful in later sections, but $\parse$ allow us to consider some concrete examples of resolvable and unresolvable ambiguities. For example, in our running example (Fig.~\ref{fig:running-example-definition}), the word \texttt|'1 + 2 + 3'| is ambiguous, since $\parse($\verb|'1 + 2 + 3'|$) = \{t_1, t_2\}$ where
 
 \begin{center}
   \begin{tabular}{l}
@@ -780,7 +756,7 @@ $$
   \end{tabular}
 \end{center}
 
-\noindent In this case, $t_4$ has an unambigous word (namely \verb|'[(1 ; 2)]'|), but $t_3$ does not. The solution is to modify the language definition in Figure~\ref{fig:running-example-definition} so that both non-terminals in the production $l$ are marked with $s$ (i.e., they look like $E_{\{s\}}$), at which point $\parse($\verb|'[1 ; 2]'|$) = \{t_3\}$.
+\noindent In this case, $t_4$ has an unambigous word (namely \verb|'[(1 ; 2)]'|), but $t_3$ does not. The solution is to forbid list elements from being sequences by modify the language definition in Fig.~\ref{fig:running-example-definition} so that both non-terminals in the production $l$ are marked with $s$ (i.e., they look like $E_{\{s\}}$), at which point $\parse($\verb|'[1 ; 2]'|$) = \{t_3\}$.
 
 We are now ready to construct decision procedures for the static and dynamic resolvability problems, as given in Definitions~\ref{def:static-procedure} and \ref{def:dynamic-procedure}. Section~\ref{sec:static} gives a partial solution to the former problem, while Section~\ref{sec:dynamic} fully solves the latter with one caveat: we only consider languages with balanced parentheses.
 
@@ -808,7 +784,7 @@ The three versions are as follows:
 \item[Version 3] There are no constraints on $D$.
 \end{description}
 
-\noindent The first restriction in version 1 states that $D$ cannot contain parentheses. This implies that all parentheses present in $G'_D$ are grouping parentheses. The second restriction implies that no parentheses are required (as a counterexample, assuming normal precedence, the parentheses in ''$(1 + 2) * 3$'' are required and removing them would produce a different interpretation).
+\noindent The first restriction in version 1 states that $D$ cannot contain parentheses. This implies that all parentheses present in $G'_D$ are grouping parentheses. The second restriction implies that no parentheses are required (as a counterexample, assuming normal precedence, the parentheses in ``$(1 + 2) * 3$'' are required and removing them would produce a different interpretation).
 
 The reason for this split stems from the following insight: double grouping parentheses do not matter, in the sense that they do not change the interpretation of the word, e.g., $\parse($\verb|'((1 + 2)) * 3'|$) = \parse($\verb|'(1 + 2) * 3'|$)$. Versions~1 and 2 have only grouping parentheses, meaning that no double parentheses matter. What follows is a brief outline of the remainder of this section, which details our static analysis for versions~1 and 2, building from that observation.
 
@@ -822,11 +798,11 @@ The reason for this split stems from the following insight: double grouping pare
 
 This section introduces an alternative (isomorphic) definition of a word, heavily used in sections~\ref{sec:lattice} and \ref{sec:lattice-vpl}. The method by which we generate $G_D$ and $G'_D$ limits the possible differences between them significantly. In particular, no new terminals are introduced, except '(' and ')', and they are always introduced in a well-balanced fashion.
 
-If we thus delimit ourselves to only consider languages where words have no unbalanced parentheses\footnote{I.e., the vast, vast majority of programming languages currently in use.} we can give the following alternative definition of a word: a word is a two-tuple containing a sequence of non-parenthesis terminals and a bag (or multiset) of ranges covered by parentheses. For example, the word ''$(1 + 2) * 3$'' is equivalent to $(\text{''}1 + 2 * 3\text{''}, \{\range{0}{3}\})$, while ''$((1 + 2)) * 3$'' is equivalent to $(\text{''}1 + 2 * 3\text{''}, \{\range{0}{3}, \range{0}{3}\})$. We will refer to the first component of the tuple as the \emph{basic word} and the second as the \emph{range bag}.
+If we thus delimit ourselves to only consider languages where words have no unbalanced parentheses\footnote{I.e., the vast, vast majority of programming languages currently in use.} we can give the following alternative definition of a word: a word is a two-tuple containing a sequence of non-parenthesis terminals and a bag (or multiset) of ranges covered by parentheses. For example, the word ``$(1 + 2) * 3$'' is equivalent to $(\text{``}1 + 2 * 3\text{''}, \{\range{0}{3}\})$, while ``$((1 + 2)) * 3$'' is equivalent to $(\text{``}1 + 2 * 3\text{''}, \{\range{0}{3}, \range{0}{3}\})$. We will refer to the first component of the tuple as the \emph{basic word} and the second as the \emph{range bag}.
 
-However, there is a case where this alternate representation is not fully isomorphic; namely when a pair of parentheses would yield a zero-length range. As an example, consider the two words ''$(())$'' and ''$()()$''. Both of these have an alternate representation of $(\text{''}\text{''}, \{\range{0}{0}, \range{0}{0}\})$. In versions~1 and 2 this corresponds to grouping parentheses surrounding zero-length productions. We can avoid this case by finding every production $N -> l : r$ where $\epsilon \in L(r)$, replacing it with $N -> l : r'$ where $L(r') = L(r) \setminus \{\epsilon\}$, and replacing every use of $N$ with $N + \epsilon$. The one exception is if the start symbol has a nullable production, but that can be trivially special cased. As such, going forward, we will assume no zero-length grouping parentheses.
+However, there is a case where this alternate representation is not fully isomorphic; namely when a pair of parentheses would yield a zero-length range. As an example, consider the two words ``$(())$'' and ``$()()$''. Both of these have an alternate representation of $(\text{``}\text{''}, \{\range{0}{0}, \range{0}{0}\})$. In versions~1 and 2 this corresponds to grouping parentheses surrounding zero-length productions. We can avoid this case by finding every production $N -> l : r$ where $\epsilon \in L(r)$, replacing it with $N -> l : r'$ where $L(r') = L(r) \setminus \{\epsilon\}$, and replacing every use of $N$ with $N + \epsilon$. The one exception is if the start symbol has a nullable production, but that can be trivially special cased. As such, going forward, we will assume no zero-length grouping parentheses.
 
-We denote the functions producing the two components by $\basic$ and $\rangebag$, i.e., $\basic(\text{''}((1 + 2)) * 3\text{''}) = \text{''}1 + 2 * 3\text{''}$ and $\rangebag(\text{''}((1 + 2)) * 3\text{''}) = \{\range{0}{3}, \range{0}{3}\}$.
+We denote the functions producing the two components by $\basic$ and $\rangebag$, i.e., $\basic(\text{``}((1 + 2)) * 3\text{''}) = \text{``}1 + 2 * 3\text{''}$ and $\rangebag(\text{``}((1 + 2)) * 3\text{''}) = \{\range{0}{3}, \range{0}{3}\}$.
 
 The next four lemmas, all concerning the words in $\words(t)$ for some given $t \in L(G_t)$, form the basis of the lattices mentioned at the end of the previous section.
 
@@ -834,19 +810,19 @@ The next four lemmas, all concerning the words in $\words(t)$ for some given $t 
   $\forall w'_1, w'_2 \in \words(t).\ \basic(w'_1) = \basic(w'_2)$, i.e., all $w'$ have the same basic word.
   \label{lemma:same-basic}
 \end{lemma}
-\noindent Intuitively, $\words$ first applies the ''inverse'' of $\semantic$, i.e., adding some number of grouping parentheses nodes between pre-existing nodes, then $\yield$, which flattens the tree to a word. The only terminals changed in this process are parentheses, i.e., different $w'$ can only differ in their range bags. This also implies that two trees that share a word (i.e., two trees $t_1$ and $t_2$ that have a word $w'$ such that $\parse(w') \supseteq \{t_1, t_2\}$) must also share a basic word.
+\noindent Intuitively, $\words$ first applies the ``inverse'' of $\semantic$, i.e., adding some number of grouping parentheses nodes between pre-existing nodes, then $\yield$, which flattens the tree to a word. The only terminals changed in this process are parentheses, i.e., different $w'$ can only differ in their range bags. This also implies that two trees that share a word (i.e., two trees $t_1$ and $t_2$ that have a word $w'$ such that $\parse(w') \supseteq \{t_1, t_2\}$) must also share a basic word.
 
 \begin{lemma}
-  $\exists R$ such that $\exists w' \in \words(t).\ \rangebag(w') = R$ and $\forall w' \in \words(t).\ R \subseteq \support(\rangebag(w'))$, i.e., some parentheses are required.
+  $\exists R$ such that $\exists w' \in \words(t).\ \rangebag(w') = R$ and $\forall w' \in \words(t).\\ R \subseteq \support(\rangebag(w'))$, i.e., some parentheses are required.
   \label{lemma:required-parentheses}
 \end{lemma}
-\noindent For example, removing the parentheses in ''$(1 + 2) * 3$'' changes the interpretations produced. Each required range is a direct consequence of a mark on a non-terminal in $D$. We will write the word implied by the first quantified expression as $w'_\bot$. It is unique, since its basic word is fixed by $t$, and its rangebag is a set.
+\noindent For example, removing the parentheses in ``$(1 + 2) * 3$'' changes the interpretations produced. Each required range is a direct consequence of a mark on a non-terminal in $D$. We will write $w'_\bot$ for the word implied by the first quantified expression. It is unique, since its basic word is fixed by $t$, and its rangebag is a set.
 
 \begin{lemma}
   $\exists R$ such that $\exists w' \in \words(t).\ \rangebag(w') = R$ and $\forall w' \in \words(t).\\ \support(\rangebag(w')) \subseteq R$, i.e., there is a finite set of possible parentheses.
   \label{lemma:possible-parentheses}
 \end{lemma}
-\noindent As mentioned in Section~\ref{sec:parse-time-disambiguation}, grouping parentheses can only be added if they exactly cover a production, which amounts to an internal node in $t$, and each tree has a finite amount of nodes. We will write the word implied by the first quantified expression $w'_\top$.
+\noindent As mentioned in Section~\ref{sec:parse-time-disambiguation}, grouping parentheses can only be added if they exactly cover a production, which amounts to an internal node in $t$, and each tree has a finite amount of nodes. We will write $w'_\top$ for the word implied by the first quantified expression, which is also unique.
 
 \begin{lemma}
   $\forall w'_1, w'_2 \in \words(t).\ \support(\rangebag(w'_1)) = \support(\rangebag(w'_2)) => \parse(w'_1) = \parse(w'_2)$, i.e., duplicated parentheses do not matter.
@@ -916,11 +892,11 @@ The next four lemmas, all concerning the words in $\words(t)$ for some given $t 
   \draw (b4) -- (a);
     %%   \draw[preaction={draw=white, -,line width=6pt}] (a) -- (e) -- (c);
   \end{tikzpicture}
-  \caption{The lattice of words for the tree $a(a(n(1)+n(2))+n(3))$. The boxed words are shared with the lattice in Figure~\ref{fig:lattice2}.}
+  \caption{The lattice of words for the tree $a(a(n(1)+n(2))+n(3))$. The boxed words are shared with the lattice in Fig.~\ref{fig:lattice2}.}
   \label{fig:lattice1}
 \end{figure}
 
-Lemma~\ref{lemma:rangeset-equality} suggests a partition of the words in $\words(t)$ for any given $t \in L(T_D)$; group words $w'$ by their \emph{rangeset}, where $\rangeset(w') = \support(\rangebag(w'))$. These partitions can be partially ordered by subset on the rangeset, resulting in a lattice of word partitions per tree. This lattice is bounded, with top and bottom elements given by lemmas~\ref{lemma:possible-parentheses} and \ref{lemma:required-parentheses} respectively. Lemma~\ref{lemma:same-basic} further states that all words in $\words(t)$ share the same basic word. For example, Figure~\ref{fig:lattice1} contains the lattice for the tree $a(a(n(1)+n(2))+n(3))$ (from our running example, defined in Figure~\ref{fig:running-example-definition} on page~\pageref{fig:running-example-definition}). Each partition is represented by the word whose rangebag is a set. To reduce clutter, we do not draw the partitions that have grouping parentheses around the entire word. This outermost possible pair is uninteresting since it is always allowed, and would double the size of the figure if it was included.
+Lemma~\ref{lemma:rangeset-equality} suggests a partition of the words in $\words(t)$ for any given $t \in L(T_D)$; group words $w'$ by their \emph{rangeset}, where $\rangeset(w') = \support(\rangebag(w'))$. These partitions can be partially ordered by subset on the rangeset, resulting in a lattice of word partitions per tree. This lattice is bounded, with top and bottom elements given by lemmas~\ref{lemma:possible-parentheses} and \ref{lemma:required-parentheses} respectively. Lemma~\ref{lemma:same-basic} further states that all words in $\words(t)$ share the same basic word. For example, Fig.~\ref{fig:lattice1} contains the lattice for the tree $a(a(n(1)+n(2))+n(3))$ (from our running example, defined in Fig.~\ref{fig:running-example-definition} on page~\pageref{fig:running-example-definition}). Each partition is represented by the word whose rangebag is a set. To reduce clutter, we do not draw the partitions that have grouping parentheses around the entire word. This outermost possible pair is uninteresting since it is always allowed, and would double the size of the figure if it was included.
 
 \begin{figure}[t]
 
@@ -983,11 +959,11 @@ Lemma~\ref{lemma:rangeset-equality} suggests a partition of the words in $\words
   \draw (b4) -- (a);
 %%   \draw[preaction={draw=white, -,line width=6pt}] (a) -- (e) -- (c);
 \end{tikzpicture}
-\caption{The lattice of words for the tree $a(n(1)+a(n(2)+n(3)))$. The boxed words are shared with the lattice in Figure~\ref{fig:lattice1}.}
+\caption{The lattice of words for the tree $a(n(1)+a(n(2)+n(3)))$. The boxed words are shared with the lattice in Fig.~\ref{fig:lattice1}.}
 \label{fig:lattice2}
 \end{figure}
 
-To show the connection between resolvable ambiguity and these lattices, consider the word ''$1 + 2 + 3$''. It has two interpretations in our running example, $a(a(n(1)+n(2))+n(3))$, which we would normally write as $(1 + 2) + 3$, and $a(n(1)+a(n(2)+n(3)))$, which we would normally write $1 + (2 + 3)$. The lattices for these two trees are given in Figures~\ref{fig:lattice1} and \ref{fig:lattice2} respectively. The partitions that appear in both lattices are represented as boxed words, the others are unboxed. These shared partitions represent words that are ambiguous between these particular trees. Finding an unambiguous word is thus the same as finding a partition that is not shared with any other tree. In this particular case, there is no ambiguity with any other tree at all, and so the unboxed words are all valid resolutions of the ambiguity.
+To show the connection between resolvable ambiguity and these lattices, consider the word ``$1 + 2 + 3$''. It has two interpretations in our running example, $a(a(n(1)+n(2))+n(3))$, which we would normally write as $(1 + 2) + 3$, and $a(n(1)+a(n(2)+n(3)))$, which we would normally write $1 + (2 + 3)$. The lattices for these two trees are given in Figures~\ref{fig:lattice1} and \ref{fig:lattice2} respectively. The partitions that appear in both lattices are represented as boxed words, the others are unboxed. These shared partitions represent words that are ambiguous between these particular trees. Finding an unambiguous word is thus the same as finding a partition that is not shared with any other tree. In this particular case, there is no ambiguity with any other tree at all, and so the unboxed words are all valid resolutions of the ambiguity.
 
 At this point it is clear that a given tree has an unambiguous word iff its lattice has at least one partition that is not shared with any other tree.
 
@@ -1029,11 +1005,11 @@ Our approach centers around finding a pair of lattices, such that one is entirel
 
 \subsection{A Lattice as a Word, and an Algorithm} \label{sec:lattice-vpl}
 
-This section introduces a linear encoding of the lattices of the previous chapter as words. Lemmas~\ref{lemma:same-basic} and \ref{lemma:top-bottom-determine} imply that a lattice encoding requires three things: a basic word, a set of \emph{required} parentheses, and a set of \emph{possible} parentheses. We encode required parentheses with ''$\reqp{}$'' and possible parentheses with ''$\posp{}$''. For example, the lattice in Figure~\ref{fig:lattice2} is represented by ''$\posp{\posp{1} + \posp{\posp{2} + \posp{3}}}$'', while the tree for ''$(1 + 2) * 3$'' has a lattice represented by ''$\posp{\reqp{\posp{1} + \posp{2}} * \posp{3}}$''. With this encoding we can apply the formidable body of knowledge available for word languages, albeit with some extra care; the linear encoding of a lattice is not unique.
+This section introduces a linear encoding of the lattices of the previous chapter as words. Lemmas~\ref{lemma:same-basic} and \ref{lemma:top-bottom-determine} imply that a lattice encoding requires three things: a basic word, a set of \emph{required} parentheses, and a set of \emph{possible} parentheses. We encode required parentheses with ``$\reqp{}$'' and possible parentheses with ``$\posp{}$''. For example, the lattice in Fig.~\ref{fig:lattice2} is represented by ``$\posp{\posp{1} + \posp{\posp{2} + \posp{3}}}$'', while the tree for ``$(1 + 2) * 3$'' has a lattice represented by ``$\posp{\reqp{\posp{1} + \posp{2}} * \posp{3}}$''. With this encoding we can apply the formidable body of knowledge available for word languages, albeit with some extra care; the linear encoding of a lattice is not unique.
 
-For example, ''$\posp{\posp{1}}$'' and ''$\posp{1}$'' represent the same lattice, as do ''$\reqp{\posp{2}}$'' and ''$\reqp{2}$''. To gain uniqueness we forbid duplicated parentheses and prioritize required parentheses over possible parentheses, e.g., ''$\posp{\posp{1}}$'' is uniquely represented as ''$\posp{1}$'' while ''$\reqp{\posp{2}}$'' is uniquely represented as ''$\reqp{2}$''.
+For example, ``$\posp{\posp{1}}$'' and ``$\posp{1}$'' represent the same lattice, as do ``$\reqp{\posp{2}}$'' and ``$\reqp{2}$''. To gain uniqueness we forbid duplicated parentheses and prioritize required parentheses over possible parentheses, e.g., ``$\posp{\posp{1}}$'' is uniquely represented as ``$\posp{1}$'' while ``$\reqp{\posp{2}}$'' is uniquely represented as ``$\reqp{2}$''.
 
-Lattice equality is now equvialent with equality of the linear encoding. To determine if a lattice is entirely contained in another, we make the following observation: we can move the top of the lattice ''up'' (new top rangeset is a strict superset) by adding a pair of possible parentheses, and move the bottom ''down'' (new bottom rangeset is a strict subset) by replacing a required pair with a possible pair. For example, ''$\reqp{1}2$'' is entirely contained in ''$\reqp{1}\posp{2}$'', which is entirely contained in ''$\posp{1}\posp{2}$''.
+Lattice equality is now equvialent with equality of the linear encoding. To determine if a lattice is entirely contained in another, we make the following observation: we can move the top of the lattice ``up'' (new top rangeset is a strict superset) by adding a pair of possible parentheses, and move the bottom ``down'' (new bottom rangeset is a strict subset) by replacing a required pair with a possible pair. For example, ``$\reqp{1}2$'' is entirely contained in ``$\reqp{1}\posp{2}$'', which is entirely contained in ``$\posp{1}\posp{2}$''.
 
 The centerpiece of our algorithm is a visibly pushdown automaton constructed in such a way that:
 
@@ -1042,7 +1018,7 @@ The centerpiece of our algorithm is a visibly pushdown automaton constructed in 
 \item The word recognized by a successful run is the linear encoding of the corresponding tree's lattice.
 \end{itemize}
 
-\noindent Two distinct successful runs through this automaton that recognize the same word thus imply two distinct trees that have exactly the same lattice. To detect lattices contained in each other, we create a modified copy, where the copy may add arbitrary (balanced, well-nested) possible parentheses, and replace any required pair of parentheses with a possible pair. The copy maintains much of the structure of the original, and in particular, keeps the connection to trees in $L(T_D)$ (though it is no longer a bijection, there are multiple successful runs per tree since there are multiple larger lattices). Two distinct successful runs, one in each automaton, that recognize the same word then imply two distinct trees where the lattice of one is entirely contained in the other.
+\noindent Two distinct successful runs through this automaton that recognize the same word thus imply two distinct trees that have exactly the same lattice. To detect lattices contained in each other, we create a modified copy, where the copy may add arbitrary (balanced, well-nested) possible parentheses, and replace any required pair of parentheses with a possible pair. The copy maintains much of the structure of the original, and in particular, keeps the connection to trees in $L(T_D)$ (though it is no longer a bijection: there are multiple successful runs per tree since there are multiple larger lattices). Two distinct successful runs, one in each automaton, that recognize the same word then imply two distinct trees where the lattice of one is entirely contained in the other.
 
 We will now walk through the construction of this automaton, using the following language definition:
 
@@ -1092,16 +1068,16 @@ Conceptually, each non-terminal represents a choice of which child production sh
 \end{tikzpicture}
 \end{center}
 
-\noindent We then combine them into a single visibly pushdown automaton. Every time we transition from a production to a child we push a symbol to the stack, which we then pop when we go back. We use $Q \times Q \times \{\text{''}\reqp{}\text{''}, \text{''}\posp{}\text{''}\}$ as our stack alphabet, where the first two components are states in the parent production automaton and the last component records whether the parenthesis pair is required or merely possible. We replace every edge $p \xrightarrow{l} q$, where $l \in \Labels$, with:
+\noindent We then combine them into a single visibly pushdown automaton. Every time we transition from a production to a child we push a symbol to the stack, which we then pop when we go back. We use $Q \times Q \times \{\text{``}\reqp{}\text{''}, \text{``}\posp{}\text{''}\}$ as our stack alphabet, where the first two components are states in the parent production automaton and the last component records whether the parenthesis pair is required or merely possible. We replace every edge $p \xrightarrow{l} q$, where $l \in \Labels$, with:
 
 \begin{itemize}
-  \item an edge $p \xrightarrow{'\pospl', +(p, q, \text{''}\posp{}\text{''})} p'$, where $p'$ is the initial state in the DFA corresponding to the production with label $l$, and
-  \item an edge $q' \xrightarrow{'\pospr', -(p, q, \text{''}\posp{}\text{''})} q$ for every final state $q'$ in the DFA corresponding to the production with label $l$.
+  \item an edge $p \xrightarrow{'\pospl', +(p, q, \text{``}\posp{}\text{''})} p'$, where $p'$ is the initial state in the DFA corresponding to the production with label $l$, and
+  \item an edge $q' \xrightarrow{'\pospr', -(p, q, \text{``}\posp{}\text{''})} q$ for every final state $q'$ in the DFA corresponding to the production with label $l$.
 \end{itemize}
 
-\noindent Similarly, for every edge $p \xrightarrow{l'} q$, where $l \in \Labels$, we add edges $p \xrightarrow{'\reqpl', +(p, q, \text{''}\reqp{}\text{''})} p'$ and $q' \xrightarrow{'\reqpr', -(p, q, \text{''}\reqp{}\text{''})} q$.
+\noindent Similarly, for every edge $p \xrightarrow{l'} q$, where $l \in \Labels$, we add edges $p \xrightarrow{'\reqpl', +(p, q, \text{``}\reqp{}\text{''})} p'$ and $q' \xrightarrow{'\reqpr', -(p, q, \text{``}\reqp{}\text{''})} q$.
 
-Intuitively, we parse a child node with parentheses around it, then return. This is where our simplification is used, without it we might introduce double parentheses here. To lessen clutter in the figure below we omit the third component of the stack symbol, since it is fully determined by the input symbol, e.g., if an edge reads $'\pospl'$ then the third component of the stack symbol pushed must be ''$\posp{}$''.
+Intuitively, we parse a child node with parentheses around it, then return. This is where our simplification is used, without it we might introduce double parentheses here. To lessen clutter in the figure below we omit the third component of the stack symbol, since it is fully determined by the input symbol, e.g., if an edge reads $'\pospl'$ then the third component of the stack symbol pushed must be ``$\posp{}$''.
 
 \begin{center}
 \begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
@@ -1167,59 +1143,130 @@ Intuitively, we parse a child node with parentheses around it, then return. This
 \end{tikzpicture}
 \end{center}
 
-\noindent The resulting pushdown automaton has only two sources of non-determinism: the edges labelled $'\pospl'$ and $'\reqpl'$. Each one corresponds to one of the allowable child productions at that point in the tree, thus there is one run per tree. STOP HERE, THE TEXT BEYOND IS NOT UPDATED.
+\noindent The resulting pushdown automaton has only two sources of non-determinism: the edges labelled $'\pospl'$ and $'\reqpl'$. Each one corresponds to one of the allowable child productions at that point in the tree, thus there is one run per tree.
+
+UNFINISHED
 
 %% TODO: Continue here. Also figure out how to handle (E + E_m).
 
-We now have a pushdown automaton (call it $A_{()}$) that recognizes the top word for each tree in $L(G_t)$. Next we need to be able to add arbitrary parentheses, to produce a word with a rangeset superset. To do this we create a copy of $A_{()}$ with one modification: for every state $s$ in $A_{()}$ (except the initial and final states), add two transitions $s \xrightarrow{'(', +p} s$ and $s \xrightarrow{')', -p} s$. To avoid cluttering the graph too much, these transitions are shown unlabeled below:
+%% We now have a pushdown automaton (call it $A_{()}$) that recognizes the top word for each tree in $L(G_t)$. Next we need to be able to add arbitrary parentheses, to produce a word with a rangeset superset. To do this we create a copy of $A_{()}$ with one modification: for every state $s$ in $A_{()}$ (except the initial and final states), add two transitions $s \xrightarrow{'(', +p} s$ and $s \xrightarrow{')', -p} s$. To avoid cluttering the graph too much, these transitions are shown unlabeled below:
 
-\begin{center}
-\begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
-    scale = 1,transform shape]
+%% \begin{center}
+%% \begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
+%%     scale = 1,transform shape]
 
-  \node[state] (1) {$1$};
-  \node[state] (2) [right of=1] {$2$};
-  \node[state] (3) [right of=2] {$3$};
-  \node[state] (4) [below of=1, xshift=1cm] {$4$};
-  \node[state] (5) [right of=4] {$5$};
-  \node[state,initial] (s) [left of=4] {};
-  \node[state,accepting] (e) [right of=5] {};
+%%   \node[state] (1) {$1$};
+%%   \node[state] (2) [right of=1] {$2$};
+%%   \node[state] (3) [right of=2] {$3$};
+%%   \node[state] (4) [below of=1, xshift=1cm] {$4$};
+%%   \node[state] (5) [right of=4] {$5$};
+%%   \node[state,initial] (s) [left of=4] {};
+%%   \node[state,accepting] (e) [right of=5] {};
 
-  \draw
-  (1) edge[loop, in=80, out=100, looseness=7] node{} (1)
-  (1) edge[loop, in=70, out=110, looseness=6] node{} (1)
-  (2) edge[loop, in=80, out=100, looseness=7] node{} (2)
-  (2) edge[loop, in=70, out=110, looseness=6] node{} (2)
-  (3) edge[loop, in=-10, out=10, looseness=7] node{} (3)
-  (3) edge[loop, in=-20, out=20, looseness=6] node{} (3)
-  (4) edge[loop, in=-80, out=-100, looseness=7] node{} (4)
-  (4) edge[loop, in=-70, out=-110, looseness=6] node{} (4)
-  (5) edge[loop, in=-80, out=-100, looseness=7] node{} (5)
-  (5) edge[loop, in=-70, out=-110, looseness=6] node{} (5)
-  (s) edge[left] node{$'(', +s$} (1)
-  (s) edge[above] node{$'(', +s$} (4)
-  (3) edge[right] node{$')', -s$} (e)
-  (5) edge[above] node{$')', -s$} (e)
-  (1) edge[above] node{$s$} (2)
-  (4) edge[above] node{$z$} (5)
-  (2) edge[bend left, below] node{$'(', +(2, 3)$} (1)
-  (2) edge[bend left, left] node{$'(', +(2, 3)$} (4)
-  (3) edge[loop above] node{$')', -(2, 3)$} (3)
-  (5) edge[left, bend right] node{$')', -(2, 3)$} (3);
+%%   \draw
+%%   (1) edge[loop, in=80, out=100, looseness=7] node{} (1)
+%%   (1) edge[loop, in=70, out=110, looseness=6] node{} (1)
+%%   (2) edge[loop, in=80, out=100, looseness=7] node{} (2)
+%%   (2) edge[loop, in=70, out=110, looseness=6] node{} (2)
+%%   (3) edge[loop, in=-10, out=10, looseness=7] node{} (3)
+%%   (3) edge[loop, in=-20, out=20, looseness=6] node{} (3)
+%%   (4) edge[loop, in=-80, out=-100, looseness=7] node{} (4)
+%%   (4) edge[loop, in=-70, out=-110, looseness=6] node{} (4)
+%%   (5) edge[loop, in=-80, out=-100, looseness=7] node{} (5)
+%%   (5) edge[loop, in=-70, out=-110, looseness=6] node{} (5)
+%%   (s) edge[left] node{$'(', +s$} (1)
+%%   (s) edge[above] node{$'(', +s$} (4)
+%%   (3) edge[right] node{$')', -s$} (e)
+%%   (5) edge[above] node{$')', -s$} (e)
+%%   (1) edge[above] node{$s$} (2)
+%%   (4) edge[above] node{$z$} (5)
+%%   (2) edge[bend left, below] node{$'(', +(2, 3)$} (1)
+%%   (2) edge[bend left, left] node{$'(', +(2, 3)$} (4)
+%%   (3) edge[loop above] node{$')', -(2, 3)$} (3)
+%%   (5) edge[left, bend right] node{$')', -(2, 3)$} (3);
 
-\end{tikzpicture}
-\end{center}
+%% \end{tikzpicture}
+%% \end{center}
 
-\noindent We will call this automaton $A'_{()}$. Successful runs in this automaton have a surjection to runs in $A_($ (ignore transitions along the newly added edges), and thus also have a surjection to parse trees in $L(G_t)$. We can also note that every sucessful run in $A_{()}$ is also a successful run in $A'_{()}$, since the latter has all states and transitions of the former. Furthermore, two distinct runs, one in $A_{()}$ (call it $p$) and one in $A'_{()}$ (call it $p'$), that both recognize the same word must represent different parse trees in $L(G_t)$. To see why, we consider two cases:
+%% \noindent We will call this automaton $A'_{()}$. Successful runs in this automaton have a surjection to runs in $A_($ (ignore transitions along the newly added edges), and thus also have a surjection to parse trees in $L(G_t)$. We can also note that every sucessful run in $A_{()}$ is also a successful run in $A'_{()}$, since the latter has all states and transitions of the former. Furthermore, two distinct runs, one in $A_{()}$ (call it $p$) and one in $A'_{()}$ (call it $p'$), that both recognize the same word must represent different parse trees in $L(G_t)$. To see why, we consider two cases:
 
-\begin{enumerate}
-  \item $p'$ only uses transitions present in $A_{()}$. This is a successful run in $A_{()}$, and distinct from $p$. But there is a bijection between runs in $A_{()}$ and parse trees in $L(T)$, thus $p'$ represents a different parse tree.
-  \item $p'$ uses at least one transition added in $A'_{()}$. Using the surjection between runs in $A'_{()}$ and $A_{()}$ we find a new successful run that produces a different word (at least one fewer pair of parentheses). Since this run produces a different word, it must be distinct from $p$, and thus represent a different parse tree.
-\end{enumerate}
+%% \begin{enumerate}
+%%   \item $p'$ only uses transitions present in $A_{()}$. This is a successful run in $A_{()}$, and distinct from $p$. But there is a bijection between runs in $A_{()}$ and parse trees in $L(T)$, thus $p'$ represents a different parse tree.
+%%   \item $p'$ uses at least one transition added in $A'_{()}$. Using the surjection between runs in $A'_{()}$ and $A_{()}$ we find a new successful run that produces a different word (at least one fewer pair of parentheses). Since this run produces a different word, it must be distinct from $p$, and thus represent a different parse tree.
+%% \end{enumerate}
 
-\noindent Two distinct successful runs that accept the same word thus represent two trees where one permits a superset rangeset of the other. To find such runs we construct a product automaton and trim it. We can construct a product automaton since both $A_{()}$ and $A'_{()}$ are visibly pushdown, with the same partition of the input alphabet (push on open parenthesis, pop on close parenthesis, do nothing otherwise). We can trim the product since it retains the same partitioning and thus is also visibly pushdown.
+%% \noindent Two distinct successful runs that accept the same word thus represent two trees where one permits a superset rangeset of the other. To find such runs we construct a product automaton and trim it. We can construct a product automaton since both $A_{()}$ and $A'_{()}$ are visibly pushdown, with the same partition of the input alphabet (push on open parenthesis, pop on close parenthesis, do nothing otherwise). We can trim the product since it retains the same partitioning and thus is also visibly pushdown.
 
-In this product automaton, if any transition pushes a stack symbol $(a, b)$ where $a \neq b$, or transitions to a state $(p, q)$ where $p \neq q$, then there is a successful run that corresponds to two distinct runs through $A_{()}$ and $A'_{()}$ (since the automaton is trim).
+%% In this product automaton, if any transition pushes a stack symbol $(a, b)$ where $a \neq b$, or transitions to a state $(p, q)$ where $p \neq q$, then there is a successful run that corresponds to two distinct runs through $A_{()}$ and $A'_{()}$ (since the automaton is trim).
+
+\begin{theorem}
+  There is a bijection between successful runs in $A_{()}$ and trees $t \in L(T_D)$.
+\end{theorem}
+
+\begin{proof}
+  $A_{()}$ has a single initial state, and a single final state, call them $s$ and $f$ respectively. The two are distinct, and $f$ is reachable only through transitions that pop a stack symbol with $s$ and $f$ as the two first components. Transitions that push such symbols originate in $s$, and no other transitions originate in $s$. Thus all successful runs start in configuration $(s, \epsilon)$ and end in $(f, \epsilon)$, whereby every pushing transition in the run can be paired with a corresponding popping transition. We will now construct a tree $t \in L(T_D)$ in a bottom-up fashion.
+
+  Select a subsequence of the run $R = (s, \epsilon) \; R_1 \; (p, s) \xrightarrow{a, +(p, q, g, w)} (p', (p, q, g, w) \cdot s) \; R_2 \; (q', (p, q, g, w) \cdot s \xrightarrow{b, -(p, q, g, w)} (q, s) \; R_2 \; (f, \epsilon)$ such that $R_2$ contains no pushing or popping operations. The only transitions that leave the stack unchanged in $A_{()}$ come from DFAs generated from productions in $D$. There is no way to transition between two such DFAs without using a pushing or popping transition, thus $R_2$ must be a successful run in the DFA for some labelled production $N -> l : r$ in $D$. $T_D$ must contain a corresponding production $N -> l(r)$. Now consider the sequence of input symbols $w'$ along the transitions in $R_2$. We have $w' \in L(r)$, since $R_2$ is a successful run in a DFA constructed from $r$. Thus $l(w') \in L_N(T_D)$. Now add parent nodes to this subtree for every label in $w$, e.g., if $w = l_1 \cdot l_2 \cdot l_3$ construct $l_1(l_2(l_3(l(w'))))$. We can then replace the subsequence of $R$ with this subtree, and then repeat the process until we have a tree with root $l'$, where $D$ has a labelled production $S -> l': r'$ for some $r'$ and the starting symbol $S$.
+
+  To construct a successful run from a tree $t \in L(T_D)$ we can traverse the tree in a preorder, while at the same time constructing a run in $A_{()}$ starting from $(s, \epsilon)$. If the next terminal is in $\T$, i.e., a strictly zero-arity terminal, we take a transition originating in a DFA, which must be unique. If the next terminal is in $\Labels$, i.e., an unranked terminal, we take one of the added edges. However, this choice of edge might not be unique, there may be multiple edges from the current state to an appropriate DFA initial state. These stem from the original DFA having two transitions from the same state with the same label, except one is primed, e.g., $p \xrightarrow{l} q$ and $p \xrightarrow{l'} q'$. However, if both of these transitions were valid choices that would imply that the DFA for that level can recognize two distinct words that differ only in whether some terminals are primed. But primed and non-primed terminals must originate from distinct occurances of marked non-terminals (since a primed terminal corresponds to a mark, and an unprimed terminal corresponds to the absence of a mark), which would imply that the original regular expression is ambiguous if the marks are removed, which we explicitly ruled out in Section~\ref{sec:parse-time-disambiguation}.
+
+  Proof sketch: to go from a successful run to a tree $t \in L(T_D)$: by construction, all successful runs must begin and end with an empty stack. Every pushing transition can thus be paired with a popping transition in the run. We can construct a tree in a bottom-up fashion by replacing every such pair with a tree $l_1(l_2(\ldots l_n(x)\ldots))$, where $x$ is the sequence of terminals and/or trees between the pair, the terminals $l_1, l_2, \ldots, l_{n-1}$ stem from the fourth component of the pushed stack symbol ($l_1 \cdots l_{n-1}$), and $l_n$ is the label of the production whose DFA the pushing transition ends in.
+
+  For the inverse direction we construct a run by traversing the tree in a preorder\footnote{Where we also keep track of when we ``go back up'' the tree.}. Terminals in $\T$ cause transitions internally in a DFA, while terminals in $\Labels$ cause a pushing transition (and later a corresponding, unique popping transition) to the initial state of the DFA corresponding to the production with that label. Note that a sequence of terminals in $\Labels$ that have only a single child (which is also in $\Labels$) cause only one transition, all terminals but the last end up in the fourth component of the pushed stack symbol. The choice of pushing transition is \emph{not} unique however; there may be multiple available transitions that differ in the recognized input symbol and the second and third components of the pushed stack symbol, none of which are necessarily determined by the shape of the tree. This non-determinism does not introduce multiple successful runs however, since two such runs would imply the existence of two distinct runs through the DFA corresponding to some labelled production that recognize the same word, except for whether some terminals are primed. But two otherwise equal terminals where one is primed must originate from different occurrences of marked non-terminals in the original regular expression (since a primed terminal represents a mark, and an unprimed terminal represents the absence of a mark), thus that regular expression must be ambiguous after all marks are removed. But Section~\ref{sec:parse-time-disambiguation} explicitly ruled this out, thus only one of the pushing transitions can be a valid choice.
+
+% TODO: technically, we should perhaps mention that these two constructions are inverses of each other, but that's relatively easy to see once you understand them.
+\end{proof}
+
+\subsubsection{Formal Stuff}
+
+Given a language definition $D$, with terminals $\T$, labels $\Labels$, and starting non-terminal $S$. Construct two functions $\dfa : \Labels -> \mathit{DFA}(\T \cup (\Labels \times \{\top, \bot\})$ and $\passthrough : \Labels -> 2^{\Labels \times \Labels \times \{\top, \bot\} \times \Labels^{*}}$:
+
+\begin{description}
+\item[$\dfa(l)$:] Given the production $N -> l : r$, compute the regular language $L' := L(r) \setminus \{N'_m \mid N' \in \NT, m \subseteq \Labels\}$. Then replace every marked non-terminal $N'_m$ with the regular expression $(l_1, b_1) + (l_2, b_2) + \ldots + (l_n, b_n)$, where $l_i$ are all the labels of productions $N' -> l_i : r_i$, and $b_i = l_i \in m$, e.g., $E_{\{a\}}$ in the running example would be replaced by $l + a' + m + n$. Then construct a DFA for this language.
+
+\item[$\passthrough(l)$:] Given a production $N -> l : r$, this is the set $\{(l, l, \bot, \epsilon)\} \cup \{(l, l', l' \in m, l) \mid \nt(l') = N', N'_m \in L(r)\}$.
+\end{description}
+
+\noindent Compute the set $P$ as the closure of $\bigcup_l \passthrough(l)$ using the following operation:
+
+$$ (l_1, l_2, r_1, w_1) \cdot (l_2, l_3, r_2, w_2) = (l_1, l_3, r_1 \lor r_2, w_1 \cdot w_2) $$
+
+\noindent $P$ is finite if $D$ has no cycles $N =>^{+} N$\footnote{This is notation from CFGs, which is semi-obvious what it means, but technically not defined here.}. Such a cycle is easy to detect (depth-first search), and means that any tree that contains a production from the non-terminal $N$ only ever produces infinitely ambiguous words, i.e., all words for that tree are unresolvably ambiguous.
+
+Given $\dfa(l) = (Q_l, \T \cup (\Labels \times \{\top, \bot\}), \delta_l, s_l, F_l)$, construct a VPDA $(Q, \T', \Gamma, \delta, s, \{f\})$ where:
+
+% TODO: add transitions to/from final/initial states
+
+\begin{itemize}
+\item $s$ and $f$ are two new distinct states.
+\item $Q = \{s, f\} \cup \bigcup_l Q_l$.
+\item $\T' = \T \cup \{\reqpl, \reqpr, \pospl, \pospr\}$.
+\item $\Gamma = Q \times Q \times \{\reqp{}, \posp{}\} \times \Labels^{*}$.
+\item $\delta$ is defined by:
+  $$
+  \begin{array}{r@{\;=\;}l@{\;\mid\;}l}
+    \delta(p, a, \lambda)
+    & \multicolumn{2}{@{}l@{}}{\{(\delta_l(p, a), \lambda)\} \qquad \text{ where } p \in Q_l \text{ and } a \in \T} \\
+
+    \delta(p, \text{``}\reqpl\text{''}, \lambda)
+    & \{ (s_{l_3}, (p, q, \reqp{}, w))
+    & p \in Q_{l_1}, \delta_{l_1}(p, (l_2, r_1)) = q, (l_2, l_3, r_2, w) \in P, r_1 \lor r_2 \} \\
+
+    \delta(p, \text{``}\pospl\text{''}, \lambda)
+    & \{ (s_{l_3}, (p, q, \posp{}, w))
+    & p \in Q_{l_1}, \delta_{l_1}(p, (l_2, r_1)) = q, (l_2, l_3, r_2, w) \in P, \neg (r_1 \lor r_2) \} \\
+
+    \delta(f_{l_3}, \text{``}\reqpr\text{''}, (p, q, \reqp{}, w))
+    & \{ (q, \lambda)
+    & p \in Q_{l_1}, \delta_{l_1}(p, (l_2, r_1)) = q, (l_2, l_3, r_2, w) \in P, r_1 \lor r_2, f_{l_3} \in F_{l_3} \} \\
+
+    \delta(f_{l_3}, \text{``}\pospr\text{''}, (p, q, \posp{}, w))
+    & \{ (q, \lambda)
+    & p \in Q_{l_1}, \delta_{l_1}(p, (l_2, r_1)) = q, (l_2, l_3, r_2, w) \in P, \neg (r_1 \lor r_2), f_{l_3} \in F_{l_3} \} \\
+  \end{array}
+  $$
+\end{itemize}
+
 
 \section{Dynamic Resolvability Analysis} \label{sec:dynamic}
 
@@ -1231,17 +1278,23 @@ Our approach centers around around $\words(t)$, which, being a set of words, can
   Given a $t \in L(T_D)$, we can construct a visibly pushdown automaton that accepts exactly $\words(t)$.
 \end{theorem}
 
+UNFINISHED
+
 \section{Evaluation} \label{sec:evaluation}
 
 \subsection{OCaml} \label{sec:evaluation-ocaml}
 
-% TODO: talk about the ''low precedence unary operator/deep precedence'' issue.
+% TODO: talk about the ``low precedence unary operator/deep precedence'' issue.
 
 \subsection{Cyphym} \label{sec:evaluation-cyphym}
 
 \section{Related Work}
 
 \cite{afroozehSafeSpecificationOperator2013}'s operator ambiguity removal patterns bear a striking resemblance to the marks presented in this paper. However, in special-casing (what in this paper would be) marks on left and right-recursions in productions they correctly cover the edge case discussed in Section~\ref{sec:evaluation-ocaml}.
+
+UNFINISHED
+
+\section{Conclusion}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
