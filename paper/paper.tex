@@ -91,6 +91,8 @@
 \newcommand{\parse}{\mathit{parse}} % go from a w' \in L(G'_w) to a subset of L(G_t)
 \newcommand{\words}{\mathit{words}} % go from a t \in L(G_t) to a subset of L(G'_w)
 \newcommand{\alt}{\mathit{alt}} % go from a w \in L(G'_w) to a tuple of a basic word and a range bag.
+\newcommand{\amb}{\mathit{amb}}
+
 \newcommand{\basic}{\mathit{basic}} % go from a w \in L(G'_w) to the first element of \alt(w).
 \newcommand{\rangebag}{\mathit{rangebag}} % go from a w \in L(G'_w) to the first element of \alt(w).
 \newcommand{\rangeset}{\mathit{rangeset}} % go from a w \in L(G'_w) to the first element of \alt(w).
@@ -436,15 +438,21 @@ Finally, $yield : L(T) -> \T^{*}$ is the sequence of terminals $a \in \T$ obtain
 
 This section introduces our definition of \emph{resolvable ambiguity}, and then relates it to some more standard concepts in formal languages.
 
-Normally, we define a language as a set of words, i.e., a subset of $\T^{*}$ for some alphabet $\T$, but here we additionally require the existence of a \emph{meaning} of each word, in some sense. We will call this meaning an \emph{interpretation} of a word. Note that a single word may have multiple interpretations. As such, we define a language as:
+Normally, we define a language as a set of words, i.e., a subset of $\T^{*}$ for some alphabet $\T$, but here we additionally require the existence of a \emph{meaning} of each word, in some sense. We call this meaning an \emph{interpretation} of a word. Note that a single word may have multiple interpretations. As such, we define an \emph{interpreted language} as:
 
+\begin{definition}
+  An interpreted language, written $L(\T, T, \parse)$, consists of
 \begin{itemize}
-\item An alphabet $\T$.
-\item A set of interpretations $T$.
-\item A function $\parse : \T^{*} -> 2^T$ that relates words to their interpretations, where $2^T$ denotes the powerset of $T$. Additionally, we require that $T = \bigcup_{w \in \T^{*}} \parse(w)$.
+\item an alphabet $\T$,
+\item a set of interpretations $T$, and
+\item a function $\parse : \T^{*} -> 2^T$ that relates words to their interpretations, where $2^T$ denotes the powerset of $T$. Additionally, we require that $T = \bigcup_{w \in \T^{*}} \parse(w)$.
 \end{itemize}
 
-\noindent For example, consider a simple arithmetic language without precedence and parentheses, where the interpretations are abstract syntax trees. In such a language, $\parse(1 + 2 \cdot 3)$ would produce a set containing the two ASTs in Fig.~\ref{fig:arith-example}:
+  A word $w \in \T^{*}$ is in the language $L(\T, T, \parse)$, written
+  $w \in L(\T, T, \parse)$ iff $\parse(w) \neq \emptyset$.
+\end{definition}
+
+\noindent For example, consider a simple arithmetic language without precedence and parentheses, where the interpretations are abstract syntax trees. In such a language, $\parse(1 + 2 \cdot 3)$ would produce a set containing the two ASTs shown in Fig.~\ref{fig:arith-example}.
 
 \begin{figure}[t]
 \begin{tabular}{cc}
@@ -463,36 +471,46 @@ Normally, we define a language as a set of words, i.e., a subset of $\T^{*}$ for
 \label{fig:arith-example}
 \end{figure}
 
-\noindent We further classify each word $w \in \T^{*}$ depending on the result of $\parse$:
+The ambiguity of a word $w \in \T^{*}$ is defined in terms of $\parse$:
 
 \begin{definition}
-  A word $w \in \T^{*}$ is:
-  \begin{itemize}
-  \item not in the language if $\parse(w) = \emptyset$.
-  \item unambiguous if $\exists t \in T.\ \parse(w) = \{t\}$.
-  \item ambiguous if $\exists t_1, t_2 \in T.\ t_1 \neq t_2 \land \{t_1, t_2\} \subseteq \parse(w)$.
-  \end{itemize}
+  A word $w \in L(\T, T, \parse)$ is ambiguous, written $\amb(w)$, iff
+
+  $\exists t_1, t_2 \in T.\ t_1 \neq t_2 \land \{t_1, t_2\} \subseteq \parse(w)$
 \end{definition}
 
-\noindent We can connect these cases to the classical definition of a language:
+\noindent
+Note that the above definition implies that a word $w \in L(\T, T,
+\parse)$ is not ambiguous (or unambiguous) if $\exists t \in
+T.\ \parse(w) = \{t\}$.
+
+We can connect the above definition of an interpreted language to the
+classical definition of a language as follows:
 
 \begin{itemize}
-\item Given a language defined by $\parse$, the corresponding classical language (i.e., set of words) is given by $\{ w \mid \parse(w) \neq \emptyset \}$.
+\item Given an interpreted language $L(\T, T, \parse)$, the corresponding classical language (i.e., set of words) is given by $\{ w \mid \parse(w) \neq \emptyset \}$.
 \item If we select a $\parse$ function that relates words to their leftmost derivations in a given context-free grammar, then our definition of ambiguity corresponds exactly to the classical definition of ambiguity.
 \end{itemize}
 
-\noindent A \emph{resolvably} ambiguous word is a word where all its interpretations can be written in an unambiguous way, or more formally:
+\noindent A \emph{resolvably ambiguous} word is a word where all its interpretations can be written in an unambiguous way, formally:
 
-\begin{definition}
-  A word $w \in \T^{*}$ in a language given by $\parse : \T^{*} -> 2^T$ is resolvably ambiguous if $\forall t \in \parse(w).\ \exists w' \in \T^{*}.\ \parse(w') = \{t\}$. \label{def:resolvable-word}
+\begin{definition}\label{def:resolvable-word}
+  A word $w \in L(\T, T, \parse)$ is resolvably ambiguous, written $\rho_{\Sigma}(w, \parse)$, iff
+
+  $\forall t \in \parse(w).\ \exists w' \in \T^{*}.\ \parse(w') = \{t\}$.
 \end{definition}
 
-\noindent The example in Fig.~\ref{fig:arith-example} is unresolvably ambiguous, since neither tree can be written in any other way. However, if we add grouping parentheses to the language we find that $1 + (2 \cdot 3)$ and $(1 + 2) \cdot 3$ are unambiguously interpreted as the first and second tree, respectively.
+For clarity we abbreviate $\rho_{\T}(w, \parse)$ as $\rho(w)$ if $\T$
+and $\parse$ are clear from the context.
 
-Additionally, we define a \emph{language} to be resolvably ambiguous if all its words are resolvably ambiguous, or more formally:
+The example in Fig.~\ref{fig:arith-example} is not resolvably ambiguous, since neither tree can be written in any other way. However, if we add grouping parentheses to the language we find that $1 + (2 \cdot 3)$ and $(1 + 2) \cdot 3$ are unambiguously interpreted as the first and second tree, respectively.
 
-\begin{definition}
-  A language given by $\parse : \T^{*} -> 2^T$ is resolvably ambiguous if $\forall w \in \T^{*}.\ \forall t \in \parse(w).\ \exists w' \in \T^{*}.\ \parse(w') = \{t\}$. \label{def:resolvable-language}
+Additionally, we define a \emph{language} to be resolvably ambiguous if all its words are resolvably ambiguous, formally:
+
+\begin{definition}\label{def:resolvable-language}
+  An interpreted language $L(\T, T, \parse)$ is resolvably ambiguous, written $\rho(L)$, iff
+
+  $\forall w \in L(\T, T, \parse).\ \rho_{\T}(w, \parse)$.
 \end{definition}
 
 \noindent We can now state a few things:
