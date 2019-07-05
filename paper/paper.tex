@@ -474,7 +474,7 @@ Normally, we define a language as a set of words, i.e., a subset of $\T^{*}$ for
 The ambiguity of a word $w \in \T^{*}$ is defined in terms of $\parse$:
 
 \begin{definition}
-  A word $w \in L(\T, T, \parse)$ is ambiguous, written $\amb(w)$, iff
+  A word $w \in L(\T, T, \parse)$ is ambiguous, written $\amb_L(w)$, iff
 
   $\exists t_1, t_2 \in T.\ t_1 \neq t_2 \land \{t_1, t_2\} \subseteq \parse(w)$
 \end{definition}
@@ -495,13 +495,10 @@ classical definition of a language as follows:
 \noindent A \emph{resolvably ambiguous} word is a word where all its interpretations can be written in an unambiguous way, formally:
 
 \begin{definition}\label{def:resolvable-word}
-  A word $w \in L(\T, T, \parse)$ is resolvably ambiguous, written $\rho_{\Sigma}(w, \parse)$, iff
+  A word $w \in L(\T, T, \parse)$ is resolvably ambiguous, written $\rho_L(w)$, iff
 
   $\forall t \in \parse(w).\ \exists w' \in \T^{*}.\ \parse(w') = \{t\}$.
 \end{definition}
-
-For clarity we abbreviate $\rho_{\T}(w, \parse)$ as $\rho(w)$ if $\T$
-and $\parse$ are clear from the context.
 
 The example in Fig.~\ref{fig:arith-example} is not resolvably ambiguous, since neither tree can be written in any other way. However, if we add grouping parentheses to the language we find that $1 + (2 \cdot 3)$ and $(1 + 2) \cdot 3$ are unambiguously interpreted as the first and second tree, respectively.
 
@@ -510,7 +507,7 @@ Additionally, we define a \emph{language} to be resolvably ambiguous if all its 
 \begin{definition}\label{def:resolvable-language}
   An interpreted language $L(\T, T, \parse)$ is resolvably ambiguous, written $\rho(L)$, iff
 
-  $\forall w \in L(\T, T, \parse).\ \rho_{\T}(w, \parse)$.
+  $\forall w \in L(\T, T, \parse).\ \rho_L(w)$.
 \end{definition}
 
 \noindent We can now state a few things:
@@ -527,8 +524,8 @@ We thus propose to loosen the common ``no ambiguity'' restriction on programming
 Before introducing this formalism however, we introduce the two central problems we consider in this paper:
 
 \begin{description}
-\item[Static resolvability.] Given a language defined by $\parse$, determine if it is resolvably ambiguous.
-\item[Dynamic resolvability.] Given a language defined by $\parse$ and a word $w$ such that $\parse(w) \neq \emptyset$, determine if $w$ is resolvably ambiguous.
+\item[Static resolvability.] Given a language $L(\T, T, \parse)$, determine whether $\rho(L)$.
+\item[Dynamic resolvability.] Given a word $w \in L(\T, T, \parse)$, determine whether $\rho_L(w)$.
 \end{description}
 
 \noindent Our main concern is producing decision procedures for these problems. As such, we define soundness and completeness for the static problem:
