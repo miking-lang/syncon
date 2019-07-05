@@ -1,0 +1,5 @@
+syncon program:Top = e:Expr
+syncon call:Expr = f:Ident "(" (e:Expr)? ")"
+syncon var:Expr = x:Ident
+infix addition:Expr = "+"
+infix semi:Expr = ";"

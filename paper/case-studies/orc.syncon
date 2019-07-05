@@ -1,0 +1,15 @@
+token Ident = "[[:lower:]][[:word:]]*"
+type Expr
+grouping "(" Expr ")"
+
+infix par:Expr = "|"
+infix seq:Expr = ">" x:Ident ">"
+infix prune:Expr = "<" x:Ident "<"
+infix otherwise:Expr = ";"
+
+precedence {
+  seq;
+  par;
+  prune;
+  otherwise;
+}
