@@ -192,25 +192,37 @@
 \begin{abstract}
 % Why?
 
-A traditional view when designing programming languages is that syntax
-definitions should be unambiguous: only unambiguous grammars are used to construct
-language specific parsers that either rejects a program, or accepts it and
-produces a unique parse tree. However,
-
-
-% Why composing languages
--
-
-% Problem we address
-Resolvable ambiguity
-Two sub-problems. Static and dynamic resolvability
-
-% Our solution
-Prove static resolvable for
-
-% Three case studies
-
-
+Ever since the early 60s, the problem of deciding if a context-free
+grammar is unambiguous or not has been known to be undecidable. As a
+consequence, a large number of restricted grammars have been developed
+to guarantee that a language definition is unambiguous. This
+traditional view of only allowing unambiguous grammars has until
+recently been taken for granted as the only truth: \emph{the} way of
+how the syntax of a language must be defined. However, up front
+unambiguous grammars can force language designers to make arbitrary
+choice to disambiguate the language, although the natural choice may be to
+postpone the decision to the programmer. Moreover, an important
+objective of domain-specific language development is to construct
+languages by composing and extending existing
+languages. Unfortunately, the composition of restricted unambiguous
+grammars easily results in ambiguous grammars, which again are
+undecidable. In this paper, we depart from the traditional view of
+unambiguous grammar design, and allow ambiguities to be delayed until
+compile time, allowing the user to perform the disambiguation. A
+natural decision problems follows: given a language definition, can a
+user always disambiguate an ambiguous program?  We introduce and
+formalize this fundamental problem---called the \emph{resolvable
+  ambiguity problem}---and divide it into separate static and dynamic
+resolvability problems. We prove soundness and completeness for a
+restricted language in the static case, and soundness in the general
+case for dynamic resolvability. The approach is evaluated through
+three separate case studies, covering both a large
+existing programming language, and the composability of
+domain-specific languages.
+%A traditional view when designing programming languages is that syntax
+%definitions should be unambiguous: only unambiguous grammars are used
+%to construct language specific parsers that either rejects a program,
+%or accepts it and produces a unique parse tree. However,
 \end{abstract}
 
 
