@@ -110,11 +110,11 @@
 \newcommand{\localize}{\mathit{localize}} % go from a F \subseteq L(G_t) to a set of localized ambiguities, i.e., a set of subforests.
 \newcommand{\range}[2]{#1\!-\!#2}
 \newcommand{\regex}{\mathit{Reg}}
-\newcommand{\reqpl}{(}
+\newcommand{\reqpl}{\underline{(}}
 \newcommand{\reqpr}{)}
 \newcommand{\reqp}[1]{\reqpl#1\reqpr}
-\newcommand{\pospl}{[}
-\newcommand{\pospr}{]}
+\newcommand{\pospl}{(}
+\newcommand{\pospr}{)}
 \newcommand{\posp}[1]{\pospl#1\pospr}
 \newcommand{\dfa}{\mathit{dfa}} % Go from label to its corresponding dfa
 \newcommand{\passthrough}{\mathit{passthrough}} % Go from label to a set of (label x bool), where each element denotes a child production that can be an only child (i.e., no other terminals whatsoever), and the bool states whether it requires parentheses
@@ -1226,15 +1226,15 @@ UNFINISHED
 %% In this product automaton, if any transition pushes a stack symbol $(a, b)$ where $a \neq b$, or transitions to a state $(p, q)$ where $p \neq q$, then there is a successful run that corresponds to two distinct runs through $A_{()}$ and $A'_{()}$ (since the automaton is trim).
 
 \begin{theorem}
-  There is a bijection between successful runs in $A_{()}$ and trees $t \in L(T_D)$.
+  There is a bijection between successful runs in $A_{\posp{}}$ and trees $t \in L(T_D)$.
 \end{theorem}
 
 \begin{proof}
-  $A_{()}$ has a single initial state, and a single final state, call them $s$ and $f$ respectively. The two are distinct, and $f$ is reachable only through transitions that pop a stack symbol with $s$ and $f$ as the two first components. Transitions that push such symbols originate in $s$, and no other transitions originate in $s$. Thus all successful runs start in configuration $(s, \epsilon)$ and end in $(f, \epsilon)$, whereby every pushing transition in the run can be paired with a corresponding popping transition. We will now construct a tree $t \in L(T_D)$ in a bottom-up fashion.
+  $A_{\posp{}}$ has a single initial state, and a single final state, call them $s$ and $f$ respectively. The two are distinct, and $f$ is reachable only through transitions that pop a stack symbol with $s$ and $f$ as the two first components. Transitions that push such symbols originate in $s$, and no other transitions originate in $s$. Thus all successful runs start in configuration $(s, \epsilon)$ and end in $(f, \epsilon)$, whereby every pushing transition in the run can be paired with a corresponding popping transition. We will now construct a tree $t \in L(T_D)$ in a bottom-up fashion.
 
-  Select a subsequence of the run $R = (s, \epsilon) \; R_1 \; (p, s) \xrightarrow{a, +(p, q, g, w)} (p', (p, q, g, w) \cdot s) \; R_2 \; (q', (p, q, g, w) \cdot s \xrightarrow{b, -(p, q, g, w)} (q, s) \; R_2 \; (f, \epsilon)$ such that $R_2$ contains no pushing or popping operations. The only transitions that leave the stack unchanged in $A_{()}$ come from DFAs generated from productions in $D$. There is no way to transition between two such DFAs without using a pushing or popping transition, thus $R_2$ must be a successful run in the DFA for some labelled production $N -> l : r$ in $D$. $T_D$ must contain a corresponding production $N -> l(r)$. Now consider the sequence of input symbols $w'$ along the transitions in $R_2$. We have $w' \in L(r)$, since $R_2$ is a successful run in a DFA constructed from $r$. Thus $l(w') \in L_N(T_D)$. Now add parent nodes to this subtree for every label in $w$, e.g., if $w = l_1 \cdot l_2 \cdot l_3$ construct $l_1(l_2(l_3(l(w'))))$. We can then replace the subsequence of $R$ with this subtree, and then repeat the process until we have a tree with root $l'$, where $D$ has a labelled production $S -> l': r'$ for some $r'$ and the starting symbol $S$.
+  Select a subsequence of the run $R = (s, \epsilon) \; R_1 \; (p, s) \xrightarrow{a, +(p, q, g, w)} (p', (p, q, g, w) \cdot s) \; R_2 \; (q', (p, q, g, w) \cdot s \xrightarrow{b, -(p, q, g, w)} (q, s) \; R_2 \; (f, \epsilon)$ such that $R_2$ contains no pushing or popping operations. The only transitions that leave the stack unchanged in $A_{\posp{}}$ come from DFAs generated from productions in $D$. There is no way to transition between two such DFAs without using a pushing or popping transition, thus $R_2$ must be a successful run in the DFA for some labelled production $N -> l : r$ in $D$. $T_D$ must contain a corresponding production $N -> l(r)$. Now consider the sequence of input symbols $w'$ along the transitions in $R_2$. We have $w' \in L(r)$, since $R_2$ is a successful run in a DFA constructed from $r$. Thus $l(w') \in L_N(T_D)$. Now add parent nodes to this subtree for every label in $w$, e.g., if $w = l_1 \cdot l_2 \cdot l_3$ construct $l_1(l_2(l_3(l(w'))))$. We can then replace the subsequence of $R$ with this subtree, and then repeat the process until we have a tree with root $l'$, where $D$ has a labelled production $S -> l': r'$ for some $r'$ and the starting symbol $S$.
 
-  To construct a successful run from a tree $t \in L(T_D)$ we can traverse the tree in a preorder, while at the same time constructing a run in $A_{()}$ starting from $(s, \epsilon)$. If the next terminal is in $\T$, i.e., a strictly zero-arity terminal, we take a transition originating in a DFA, which must be unique. If the next terminal is in $\Labels$, i.e., an unranked terminal, we take one of the added edges. However, this choice of edge might not be unique, there may be multiple edges from the current state to an appropriate DFA initial state. These stem from the original DFA having two transitions from the same state with the same label, except one is primed, e.g., $p \xrightarrow{l} q$ and $p \xrightarrow{l'} q'$. However, if both of these transitions were valid choices that would imply that the DFA for that level can recognize two distinct words that differ only in whether some terminals are primed. But primed and non-primed terminals must originate from distinct occurances of marked non-terminals (since a primed terminal corresponds to a mark, and an unprimed terminal corresponds to the absence of a mark), which would imply that the original regular expression is ambiguous if the marks are removed, which we explicitly ruled out in Section~\ref{sec:parse-time-disambiguation}.
+  To construct a successful run from a tree $t \in L(T_D)$ we can traverse the tree in a preorder, while at the same time constructing a run in $A_{\posp{}}$ starting from $(s, \epsilon)$. If the next terminal is in $\T$, i.e., a strictly zero-arity terminal, we take a transition originating in a DFA, which must be unique. If the next terminal is in $\Labels$, i.e., an unranked terminal, we take one of the added edges. However, this choice of edge might not be unique, there may be multiple edges from the current state to an appropriate DFA initial state. These stem from the original DFA having two transitions from the same state with the same label, except one is primed, e.g., $p \xrightarrow{l} q$ and $p \xrightarrow{l'} q'$. However, if both of these transitions were valid choices that would imply that the DFA for that level can recognize two distinct words that differ only in whether some terminals are primed. But primed and non-primed terminals must originate from distinct occurances of marked non-terminals (since a primed terminal corresponds to a mark, and an unprimed terminal corresponds to the absence of a mark), which would imply that the original regular expression is ambiguous if the marks are removed, which we explicitly ruled out in Section~\ref{sec:parse-time-disambiguation}.
 
   Proof sketch: to go from a successful run to a tree $t \in L(T_D)$: by construction, all successful runs must begin and end with an empty stack. Every pushing transition can thus be paired with a popping transition in the run. We can construct a tree in a bottom-up fashion by replacing every such pair with a tree $l_1(l_2(\ldots l_n(x)\ldots))$, where $x$ is the sequence of terminals and/or trees between the pair, the terminals $l_1, l_2, \ldots, l_{n-1}$ stem from the fourth component of the pushed stack symbol ($l_1 \cdots l_{n-1}$), and $l_n$ is the label of the production whose DFA the pushing transition ends in.
 
@@ -1259,15 +1259,15 @@ $$ (l_1, l_2, r_1, w_1) \cdot (l_2, l_3, r_2, w_2) = (l_1, l_3, r_1 \lor r_2, w_
 
 \noindent $P$ is finite if $D$ has no cycles $N =>^{+} N$\footnote{This is notation from CFGs, which is semi-obvious what it means, but technically not defined here.}. Such a cycle is easy to detect (depth-first search), and means that any tree that contains a production from the non-terminal $N$ only ever produces infinitely ambiguous words, i.e., all words for that tree are unresolvably ambiguous.
 
-Given $\dfa(l) = (Q_l, \T \cup (\Labels \times \{\top, \bot\}), \delta_l, s_l, F_l)$, construct a VPDA $(Q, \T', \Gamma, \delta, s, \{f\})$ where:
+Given $\dfa(l) = (Q_l, \T \cup (\Labels \times \{\top, \bot\}), \delta_l, s_l, F_l)$, construct a VPDA $A_{\posp{}} = (Q, \T', \Gamma, \delta, s, \{f\})$ where:
 
 % TODO: add transitions to/from final/initial states
 
 \begin{itemize}
 \item $s$ and $f$ are two new distinct states.
 \item $Q = \{s, f\} \cup \bigcup_l Q_l$.
-\item $\T' = \T \cup \{\reqpl, \reqpr, \pospl, \pospr\}$.
-\item $\Gamma = Q \times Q \times \{\reqp{}, \posp{}\} \times \Labels^{*}$.
+\item $\T' = \T \cup \{\reqpl, \pospl, \pospr\}$.
+\item $\Gamma = Q \times Q \times \Labels^{*}$.
 \item $\delta$ is defined by:
   $$
   \begin{array}{r@{\;=\;}l@{\;\mid\;}l}
@@ -1275,24 +1275,56 @@ Given $\dfa(l) = (Q_l, \T \cup (\Labels \times \{\top, \bot\}), \delta_l, s_l, F
     & \multicolumn{2}{@{}l@{}}{\{(\delta_l(p, a), \lambda)\} \qquad \text{ where } p \in Q_l \text{ and } a \in \T} \\
 
     \delta(p, \text{``}\reqpl\text{''}, \lambda)
-    & \{ (s_{l_3}, (p, q, \reqp{}, w))
+    & \{ (s_{l_3}, (p, q, w))
     & p \in Q_{l_1}, \delta_{l_1}(p, (l_2, r_1)) = q, (l_2, l_3, r_2, w) \in P, r_1 \lor r_2 \} \\
 
     \delta(p, \text{``}\pospl\text{''}, \lambda)
-    & \{ (s_{l_3}, (p, q, \posp{}, w))
+    & \{ (s_{l_3}, (p, q, w))
     & p \in Q_{l_1}, \delta_{l_1}(p, (l_2, r_1)) = q, (l_2, l_3, r_2, w) \in P, \neg (r_1 \lor r_2) \} \\
 
-    \delta(f_{l_3}, \text{``}\reqpr\text{''}, (p, q, \reqp{}, w))
+    \delta(f_{l_3}, \text{``}\reqpr\text{''}, (p, q, w))
     & \{ (q, \lambda)
-    & p \in Q_{l_1}, \delta_{l_1}(p, (l_2, r_1)) = q, (l_2, l_3, r_2, w) \in P, r_1 \lor r_2, f_{l_3} \in F_{l_3} \} \\
+    & p \in Q_{l_1}, \delta_{l_1}(p, (l_2, r_1)) = q, (l_2, l_3, r_2, w) \in P, f_{l_3} \in F_{l_3} \} \\
 
-    \delta(f_{l_3}, \text{``}\pospr\text{''}, (p, q, \posp{}, w))
-    & \{ (q, \lambda)
-    & p \in Q_{l_1}, \delta_{l_1}(p, (l_2, r_1)) = q, (l_2, l_3, r_2, w) \in P, \neg (r_1 \lor r_2), f_{l_3} \in F_{l_3} \} \\
+    \delta(s, \text{``}\reqpl\text{''}, \lambda)
+    & \{ (s_{l_2}, (s, f, w))
+    & \nt(l_1) = S, (l_1, l_2, \top, w) \in P \} \\
+
+    \delta(s, \text{``}\pospl\text{''}, \lambda)
+    & \{ (s_{l_2}, (s, f, w))
+    & \nt(l_1) = S, (l_1, l_2, \bot, w) \in P \} \\
+
+    \delta(f_{l_2}, \text{``}\reqpr\text{''}, (s, f, w))
+    & \{ (f, \lambda)
+    & nt(l_1) = S, (l_1, l_2, r, w) \in P, f_{l_2} \in F_{l_2}\} \\
   \end{array}
   $$
 \end{itemize}
 
+\noindent We also construct a modified VPDA $A'_{\posp{}} = (Q, \T', \Gamma \cup \{\gamma\}, \delta', s, \{f\})$ where:
+
+\begin{itemize}
+\item $\gamma$ is a new distinct stack symbol.
+\item $\delta'(p, a, g) = \delta(p, a, g) \cup \delta''(p, a, g)$, where $\delta''$ is given by:
+  $$
+  \begin{array}{r@{\;=\;}l@{}}
+    \delta''(p, \text{``}\pospl\text{''}, \lambda)
+    & \{ (p, \gamma) \} \\
+
+    \delta''(p, \text{``}\pospr\text{''}, \gamma)
+    & \{ (p, \lambda) \} \\
+
+    \delta''(p, \text{``}\pospl\text{''}, \lambda)
+    & \delta(p, \text{``}\reqpl\text{''}, \lambda) \\
+  \end{array}
+  $$
+\end{itemize}
+
+\noindent To find two distinct successful runs, one in each automaton, that recognize the same word we construct the product automaton $A_{\posp{}} \times A'_{\posp{}} = (Q \times Q, \T', \Gamma \times (\Gamma \cup \{\gamma\}), \delta_{\times}, (s, s), \{(f, f)\})$, where $\delta_{\times}$ is given in Section~\ref{sec:preliminaries-vpls} (using the partitions $\T_c = \{ \reqpl, \pospl \}$, $\T_i = \T$, and $\T_r = \{\reqpr\}$). If the product automaton has a successful run that passes through at least one configuration $((p, p'), (g, g')\cdot w)$ such that $p \neq p' \lor g \neq g'$, then that run corresponds to two distinct runs in $A_{\posp{}}$ and $A'_{\posp{}}$. We check for the existence of such a run by trimming the product automaton and looking for a transition that pushes $(g, g')$ where $g \neq g'$, or transitions to $(q, q')$ where $q \neq q'$.
+
+Performing this procedure directly on a language definition $D$ gives a sound decision procedure where the presence of two distinct runs implies unresolvably ambiguous. If we instead do it on a modified $D$ with no marks on the right hand side of any production (i.e., all non-terminals have the form $N_\emptyset$) we get a sound decision procedure where the absence of two distinct runs implies resolvably ambiguous.
+
+There are thus cases where we can answer resolvably ambiguous or unresolvably ambiguous with certainty, and cases where we cannot answer either way with certainty.
 
 \section{Dynamic Resolvability Analysis} \label{sec:dynamic}
 
@@ -1300,9 +1332,44 @@ The dynamic resolvability problem is as follows: for a given $w' \in L(G'_D)$ de
 
 Our approach centers around around $\words(t)$, which, being a set of words, can be considered a language in the classical sense. Each such language turns out to be a visibly pushdown language. Given a set of trees in $L(T_D)$ we can construct a corresponding set of non-overlapping visibly pushdown automata (i.e., each automaton only accepts words not accepted by any other automaton) since VPLs are closed under complement and intersection \cite{alurVisiblyPushdownLanguages2004}. These automata can then be examined to determine if they accept the empty language (which implies that the corresponding tree only has ambiguous words), or otherwise produce a witness, a word accepted only by that automaton.
 
+For this section, we assume the presence of a single language definition $D$ with terminals in $\T$, labels in $\Labels$, and non-terminals in $\NT$.
+
 \begin{theorem}
   Given a $t \in L(T_D)$, we can construct a visibly pushdown automaton that accepts exactly $\words(t)$.
 \end{theorem}
+
+\noindent We construct this automaton in a bottom-up fashion. A sequence of terminals in $\T$ is easily recognized by a sequence of transitions that do not interact with the stack. Each subtree allows surrounding grouping parentheses, which can be represented by transitions that push and pop stack symbols (one unique stack symbol per subtree), to ensure that they are balanced. With that, there are two remaining complications: a subtree $l(w)$ recognized from a marked non-terminal $N_m$ where $l \in m$ must have one or more surrounding parentheses instead of zero or more, and we must maintain the visibly pushdown property, i.e., all transitions labelled ``$($'' or ``$)$'' must push or pop stack symbols, respectively. The former can be solved by either tracking the subtree's origin when parsing, or reparsing with the right hand side regular expression, while the latter is solved by introducing a new stack symbol $\gamma$ that is pushed and popped by all non-grouping parenthesis terminals. Writing the transition function $\delta : Q \times \T \times (\Gamma \cup \{\lambda\}) -> 2^{Q \times (\Gamma \cup \{\lambda\})}$ as a subset of $Q \times \T \times (\Gamma \cup \{\lambda\}) \times Q \times (\Gamma \cup \{\lambda\})$, and using $\sqcup$ for disjoint union:
+
+$$
+\begin{array}{r@{\;}l}
+  f(a)
+  & = \begin{cases}
+    (\{p, q\}, \T, \emptyset, \{(p, a, \lambda, q, \lambda)\}, p, \{q\})
+    & \text{if } a \notin \{\text{``}(\text{''}, \text{``})\text{''}\} \\
+
+    (\{p, q\}, \T, \{\gamma\}, \{(p, \text{``}(\text{''}, \lambda, q, \gamma)\}, p, \{q\})
+    & \text{if } a = \text{``}(\text{''} \\
+
+    (\{p, q\}, \T, \{\gamma\}, \{(p, \text{``})\text{''}, \lambda, q, \lambda))\}, p, \{q\})
+    & \text{if } $a = \text{``})\text{''}$ \\
+  \end{cases} \\
+
+  f(w_1 \cdot w_2)
+  & = (Q_1 \sqcup Q_2, \T, \Gamma', \delta_1 \cup \delta_2 \cup \{(f_1, \lambda, \lambda, s_2, \lambda)\}, s_1, \{f_2\}) \\
+  & \text{ where } f(w_i) = (Q_i, \T, \Gamma_i, \delta_i, s_i, \{f_i\}) \\
+  & \hphantom{\text{ where }} \Gamma' = (\Gamma_1 \setminus \{\gamma\}) \sqcup (\Gamma_2 \setminus \{\gamma\}) \cup \{\gamma\} \\
+
+  f(l(w))
+  & = \begin{cases}
+    (Q \sqcup \{p, q\}, \T, \Gamma', \delta \cup \delta_1, p, \{q\}) & \text{if $l$ is marked in the introducing non-terminal.} \\
+    (Q, \T, \Gamma', \delta \cup \delta_2, s, \{f\}) & \text{if $l$ is unmarked in the introducing non-terminal.} \\
+  \end{cases} \\
+  & \text{ where } f(w) = (Q, \T, \Gamma, \delta, s, \{f\}) \\
+  & \hphantom{\text{ where }} \Gamma' = (\Gamma \setminus \{\gamma\}) \sqcup \{g, \gamma\} \\
+  & \hphantom{\text{ where }} \delta_1 = \{(p, \text{``}(\text{''}, \lambda, p, g), (p, \text{``}(\text{''}, \lambda, s, g), (f, \text{``})\text{''}, g, q, \lambda), (q, \text{``})\text{''}, g, q, \lambda)\} \\
+  & \hphantom{\text{ where }} \delta_2 = \{(s, \text{``}(\text{''}, \lambda, s, g), (f, \text{``})\text{''}, g, f, \lambda)\} \\
+\end{array}
+$$
 
 UNFINISHED
 
