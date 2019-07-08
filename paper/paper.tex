@@ -477,23 +477,30 @@ Finally, $yield : L(T) -> \T^{*}$ is the sequence of terminals $a \in \T$ obtain
 
 \section{Resolvable Ambiguity} \label{sec:resolvable-definition}
 
-This section introduces our definition of \emph{resolvable ambiguity}, and then relates it to some more standard concepts in formal languages.
+This section introduces our definition of \emph{resolvable ambiguity}, and then relates it to standard concepts in formal languages.
 
-Normally, we define a language as a set of words, i.e., a subset of $\T^{*}$ for some alphabet $\T$, but here we additionally require the existence of a \emph{meaning} of each word, in some sense. We call this meaning an \emph{interpretation} of a word. Note that a single word may have multiple interpretations. As such, we define an \emph{interpreted language} as:
+A formal language is defined as a set of words, i.e., a subset of $\T^{*}$ for some alphabet $\T$. For defining \emph{resolvable ambiguity} we additionally have to consider the results of parsing words. In order to stay as general as possible, we first define the notion of an \emph{abstract parser}.
 
 \begin{definition}
-  An interpreted language, written $L(\T, T, \parse)$, consists of
+  An abstract parser $P$ is a triple $(\T, T, \parse)$ consisting of
 \begin{itemize}
 \item an alphabet $\T$,
-\item a set of interpretations $T$, and
-\item a function $\parse : \T^{*} -> 2^T$ that relates words to their interpretations, where $2^T$ denotes the powerset of $T$. Additionally, we require that $T = \bigcup_{w \in \T^{*}} \parse(w)$.
+\item a set of parse trees $T$, and
+\item a function $\parse : \T^{*} -> 2^T$ that relates words to their parse trees, where $2^T$ denotes the powerset of $T$. Additionally, we require that $T = \bigcup_{w \in \T^{*}} \parse(w)$.
 \end{itemize}
-
-  A word $w \in \T^{*}$ is in the language $L(\T, T, \parse)$, written
-  $w \in L(\T, T, \parse)$ iff $\parse(w) \neq \emptyset$.
 \end{definition}
 
-\noindent For example, consider a simple arithmetic language without precedence and parentheses, where the interpretations are abstract syntax trees. In such a language, $\parse(1 + 2 \cdot 3)$ would produce a set containing the two ASTs shown in Fig.~\ref{fig:arith-example}.
+This notion of an abstract parser enables the introduction of a particular class of formal languages that we will use throughout the rest of the paper; we call members of this class \emph{parse languages:}
+
+\begin{definition}
+  Given a word $w \in \T^{*}$ and an abstract parser $P = (\T, T,
+  \parse)$, the set of words contained in the \emph{parse language}
+  $L(P)$ is defined as follows:
+
+  $w \in L(P)$ iff $\parse(w) \neq \emptyset$.
+\end{definition}
+
+\noindent For example, consider a simple arithmetic language without precedence and parentheses. In such a language, $\parse(1 + 2 \cdot 3)$ would produce a set containing the two parse trees shown in Fig.~\ref{fig:arith-example}.
 
 \begin{figure}[t]
 \begin{tabular}{cc}
@@ -508,65 +515,66 @@ Normally, we define a language as a set of words, i.e., a subset of $\T^{*}$ for
       2 ]
     3 ] \\
 \end{tabular}
-\caption{The two allowable interpretations of $1 + 2 \cdot 3$ in an arithmetic language without precedence.}
+\caption{The two allowable parse trees of $1 + 2 \cdot 3$ in an arithmetic language without precedence.}
 \label{fig:arith-example}
 \end{figure}
 
 The ambiguity of a word $w \in \T^{*}$ is defined in terms of $\parse$:
 
 \begin{definition}
-  A word $w \in L(\T, T, \parse)$ is ambiguous, written $\amb_L(w)$, iff
+  Given an abstract parser $P = (\T, T, \parse)$, a word $w \in L(P)$
+  is ambiguous, written $\amb_P(w)$, iff
 
   $\exists t_1, t_2 \in T.\ t_1 \neq t_2 \land \{t_1, t_2\} \subseteq \parse(w)$
 \end{definition}
 
 \noindent
-Note that the above definition implies that a word $w \in L(\T, T,
-\parse)$ is not ambiguous (or unambiguous) if $\exists t \in
-T.\ \parse(w) = \{t\}$.
+Note that the above definition implies that a word $w \in L(P)$, where
+$P = (\T, T, \parse)$, is not ambiguous, or \emph{unambiguous}, if
+$\exists t \in T.\ \parse(w) = \{t\}$.
 
-We can connect the above definition of an interpreted language to the
-classical definition of a language as follows:
+We can connect the above definition of a parse language to the
+classical definition of a (formal) language as follows:
 
 \begin{itemize}
-\item Given an interpreted language $L(\T, T, \parse)$, the corresponding classical language (i.e., set of words) is given by $\{ w \mid \parse(w) \neq \emptyset \}$.
+\item Given a parse language $L(P)$, the corresponding classical language (i.e., set of words) is given by $\{ w \mid \parse(w) \neq \emptyset \}$.
 \item If we select a $\parse$ function that relates words to their leftmost derivations in a given context-free grammar, then our definition of ambiguity corresponds exactly to the classical definition of ambiguity.
 \end{itemize}
 
-\noindent A \emph{resolvably ambiguous} word is a word where all its interpretations can be written in an unambiguous way, formally:
+\noindent A \emph{resolvably ambiguous} word is a word where all its parse trees can be written in an unambiguous way, formally:
 
 \begin{definition}\label{def:resolvable-word}
-  A word $w \in L(\T, T, \parse)$ is resolvably ambiguous, written $\rho_L(w)$, iff
+  Given an abstract parser $P = (\T, T, \parse)$, a word $w \in L(P)$ is \emph{resolvably ambiguous}, written $\rho_P(w)$, iff
 
   $\forall t \in \parse(w).\ \exists w' \in \T^{*}.\ \parse(w') = \{t\}$.
 \end{definition}
 
-The example in Fig.~\ref{fig:arith-example} is not resolvably ambiguous, since neither tree can be written in any other way. However, if we add grouping parentheses to the language we find that $1 + (2 \cdot 3)$ and $(1 + 2) \cdot 3$ are unambiguously interpreted as the first and second tree, respectively.
+The example in Fig.~\ref{fig:arith-example} is not resolvably ambiguous, since neither tree can be written in any other way. However, if we add grouping parentheses to the language we find that $1 + (2 \cdot 3)$ and $(1 + 2) \cdot 3$ are unambiguously parsed as the first and second tree, respectively.
 
-Additionally, we define a \emph{language} to be resolvably ambiguous if all its words are resolvably ambiguous, formally:
+Additionally, we define an \emph{abstract parser} to be resolvably ambiguous if all words in its corresponding parse language $L(P)$ are resolvably ambiguous, formally:
 
 \begin{definition}\label{def:resolvable-language}
-  An interpreted language $L(\T, T, \parse)$ is resolvably ambiguous, written $\rho(L)$, iff
+  An abstract parser $P$ is resolvably ambiguous, written $\rho(P)$, iff
 
-  $\forall w \in L(\T, T, \parse).\ \rho_L(w)$.
+  $\forall w \in L(P).\ \rho_P(w)$.
 \end{definition}
 
 \noindent We can now state a few things:
 
 \begin{itemize}
-\item An unambigous word $w$ is trivially resolvably ambiguous, since its only interpretation $t$ can be written unambiguously with $w$ itself ($\parse(w) = \{t\}$). The set of resolvably ambiguous words is thus a superset of the unambiguous words.
-\item If a given interpretation $t$ has only one word $w$ such that $t \in \parse(w)$, then $w$ is resolvably ambiguous iff it is unambiguous. In general, $\forall t \in T.\ \lvert\{w \mid t \in \parse(w)\}\rvert \leq 1$ implies that the set of resolvably ambiguous words is exactly the set of unambiguous words.
+\item An unambigous word $w$ is trivially resolvably ambiguous, since its only parse tree $t$ can be written unambiguously with $w$ itself ($\parse(w) = \{t\}$). The set of resolvably ambiguous words is thus a superset of the unambiguous words.
+\item If a given parse tree $t$ has only one word $w$ such that $t \in \parse(w)$, then $w$ is resolvably ambiguous iff it is unambiguous. In general, $\forall t \in T.\ \lvert\{w \mid t \in \parse(w)\}\rvert \leq 1$ implies that the set of resolvably ambiguous words is exactly the set of unambiguous words.
 \end{itemize}
 
-\noindent The second point suggests that resolvable ambiguity is only an interesting property if an element of $T$ does not uniquely identify an element of $\T^{*}$. Intuitively, this only happens if $\parse$ discards some information present in its argument when constructing an individual interpretation. Fortunately, this is generally true for parsing in commonly used programming languages; they tend to discard, e.g., grouping parentheses and whitespace. In general, whatever information $\parse$ discards can be used by an end-user to disambiguate an ambiguity encountered at parse-time, without changing the interpretation.
+\noindent The second point suggests that resolvable ambiguity is only an interesting property if an element of $T$ does not uniquely identify an element of $\T^{*}$. Intuitively, this only happens if $\parse$ discards some information present in its argument when constructing an individual parse tree. Fortunately, this is generally true for parsing in commonly used programming languages; they tend to discard, e.g., grouping parentheses and whitespace. In general, whatever information $\parse$ discards can be used by an end-user to disambiguate an ambiguity encountered at parse-time, without changing the parse tree.
 
 We thus propose to loosen the common ``no ambiguity'' restriction on programming language grammars, and instead only require them to be resolvably ambiguous. However, merely having an arbitrary function $\parse$ gives us very little to work with, and no way to decide whether the language it defines is resolvably ambiguous or not. The remainder of this paper will thus consider $\parse$ functions defined using a particular formalism, introduced in Section~\ref{sec:parse-time-disambiguation}, which gives us some decidable properties.
 
 Before introducing this formalism however, we introduce the two central problems we consider in this paper:
 
 \begin{description}
-\item[Static resolvability.] Given a language $L(\T, T, \parse)$, determine whether $\rho(L)$.
-\item[Dynamic resolvability.] Given a word $w \in L(\T, T, \parse)$, determine whether $\rho_L(w)$.
+\item[Static resolvability.] Given an abstract parser $P$, determine whether $\rho(P)$.
+\item[Dynamic resolvability.] Given a word $w \in L(P)$ for some abstract parser $P$, determine whether $\rho_P(w)$.
 \end{description}
 
 \noindent Our main concern is producing decision procedures for these problems. As such, we define soundness and completeness for the static problem:
