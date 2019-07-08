@@ -1299,7 +1299,7 @@ UNFINISHED
 Given a language definition $D$, with terminals $\T$, labels $\Labels$, and starting non-terminal $S$. Construct two functions $\dfa : \Labels -> \mathit{DFA}(\T \cup (\Labels \times \{\top, \bot\})$ and $\passthrough : \Labels -> 2^{\Labels \times \Labels \times \{\top, \bot\} \times \Labels^{*}}$:
 
 \begin{description}
-\item[$\dfa(l)$:] Given the production $N -> l : r$, compute the regular language $L' := L(r) \setminus \{N'_m \mid N' \in \NT, m \subseteq \Labels\}$. Then replace every marked non-terminal $N'_m$ with the regular expression $l_1_{l_1 \in m} + l_2_{l_2 \in m} + \ldots + l_n_{l_n \in m}$, where $l_i$ are all the labels of productions $N' -> l_i : r_i$, e.g., $E_{\{a\}}$ in the running example would be replaced by $l_\bot + a_\top + m_\bot + n_\bot$. Then construct a DFA for this language.
+\item[$\dfa(l)$:] Given the production $N -> l : r$, compute the regular language $L' := L(r) \setminus \{N'_m \mid N' \in \NT, m \subseteq \Labels\}$. Then replace every marked non-terminal $N'_m$ with the regular expression $l_{1l_1 \in m} + l_{2l_2 \in m} + \ldots + l_{nl_n \in m}$, where $l_i$ are all the labels of productions $N' -> l_i : r_i$, e.g., $E_{\{a\}}$ in the running example would be replaced by $l_\bot + a_\top + m_\bot + n_\bot$. Then construct a DFA for this language.
 
 \item[$\passthrough(l)$:] Given a production $N -> l : r$, this is the set $\{(l, l, \bot, \epsilon)\} \cup \{(l, l', l' \in m, l) \mid \nt(l') = N', N'_m \in L(r)\}$.
 \end{description}
