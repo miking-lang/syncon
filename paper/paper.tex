@@ -580,6 +580,14 @@ Before introducing this formalism however, we introduce the two central problems
 \noindent Our main concern is producing decision procedures for these problems. As such, we define soundness and completeness for the static problem:
 
 \begin{definition}
+  Completeness of static resolvability:
+
+  $f(parse) \neq \mathit{unknown} \lor g(parse) \neq \mathit{unknown}$
+
+  for all abstract parsers $P = (\T, T, \parse)$.
+\end{definition}
+
+\begin{definition}
   A decision procedure $f$ (with possible outputs $\mathit{resolvable}$, $\mathit{unresolvable}$, and $\mathit{unknown}$) solving the static resolvability problem is:
   \begin{itemize}
   \item Sound if $f(\parse) = \mathit{resolvable}$ implies that the language given by $\parse$ is resolvably ambiguous, and $f(\parse) = \mathit{unresolvable}$ implies that the language given by $\parse$ is not resolvably ambiguous.
