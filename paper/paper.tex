@@ -1424,9 +1424,31 @@ UNFINISHED
 
 \section{Case Studies} \label{sec:evaluation}
 
-We have implemented a tool and a small DSL for syntax definition that generates a language definition in the style of Section~\ref{sec:parse-time-disambiguation}, which the tool then uses to construct a parser and do a dynamic resolvability analysis. The tool is implemented in Haskell and uses an off-the-shelf implementation\footnote{\url{http://hackage.haskell.org/package/Earley}} of the Earley parsing algorithm \cite{earleyEfficientContextfreeParsing1970}. The purpose of these case studies is to showcase possible use cases of resolvable ambiguity in the context of a pre-existing general purpose programming language (OCaml, Section~\ref{sec:evaluation-ocaml}), a pre-existing DSL (ORC, Section~\ref{sec:evaluation-orc}), and a new DSL (Cyphym, Section~\ref{sec:evaluation-cyphym}).
+We have implemented a tool and a small DSL for syntax definition
+that generates a language definition in the style of
+Section~\ref{sec:parse-time-disambiguation}, which the tool then
+uses to construct a parser and do a dynamic resolvability
+analysis. The tool is implemented in Haskell and uses an
+off-the-shelf
+implementation\footnote{\url{http://hackage.haskell.org/package/Earley}}
+of the Earley parsing algorithm
+\cite{earleyEfficientContextfreeParsing1970}. The purpose of these
+case studies is to showcase possible use cases of resolvable
+ambiguity in the context of a pre-existing general purpose
+programming language (OCaml, Section~\ref{sec:evaluation-ocaml}),
+a pre-existing DSL (Orc, Section~\ref{sec:evaluation-orc}), and a
+new DSL (Cyphym, Section~\ref{sec:evaluation-cyphym}).
 
-The syntax definition DSL is a continuation of the ``syncons'' introduced by \citet{palmkvistCreatingDomainSpecificLanguages2019}, wherein each production is defined separately from each other (one \syncon{syncon} each), and marks are primarily introduced through precedence lists. For example, the running example used in Section~\ref{sec:parse-time-disambiguation} (Fig.~\ref{fig:running-example-definition} on page~\pageref{fig:running-example-definition}) can be written as follows:
+The syntax definition DSL is a continuation of the ``syncons''
+introduced by
+\citet{palmkvistCreatingDomainSpecificLanguages2019}, wherein each
+production is defined separately from each other (one
+\syncon{syncon} each), and marks are primarily introduced through
+precedence lists. For example, the running example used in
+Section~\ref{sec:parse-time-disambiguation}
+(Fig.~\ref{fig:running-example-definition} on
+page~\pageref{fig:running-example-definition}) can be written as
+follows:
 
 \begin{tabular}{ll}
 \begin{lstlisting}[language=syncon,boxpos=t]
@@ -1447,7 +1469,14 @@ syncon literal: Exp = n:Integer
 \end{lstlisting}
 \end{tabular}
 
-\noindent The design of the DSL diverges from the formalism in Section~\ref{sec:parse-time-disambiguation} partially for familiarity (precedence instead of marks), but also for composability reasons: the DSL allows marks to be introduced without altering the original definition of a syncon. If marks are needed in non-precedence related situations, e.g., adding sequential composition to the running example, they can be introduced with ``forbids'':
+\noindent The design of the DSL diverges from the formalism in
+Section~\ref{sec:parse-time-disambiguation} partially for
+familiarity (precedence instead of marks), but also for
+composability reasons: the DSL allows marks to be introduced
+without altering the original definition of a syncon. If marks are
+needed in non-precedence related situations, e.g., adding
+sequential composition to the running example, they can be
+introduced with ``forbids'':
 
 \begin{lstlisting}[language=syncon]
 infix seqComp: Exp = ";"
