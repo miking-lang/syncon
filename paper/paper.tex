@@ -577,24 +577,26 @@ Before introducing this formalism however, we introduce the two central problems
 \item[Dynamic resolvability.] Given a word $w \in L(P)$ for some abstract parser $P$, determine whether $\rho_P(w)$.
 \end{description}
 
-\noindent Our main concern is producing decision procedures for these problems. As such, we define soundness and completeness for the static problem:
+\noindent Our main concern is producing decision procedures for these problems. First, we define soundness and completeness for the static problem.
 
-\begin{definition}
-  Completeness of static resolvability:
+% todo: improve label (where used?)
+\begin{definition}[Soundness of Static Resolvability]\label{def:static-procedure}
+  A decision procedure $f$ solving the static resolvability problem is sound iff
 
-  $f(parse) \neq \mathit{unknown} \lor g(parse) \neq \mathit{unknown}$
-
-  for all abstract parsers $P = (\T, T, \parse)$.
+  $f(P) \implies \rho(P) \text{ for all abstract parsers } P$
 \end{definition}
 
-\begin{definition}
-  A decision procedure $f$ (with possible outputs $\mathit{resolvable}$, $\mathit{unresolvable}$, and $\mathit{unknown}$) solving the static resolvability problem is:
-  \begin{itemize}
-  \item Sound if $f(\parse) = \mathit{resolvable}$ implies that the language given by $\parse$ is resolvably ambiguous, and $f(\parse) = \mathit{unresolvable}$ implies that the language given by $\parse$ is not resolvably ambiguous.
-  \item Complete if $f(\parse) \neq \mathit{unknown}$ for all possible inputs $\parse$.
-  \end{itemize}
-  \label{def:static-procedure}
+In practice, we may additionally be interested in a decision procedure
+$g$ such that $g(P) \implies \lnot \rho(P) \text{ for all abstract
+  parsers } P$. It turns out, we can give $g$ for the parse languages
+studied in following sections.
+
+\begin{definition}[Completeness of Static Resolvability]
+  A decision procedure $f$ solving the static resolvability problem is \emph{complete} iff
+
+  $\rho(P) \implies f(P) \text{ for all abstract parsers } P$
 \end{definition}
+
 
 \noindent Similarly, for the dynamic problem:
 
