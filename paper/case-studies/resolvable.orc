@@ -1,1 +1,1 @@
-foo(x) + bar(x) <x< (f1() | f2())
+foo(x) + bar(x) <x< (e1 | e2)
