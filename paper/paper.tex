@@ -79,7 +79,7 @@
   basewidth={.5em,.5em},
 }
 \lstdefinelanguage{syncon}
-  {morekeywords={syncon,infix,postfix,prefix,left,right,comment,precedence,forbid,except,type,builtin,rec,grouping},
+  {morekeywords={syncon,infix,postfix,prefix,left,right,comment,precedence,forbid,except,type,builtin,rec,grouping,token},
    sensitive=true,
    morecomment=[l]{//},
    morecomment=[s]{/*}{*/},
@@ -120,6 +120,7 @@
 \newcommand{\passthrough}{\mathit{passthrough}} % Go from label to a set of (label x bool), where each element denotes a child production that can be an only child (i.e., no other terminals whatsoever), and the bool states whether it requires parentheses
 \newcommand{\nt}{\mathit{nt}} % Go from label to the non-terminal to which that labelled production belongs
 
+\synctex=1
 \begin{document}
 
 % Submission may be up to 25 pages, excluding references
@@ -283,9 +284,10 @@ More specifically, this paper makes the following contributions:
   \item A formulation of three versions of the static resolvability problem of increasing difficulty, and a decidable algorithm that is sound and complete for the first version, and sound for the second (Section~\ref{sec:static}).
   \item A decidable algorithm that solves the dynamic resolvability problem for languages that have only well-balanced parentheses (Section~\ref{sec:dynamic}).
   \end{itemize}
-\item Two case studies of programming languages and the errors produced when we allow (resolvable) ambiguity:
+\item Three case studies of programming languages and the errors produced when we allow (resolvable) ambiguity:
   \begin{itemize}
   \item A large subset of OCaml where some ambiguities have been reintroduced (Section~\ref{sec:evaluation-ocaml}).
+  \item A domain-specific language for orchestrating parallel computations (Section~\ref{sec:evaluation-orc}).
   \item A domain-specific language for cyber-physical systems (Section~\ref{sec:evaluation-cyphym}).
   \end{itemize}
   % Briefly say something about the tool, that it lies ``on top of'' what's presented herein
@@ -1437,9 +1439,9 @@ case studies is to showcase possible use cases of resolvable
 ambiguity in the context of a pre-existing general purpose
 programming language (OCaml, Section~\ref{sec:evaluation-ocaml}),
 a pre-existing DSL (Orc, Section~\ref{sec:evaluation-orc}), and a
-new DSL (Cyphym, Section~\ref{sec:evaluation-cyphym}).
+new DSL that is under development (Cyphym, Section~\ref{sec:evaluation-cyphym}).
 
-The syntax definition DSL is a continuation of the ``syncons''
+The syntax definition DSL builds on the the ``syncons''
 introduced by
 \citet{palmkvistCreatingDomainSpecificLanguages2019}, wherein each
 production is defined separately from each other (one
@@ -1461,13 +1463,14 @@ precedence {
 \end{lstlisting}
 &
 \begin{lstlisting}[language=syncon,boxpos=t]
+token Integer = "[0-9]+"
 syncon list: Exp =
   "[" (head:Exp (";" tail:Exp))? "]"
 infix add: Exp = "+"
 infix mul: Exp = "*"
 syncon literal: Exp = n:Integer
 \end{lstlisting}
-\end{tabular}
+\end{tabular}\smallskip
 
 \noindent The design of the DSL diverges from the formalism in
 Section~\ref{sec:parse-time-disambiguation} partially for
@@ -1487,6 +1490,78 @@ forbid list.tail = seqComp
 \subsection{OCaml} \label{sec:evaluation-ocaml}
 
 % TODO: talk about the ``low precedence unary operator/deep precedence'' issue.
+
+\subsection{Orc} \label{sec:evaluation-orc}
+
+Orc~\cite{kitchinOrc2009} is a functional programming language
+which includes a number of special-purpose combinators for
+coordinating concurrent workflows. In this section, we consider
+the use case of adding these concurrency combinators to an already
+defined programming language.
+
+In Orc, every expression can ``publish'' zero or more values. Orc
+defines four combinators for orchestrating these published values:
+the parallel (\ocaml{|}), sequential (\ocaml{>}$x$\ocaml{>}),
+pruning (\ocaml{<}$x$\ocaml{<}), and ``otherwise'' (\ocaml{;})
+combinators. The expression $e_1$ \ocaml{|} $e_2$ runs $e_1$ and
+$e_2$ in parallel, publishing any value published by either of
+them. The expression $e_1$ \ocaml{>}$x$\ocaml{>} $e_2$ binds each
+value published by $e_1$ to $x$ and executes $e_2$, building a
+concurrent pipeline. The expression $e_1$ \ocaml{<}$x$\ocaml{<}
+$e_2$ binds the \emph{first} value published by $e_2$ to $x$ and
+executes $e_1$. Finally, $e_1$\ocaml{;}$e_2$ runs $e_2$ only if
+running $e_1$ does not publish any values.
+
+The syncon definition of the Orc combinators is very simple (the
+precedence rules follow the original
+definition~\cite{kitchinOrc2009}):
+
+\begin{tabular}{ll}
+\begin{lstlisting}[language=syncon,boxpos=t]
+type Exp
+grouping "(" Exp ")"
+precedence {
+  seq; par; prune; otherwise;
+}
+\end{lstlisting}
+&
+\begin{lstlisting}[language=syncon,boxpos=t]
+token Ident = "[[:lower:]][[:word:]]*"
+infix par:Exp = "|"
+infix seq:Exp = ">" x:Ident ">"
+infix prune:Exp = "<" x:Ident "<"
+infix otherwise:Exp = ";"
+\end{lstlisting}
+\end{tabular}\smallskip
+
+\noindent
+Na\"{i}vely composing this definition with another, separately
+defined language is likely to introduce ambiguities. For example,
+if that language also contains infix operators, the precedence
+between these and the Orc combinators will be undefined. With
+support for resolvable ambiguity however, we can allow this
+ambiguity and let programmers disambiguate expressions using
+parentheses. After composing the above definition with a simple
+language supporting addition, variables and function calls
+(omitted for brevity), parsing the expression
+%
+``\ocaml{1 + 2 >x> f(x)}''
+%
+results in the following error message from our tool:
+
+\begin{lstlisting}[language={[objective]caml}]
+Ambiguity error with 2 alternatives:
+  ( 1 + 2 ) > x > f ( x )
+  1 + ( 2 > x > f ( x ) )
+\end{lstlisting}
+
+\noindent
+In this case, it is likely that the preferred semantics is to have
+all operators in the base language bind tighter than the Orc
+combinators, and these precedence rules can be added after the
+composition without changing the original definitions.
+
+% TODO: Clashes involving ">" or ";"?
 
 \subsection{Cyphym} \label{sec:evaluation-cyphym}
 

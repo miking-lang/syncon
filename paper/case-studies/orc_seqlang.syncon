@@ -1,5 +1,7 @@
-syncon program:Top = e:Expr
-syncon call:Expr = f:Ident "(" (e:Expr)? ")"
-syncon var:Expr = x:Ident
-infix addition:Expr = "+"
-infix semi:Expr = ";"
+token Integer = "[0-9]+"
+syncon program:Top = e:Exp
+syncon call:Exp = f:Ident "(" (e:Exp)? ")"
+syncon var:Exp = x:Ident
+syncon int:Exp = n:Integer
+infix addition:Exp = "+"
+infix semi:Exp = ";"

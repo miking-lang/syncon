@@ -1,0 +1,16 @@
+precedence {
+  addition;
+  seq;
+}
+precedence {
+  addition;
+  par;
+}
+precedence {
+  addition;
+  prune;
+}
+precedence {
+  addition;
+  otherwise;
+}

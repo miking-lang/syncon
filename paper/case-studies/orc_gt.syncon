@@ -1,0 +1,3 @@
+infix gt:Exp = ">"
+forbid gt.left = gt
+forbid gt.right = gt

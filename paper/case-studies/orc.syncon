@@ -1,11 +1,11 @@
 token Ident = "[[:lower:]][[:word:]]*"
-type Expr
-grouping "(" Expr ")"
+type Exp
+grouping "(" Exp ")"
 
-infix par:Expr = "|"
-infix seq:Expr = ">" x:Ident ">"
-infix prune:Expr = "<" x:Ident "<"
-infix otherwise:Expr = ";"
+infix par:Exp = "|"
+infix seq:Exp = ">" x:Ident ">"
+infix prune:Exp = "<" x:Ident "<"
+infix otherwise:Exp = ";"
 
 precedence {
   seq;
