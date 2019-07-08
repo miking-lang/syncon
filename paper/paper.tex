@@ -874,11 +874,11 @@ The reason for this split stems from the following insight: double grouping pare
 
 This section introduces an alternative (isomorphic) definition of a word, heavily used in sections~\ref{sec:lattice} and \ref{sec:lattice-vpl}. The method by which we generate $G_D$ and $G'_D$ limits the possible differences between them significantly. In particular, no new terminals are introduced, except '(' and ')', and they are always introduced in a well-balanced fashion.
 
-If we thus delimit ourselves to only consider languages where words have no unbalanced parentheses\footnote{I.e., the vast, vast majority of programming languages currently in use.} we can give the following alternative definition of a word: a word is a two-tuple containing a sequence of non-parenthesis terminals and a bag (or multiset) of ranges covered by parentheses. For example, the word ``$(1 + 2) * 3$'' is equivalent to $(\text{``}1 + 2 * 3\text{''}, \{\range{0}{3}\})$, while ``$((1 + 2)) * 3$'' is equivalent to $(\text{``}1 + 2 * 3\text{''}, \{\range{0}{3}, \range{0}{3}\})$. We will refer to the first component of the tuple as the \emph{basic word} and the second as the \emph{range bag}.
+If we thus delimit ourselves to only consider languages where words have no unbalanced parentheses\footnote{I.e., the vast, vast majority of programming languages currently in use.} we can give the following alternative definition of a word: a word is a two-tuple containing a sequence of non-parenthesis terminals and a bag (or multiset) of ranges covered by parentheses. For example, the word ``\verb|(1 + 2) * 3|'' is equivalent to $(\text{``}\verb|1 + 2 * 3|\text{''}, \{\range{0}{3}\})$, while ``\verb|((1 + 2)) * 3|'' is equivalent to $(\text{``}\verb|1 + 2 * 3|\text{''}, \{\range{0}{3}, \range{0}{3}\})$. We will refer to the first component of the tuple as the \emph{basic word} and the second as the \emph{range bag}.
 
-However, there is a case where this alternate representation is not fully isomorphic; namely when a pair of parentheses would yield a zero-length range. As an example, consider the two words ``$(())$'' and ``$()()$''. Both of these have an alternate representation of $(\text{``}\text{''}, \{\range{0}{0}, \range{0}{0}\})$. In versions~1 and 2 this corresponds to grouping parentheses surrounding zero-length productions. We can avoid this case by finding every production $N -> l : r$ where $\epsilon \in L(r)$, replacing it with $N -> l : r'$ where $L(r') = L(r) \setminus \{\epsilon\}$, and replacing every use of $N$ with $N + \epsilon$. The one exception is if the start symbol has a nullable production, but that can be trivially special cased. As such, going forward, we will assume no zero-length grouping parentheses.
+However, there is a case where this alternate representation is not fully isomorphic; namely when a pair of parentheses would yield a zero-length range. As an example, consider the two words ``\verb|(())|'' and ``\verb|()()|''. Both of these have an alternate representation of $(\text{``}\text{''}, \{\range{0}{0}, \range{0}{0}\})$. In versions~1 and 2 this corresponds to grouping parentheses surrounding zero-length productions. We can avoid this case by finding every production $N -> l : r$ where $\epsilon \in L(r)$, replacing it with $N -> l : r'$ where $L(r') = L(r) \setminus \{\epsilon\}$, and replacing every use of $N$ with $N + \epsilon$. The one exception is if the start symbol has a nullable production, but that can be trivially special cased. As such, going forward, we will assume no zero-length grouping parentheses.
 
-We denote the functions producing the two components by $\basic$ and $\rangebag$, i.e., $\basic(\text{``}((1 + 2)) * 3\text{''}) = \text{``}1 + 2 * 3\text{''}$ and $\rangebag(\text{``}((1 + 2)) * 3\text{''}) = \{\range{0}{3}, \range{0}{3}\}$.
+We denote the functions producing the two components by $\basic$ and $\rangebag$, i.e., \\$\basic(\text{``}\verb|((1 + 2)) * 3|\text{''}) = \text{``}\verb|1 + 2 * 3|\text{''}$ and $\rangebag(\text{``}\verb|((1 + 2)) * 3|\text{''}) = \{\range{0}{3}, \range{0}{3}\}$.
 
 The next four lemmas, all concerning the words in $\words(t)$ for some given $t \in L(G_t)$, form the basis of the lattices mentioned at the end of the previous section.
 
@@ -892,7 +892,7 @@ The next four lemmas, all concerning the words in $\words(t)$ for some given $t 
   $\exists R$ such that $\exists w' \in \words(t).\ \rangebag(w') = R$ and $\forall w' \in \words(t).\\ R \subseteq \support(\rangebag(w'))$, i.e., some parentheses are required.
   \label{lemma:required-parentheses}
 \end{lemma}
-\noindent For example, removing the parentheses in ``$(1 + 2) * 3$'' changes the interpretations produced. Each required range is a direct consequence of a mark on a non-terminal in $D$. We will write $w'_\bot$ for the word implied by the first quantified expression. It is unique, since its basic word is fixed by $t$, and its rangebag is a set.
+\noindent For example, removing the parentheses in ``\verb|(1 + 2) * 3|'' changes the interpretations produced. Each required range is a direct consequence of a mark on a non-terminal in $D$. We will write $w'_\bot$ for the word implied by the first quantified expression. It is unique, since its basic word is fixed by $t$, and its rangebag is a set.
 
 \begin{lemma}
   $\exists R$ such that $\exists w' \in \words(t).\ \rangebag(w') = R$ and $\forall w' \in \words(t).\\ \support(\rangebag(w')) \subseteq R$, i.e., there is a finite set of possible parentheses.
@@ -904,7 +904,7 @@ The next four lemmas, all concerning the words in $\words(t)$ for some given $t 
   $\forall w'_1, w'_2 \in \words(t).\ \support(\rangebag(w'_1)) = \support(\rangebag(w'_2)) => \parse(w'_1) = \parse(w'_2)$, i.e., duplicated parentheses do not matter.
   \label{lemma:rangeset-equality}
 \end{lemma}
-\noindent We first note that in version 1 and 2 there are no parentheses in $D$, i.e., all parentheses in $G'_D$ are introduced as grouping parentheses. Each pair of parentheses thus corresponds to a single grouping node $g$ in a tree in $L(T'_D)$. Duplicated grouping parentheses correspond to nested grouping nodes, all of which are removed by $\semantic$, thus producing identical sets of trees in $L(T_D)$. For example, $((1 + 2)) * 3$ has the same interpretations as $(1 + 2) * 3$.
+\noindent We first note that in version 1 and 2 there are no parentheses in $D$, i.e., all parentheses in $G'_D$ are introduced as grouping parentheses. Each pair of parentheses thus corresponds to a single grouping node $g$ in a tree in $L(T'_D)$. Duplicated grouping parentheses correspond to nested grouping nodes, all of which are removed by $\semantic$, thus producing identical sets of trees in $L(T_D)$. For example, \verb|((1 + 2)) * 3| has the same interpretations as \verb|(1 + 2) * 3|.
 
 \subsection{A Lattice of Word Partitions} \label{sec:lattice}
 
@@ -1039,7 +1039,7 @@ Lemma~\ref{lemma:rangeset-equality} suggests a partition of the words in $\words
 \label{fig:lattice2}
 \end{figure}
 
-To show the connection between resolvable ambiguity and these lattices, consider the word ``$1 + 2 + 3$''. It has two interpretations in our running example, $a(a(n(1)+n(2))+n(3))$, which we would normally write as $(1 + 2) + 3$, and $a(n(1)+a(n(2)+n(3)))$, which we would normally write $1 + (2 + 3)$. The lattices for these two trees are given in Figures~\ref{fig:lattice1} and \ref{fig:lattice2} respectively. The partitions that appear in both lattices are represented as boxed words, the others are unboxed. These shared partitions represent words that are ambiguous between these particular trees. Finding an unambiguous word is thus the same as finding a partition that is not shared with any other tree. In this particular case, there is no ambiguity with any other tree at all, and so the unboxed words are all valid resolutions of the ambiguity.
+To show the connection between resolvable ambiguity and these lattices, consider the word ``\verb|1 + 2 + 3|''. It has two interpretations in our running example, $a(a(n(1)+n(2))+n(3))$, which we would normally write as \verb|(1 + 2) + 3|, and $a(n(1)+a(n(2)+n(3)))$, which we would normally write \verb|1 + (2 + 3)|. The lattices for these two trees are given in Figures~\ref{fig:lattice1} and \ref{fig:lattice2} respectively. The partitions that appear in both lattices are represented as boxed words, the others are unboxed. These shared partitions represent words that are ambiguous between these particular trees. Finding an unambiguous word is thus the same as finding a partition that is not shared with any other tree. In this particular case, there is no ambiguity with any other tree at all, and so the unboxed words are all valid resolutions of the ambiguity.
 
 At this point it is clear that a given tree has an unambiguous word iff its lattice has at least one partition that is not shared with any other tree.
 
@@ -1109,12 +1109,12 @@ We will now walk through the construction of this automaton, using the following
 
 \noindent We first present a simplified construction that assumes no production can match a single non-terminal, i.e., for all right-hand side regular expressions $r$, $\neg \exists N_m.\ N_m \in L(r)$, to make the base idea easier to follow. Such cases introduce duplicated parentheses if handled in a naive way, and the extra book-keeping required to correctly handle them complicate this presentation, and will so be introduced after the more naive method.
 
-Conceptually, each non-terminal represents a choice of which child production should replace it, and whether that production requires parentheses around it. We now make this explicit, to ensure that standard operations on finite automata produce the correct result. We replace each $N_m$ with a sum of the labels of productions in $N$, where each label in $m$ is distinguished by a prime, e.g., $E_{\{s\}}$ is replaced with $s' + v$.
+Conceptually, each non-terminal represents a choice of which child production should replace it, and whether that production requires parentheses around it. We now make this explicit, to ensure that standard operations on finite automata produce the correct result. We replace each $N_m$ with a sum of the labels of productions in $N$, where each label has a subscript $\top$ or $\bot$ if parentheses are required or possible, respectively. For example, $E_{\{s\}}$ is replaced with $s_\top + v_\bot$.
 
 \begin{center}
 \begin{tabular}{@{}l@{\quad$->$\quad}l@{ $:$\quad}l@{}}
   \toprule
-  $E$ & $s$ & $(s' + v)$ \verb|';'| $(s + v)$ \\
+  $E$ & $s$ & $(s_\top + v_\bot)$ \verb|';'| $(s_\bot + v_\bot)$ \\
   $E$ & $v$ & \verb|'e'| \\
   \bottomrule
 \end{tabular}
@@ -1134,26 +1134,26 @@ Conceptually, each non-terminal represents a choice of which child production sh
   \node[state,initial] (5) [below of=2] {$5$};
   \node[state,accepting] (6) [right of=5] {$6$};
 
-  \path (1) edge[bend left] node {$s'$} (2)
-  (1) edge[bend right] node {$v$} (2)
+  \path (1) edge[bend left] node {$s_\top$} (2)
+  (1) edge[bend right] node {$v_\bot$} (2)
   (2) edge node {$';'$} (3)
-  (3) edge[bend left] node {$s$} (4)
-  (3) edge[bend right] node {$v$} (4);
+  (3) edge[bend left] node {$s_\bot$} (4)
+  (3) edge[bend right] node {$v_\bot$} (4);
   \path (5) edge node {$'e'$} (6);
 
 \end{tikzpicture}
 \end{center}
 
-\noindent We then combine them into a single visibly pushdown automaton. Every time we transition from a production to a child we push a symbol to the stack, which we then pop when we go back. We use $Q \times Q \times \{\text{``}\reqp{}\text{''}, \text{``}\posp{}\text{''}\}$ as our stack alphabet, where the first two components are states in the parent production automaton and the last component records whether the parenthesis pair is required or merely possible. We replace every edge $p \xrightarrow{l} q$, where $l \in \Labels$, with:
+\noindent We then combine them into a single visibly pushdown automaton. Every time we transition from a production to a child we push a symbol to the stack, which we then pop when we go back. We use $Q \times Q$ as our stack alphabet, to record the transition we are replacing in the parent. We thus replace every edge $p \xrightarrow{l_\top} q$, where $l \in \Labels$, with:
 
 \begin{itemize}
-  \item an edge $p \xrightarrow{'\pospl', +(p, q, \text{``}\posp{}\text{''})} p'$, where $p'$ is the initial state in the DFA corresponding to the production with label $l$, and
-  \item an edge $q' \xrightarrow{'\pospr', -(p, q, \text{``}\posp{}\text{''})} q$ for every final state $q'$ in the DFA corresponding to the production with label $l$.
+  \item an edge $p \xrightarrow{'\reqpl', +(p, q)} p'$, where $p'$ is the initial state in the DFA corresponding to the production with label $l$, and
+  \item an edge $q' \xrightarrow{'\reqpr', -(p, q)} q$ for every final state $q'$ in the DFA corresponding to the production with label $l$.
 \end{itemize}
 
-\noindent Similarly, for every edge $p \xrightarrow{l'} q$, where $l \in \Labels$, we add edges $p \xrightarrow{'\reqpl', +(p, q, \text{``}\reqp{}\text{''})} p'$ and $q' \xrightarrow{'\reqpr', -(p, q, \text{``}\reqp{}\text{''})} q$.
+\noindent Similarly, for every edge $p \xrightarrow{l_\bot} q$, where $l \in \Labels$, we add edges $p \xrightarrow{'\pospl', +(p, q)} p'$ and $q' \xrightarrow{'\pospr', -(p, q)} q$.
 
-Intuitively, we parse a child node with parentheses around it, then return. This is where our simplification is used, without it we might introduce double parentheses here. To lessen clutter in the figure below we omit the third component of the stack symbol, since it is fully determined by the input symbol, e.g., if an edge reads $'\pospl'$ then the third component of the stack symbol pushed must be ``$\posp{}$''.
+Intuitively, we parse a child node with parentheses around it, then return. This is where our simplification is used, without it we might introduce double parentheses here.
 
 \begin{center}
 \begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
@@ -1280,15 +1280,16 @@ UNFINISHED
 \end{theorem}
 
 \begin{proof}
+  (These are two attempts at showing the same thing, next attempt starts at ``Proof sketch''. I would strongly suggest reading ``Formal stuff'' first.)
   $A_{\posp{}}$ has a single initial state, and a single final state, call them $s$ and $f$ respectively. The two are distinct, and $f$ is reachable only through transitions that pop a stack symbol with $s$ and $f$ as the two first components. Transitions that push such symbols originate in $s$, and no other transitions originate in $s$. Thus all successful runs start in configuration $(s, \epsilon)$ and end in $(f, \epsilon)$, whereby every pushing transition in the run can be paired with a corresponding popping transition. We will now construct a tree $t \in L(T_D)$ in a bottom-up fashion.
 
-  Select a subsequence of the run $R = (s, \epsilon) \; R_1 \; (p, s) \xrightarrow{a, +(p, q, g, w)} (p', (p, q, g, w) \cdot s) \; R_2 \; (q', (p, q, g, w) \cdot s \xrightarrow{b, -(p, q, g, w)} (q, s) \; R_2 \; (f, \epsilon)$ such that $R_2$ contains no pushing or popping operations. The only transitions that leave the stack unchanged in $A_{\posp{}}$ come from DFAs generated from productions in $D$. There is no way to transition between two such DFAs without using a pushing or popping transition, thus $R_2$ must be a successful run in the DFA for some labelled production $N -> l : r$ in $D$. $T_D$ must contain a corresponding production $N -> l(r)$. Now consider the sequence of input symbols $w'$ along the transitions in $R_2$. We have $w' \in L(r)$, since $R_2$ is a successful run in a DFA constructed from $r$. Thus $l(w') \in L_N(T_D)$. Now add parent nodes to this subtree for every label in $w$, e.g., if $w = l_1 \cdot l_2 \cdot l_3$ construct $l_1(l_2(l_3(l(w'))))$. We can then replace the subsequence of $R$ with this subtree, and then repeat the process until we have a tree with root $l'$, where $D$ has a labelled production $S -> l': r'$ for some $r'$ and the starting symbol $S$.
+  Select a subsequence of the run $R = (s, \epsilon) \; R_1 \; (p, s) \xrightarrow{a, +(p, q, w)} (p', (p, q, w) \cdot s) \; R_2 \; (q', (p, q, w) \cdot s \xrightarrow{b, -(p, q, w)} (q, s) \; R_2 \; (f, \epsilon)$ such that $R_2$ contains no pushing or popping operations. The only transitions that leave the stack unchanged in $A_{\posp{}}$ come from DFAs generated from productions in $D$. There is no way to transition between two such DFAs without using a pushing or popping transition, thus $R_2$ must be a successful run in the DFA for some labelled production $N -> l : r$ in $D$. $T_D$ must contain a corresponding production $N -> l(r)$. Now consider the sequence of input symbols $w'$ along the transitions in $R_2$. We have $w' \in L(r)$, since $R_2$ is a successful run in a DFA constructed from $r$. Thus $l(w') \in L_N(T_D)$. Now add parent nodes to this subtree for every label in $w$, e.g., if $w = l_1 \cdot l_2 \cdot l_3$ construct $l_1(l_2(l_3(l(w'))))$. We can then replace the subsequence of $R$ with this subtree, and then repeat the process until we have a tree with root $l'$, where $D$ has a labelled production $S -> l': r'$ for some $r'$ and the starting symbol $S$.
 
-  To construct a successful run from a tree $t \in L(T_D)$ we can traverse the tree in a preorder, while at the same time constructing a run in $A_{\posp{}}$ starting from $(s, \epsilon)$. If the next terminal is in $\T$, i.e., a strictly zero-arity terminal, we take a transition originating in a DFA, which must be unique. If the next terminal is in $\Labels$, i.e., an unranked terminal, we take one of the added edges. However, this choice of edge might not be unique, there may be multiple edges from the current state to an appropriate DFA initial state. These stem from the original DFA having two transitions from the same state with the same label, except one is primed, e.g., $p \xrightarrow{l} q$ and $p \xrightarrow{l'} q'$. However, if both of these transitions were valid choices that would imply that the DFA for that level can recognize two distinct words that differ only in whether some terminals are primed. But primed and non-primed terminals must originate from distinct occurances of marked non-terminals (since a primed terminal corresponds to a mark, and an unprimed terminal corresponds to the absence of a mark), which would imply that the original regular expression is ambiguous if the marks are removed, which we explicitly ruled out in Section~\ref{sec:parse-time-disambiguation}.
+  To construct a successful run from a tree $t \in L(T_D)$ we can traverse the tree in a preorder, while at the same time constructing a run in $A_{\posp{}}$ starting from $(s, \epsilon)$. If the next terminal is in $\T$, i.e., a strictly zero-arity terminal, we take a transition originating in a DFA, which must be unique. If the next terminal is in $\Labels$, i.e., an unranked terminal, we take one of the added edges. However, this choice of edge might not be unique: there may be multiple edges from the current state to an appropriate DFA initial state. These stem from the original DFA having two transitions from the same state with the same label but different subscripts, e.g., $p \xrightarrow{l_\bot} q$ and $p \xrightarrow{l_\top} q'$. However, if both of these transitions were valid choices for the current tree that would imply that the DFA for that level can recognize two distinct words that differ only in subscripts. But distinctly subscripted terminals must originate from distinct occurances of marked non-terminals (since a $\top$ subscript corresponds to a mark, and a $\bot$ subscript corresponds to the absence of a mark), which would imply that the original regular expression is ambiguous if the marks are removed, which we explicitly ruled out in Section~\ref{sec:parse-time-disambiguation}.
 
-  Proof sketch: to go from a successful run to a tree $t \in L(T_D)$: by construction, all successful runs must begin and end with an empty stack. Every pushing transition can thus be paired with a popping transition in the run. We can construct a tree in a bottom-up fashion by replacing every such pair with a tree $l_1(l_2(\ldots l_n(x)\ldots))$, where $x$ is the sequence of terminals and/or trees between the pair, the terminals $l_1, l_2, \ldots, l_{n-1}$ stem from the fourth component of the pushed stack symbol ($l_1 \cdots l_{n-1}$), and $l_n$ is the label of the production whose DFA the pushing transition ends in.
+  Proof sketch: to go from a successful run to a tree $t \in L(T_D)$: by construction, all successful runs must begin and end with an empty stack. Every pushing transition can thus be paired with a popping transition in the run. We can construct a tree in a bottom-up fashion by replacing every such pair with a tree $l_1(l_2(\ldots l_n(x)\ldots))$, where $x$ is the sequence of terminals and/or trees between the pair, the terminals $l_1, l_2, \ldots, l_{n-1}$ stem from the third component of the pushed stack symbol ($l_1 \cdots l_{n-1}$), and $l_n$ is the label of the production whose DFA the pushing transition ends in.
 
-  For the inverse direction we construct a run by traversing the tree in a preorder\footnote{Where we also keep track of when we ``go back up'' the tree.}. Terminals in $\T$ cause transitions internally in a DFA, while terminals in $\Labels$ cause a pushing transition (and later a corresponding, unique popping transition) to the initial state of the DFA corresponding to the production with that label. Note that a sequence of terminals in $\Labels$ that have only a single child (which is also in $\Labels$) cause only one transition, all terminals but the last end up in the fourth component of the pushed stack symbol. The choice of pushing transition is \emph{not} unique however; there may be multiple available transitions that differ in the recognized input symbol and the second and third components of the pushed stack symbol, none of which are necessarily determined by the shape of the tree. This non-determinism does not introduce multiple successful runs however, since two such runs would imply the existence of two distinct runs through the DFA corresponding to some labelled production that recognize the same word, except for whether some terminals are primed. But two otherwise equal terminals where one is primed must originate from different occurrences of marked non-terminals in the original regular expression (since a primed terminal represents a mark, and an unprimed terminal represents the absence of a mark), thus that regular expression must be ambiguous after all marks are removed. But Section~\ref{sec:parse-time-disambiguation} explicitly ruled this out, thus only one of the pushing transitions can be a valid choice.
+  For the inverse direction we construct a run by traversing the tree in a preorder\footnote{Where we also keep track of when we ``go back up'' the tree.}. Terminals in $\T$ cause transitions internally in a DFA, while terminals in $\Labels$ cause a pushing transition (and later a corresponding, unique popping transition) to the initial state of the DFA corresponding to the production with that label. Note that a sequence of terminals in $\Labels$ that have only a single child (which is also in $\Labels$) cause only one transition, all terminals but the last end up in the third component of the pushed stack symbol. The choice of pushing transition is \emph{not} unique however; there may be multiple available transitions that differ in the recognized input symbol and the second component of the pushed stack symbol, neither of which are necessarily determined by the shape of the tree. This non-determinism does not introduce multiple successful runs however, since two such runs would imply the existence of two distinct runs through the DFA corresponding to some labelled production that recognize the same word, except with different subscripts. But two otherwise equal terminals with different subscripts must originate from different occurrences of marked non-terminals in the original regular expression (since a $\top$ subscript represents a mark, and a $\bot$ subscript represents the absence of a mark), thus that regular expression must be ambiguous after all marks are removed. But Section~\ref{sec:parse-time-disambiguation} explicitly ruled this out, thus only one of the pushing transitions can be a valid choice.
 
 % TODO: technically, we should perhaps mention that these two constructions are inverses of each other, but that's relatively easy to see once you understand them.
 \end{proof}
@@ -1298,7 +1299,7 @@ UNFINISHED
 Given a language definition $D$, with terminals $\T$, labels $\Labels$, and starting non-terminal $S$. Construct two functions $\dfa : \Labels -> \mathit{DFA}(\T \cup (\Labels \times \{\top, \bot\})$ and $\passthrough : \Labels -> 2^{\Labels \times \Labels \times \{\top, \bot\} \times \Labels^{*}}$:
 
 \begin{description}
-\item[$\dfa(l)$:] Given the production $N -> l : r$, compute the regular language $L' := L(r) \setminus \{N'_m \mid N' \in \NT, m \subseteq \Labels\}$. Then replace every marked non-terminal $N'_m$ with the regular expression $(l_1, b_1) + (l_2, b_2) + \ldots + (l_n, b_n)$, where $l_i$ are all the labels of productions $N' -> l_i : r_i$, and $b_i = l_i \in m$, e.g., $E_{\{a\}}$ in the running example would be replaced by $l + a' + m + n$. Then construct a DFA for this language.
+\item[$\dfa(l)$:] Given the production $N -> l : r$, compute the regular language $L' := L(r) \setminus \{N'_m \mid N' \in \NT, m \subseteq \Labels\}$. Then replace every marked non-terminal $N'_m$ with the regular expression $l_1_{l_1 \in m} + l_2_{l_2 \in m} + \ldots + l_n_{l_n \in m}$, where $l_i$ are all the labels of productions $N' -> l_i : r_i$, e.g., $E_{\{a\}}$ in the running example would be replaced by $l_\bot + a_\top + m_\bot + n_\bot$. Then construct a DFA for this language.
 
 \item[$\passthrough(l)$:] Given a production $N -> l : r$, this is the set $\{(l, l, \bot, \epsilon)\} \cup \{(l, l', l' \in m, l) \mid \nt(l') = N', N'_m \in L(r)\}$.
 \end{description}
@@ -1307,18 +1308,16 @@ Given a language definition $D$, with terminals $\T$, labels $\Labels$, and star
 
 $$ (l_1, l_2, r_1, w_1) \cdot (l_2, l_3, r_2, w_2) = (l_1, l_3, r_1 \lor r_2, w_1 \cdot w_2) $$
 
-\noindent $P$ is finite if $D$ has no cycles $N =>^{+} N$\footnote{This is notation from CFGs, which is semi-obvious what it means, but technically not defined here.}. Such a cycle is easy to detect (depth-first search), and means that any tree that contains a production from the non-terminal $N$ only ever produces infinitely ambiguous words, i.e., all words for that tree are unresolvably ambiguous.
+\noindent $P$ is finite if $D$ has no cycles $N =>^{+} N$\footnote{This is notation from CFGs, which is semi-obvious what it means, but technically not defined here.}. Such a cycle is easy to detect (depth-first search), and means that any tree that contains a production from the non-terminal $N$ only ever produces infinitely ambiguous words, i.e., all words for such a tree are unresolvably ambiguous.
 
-Given $\dfa(l) = (Q_l, \T \cup (\Labels \times \{\top, \bot\}), \delta_l, s_l, F_l)$, construct a VPDA $A_{\posp{}} = (Q, \T', \Gamma, \delta, s, \{f\})$ where:
-
-% TODO: add transitions to/from final/initial states
+Given $\dfa(l) = (Q_l, \T \cup (\Labels \times \{\top, \bot\}), \delta_l, s_l, F_l)$ for all $l \in Labels$, and $\nt(l) = N$ iff $(N -> l : r) \in D$, construct a VPDA $A_{\posp{}} = (Q, \T', \Gamma, \delta, s, \{f\})$ where:
 
 \begin{itemize}
 \item $s$ and $f$ are two new distinct states.
-\item $Q = \{s, f\} \cup \bigcup_l Q_l$.
+\item $Q = \{s, f\} \cup \bigsqcup_l Q_l$.
 \item $\T' = \T \cup \{\reqpl, \pospl, \pospr\}$.
 \item $\Gamma = Q \times Q \times \Labels^{*}$.
-\item $\delta$ is defined by:
+\item $\delta$ is defined by (in hindsight this should probably be written as constructing a set $\delta$, i.e., instead of a function $\delta: Q \times \T' \times (\Gamma \cup \{\lambda\}) -> 2^{Q \times (\Gamma \cup \{\lambda\})}$ we have a set $\delta \subseteq Q \times \T' \times (\Gamma \cup \{\lambda\}) \times Q \times (\Gamma \cup \{\lambda\})$, would probably be easier to read):
   $$
   \begin{array}{r@{\;=\;}l@{\;\mid\;}l}
     \delta(p, a, \lambda)
