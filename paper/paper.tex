@@ -1617,7 +1617,9 @@ choices to make as language designers:
   for the greater-than operator).
 \item We could change the definition of the parallel combinators
   and define separate lexical tokens for the combinators, e.g.,
-  \syncon{token Seq = ">[[:lower:]][[:word:]]*>"}.
+  \syncon{token Seq = ">[[:lower:]][[:word:]]*>"}. This would add
+  just enough whitespace sensitivity to allow separating the
+  different cases.
 \item We could change the syntax of the combinators completely to
   avoid clashes with other operators.
 \end{itemize}
@@ -1626,8 +1628,16 @@ The change in the first alternative can be done after composition,
 and would allow us to reuse both language definitions without
 modifications. In the latter two alternatives, we lose reuse of
 the definitions of Orc combinators, but place no additional
-restrictions on the base language. The preferred variant is likely
-to differ between different compositions and different languages.
+restrictions on the base language. The preferred resolution
+strategy is likely to differ between different compositions and
+different languages.
+%
+For example, another unresolvable ambiguity is going to show up if
+the base language uses semi-colons, e.g. for sequencing
+expressions (this would clash with the ``otherwise'' combinator).
+In this case, there is no reasonable way to disambiguate
+``\ocaml{e1; e2}'' without changing the syntax of one of the
+operations.
 
 \subsection{Cyphym} \label{sec:evaluation-cyphym}
 
