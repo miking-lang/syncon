@@ -1489,7 +1489,36 @@ forbid list.tail = seqComp
 
 \subsection{OCaml} \label{sec:evaluation-ocaml}
 
-% TODO: talk about the ``low precedence unary operator/deep precedence'' issue.
+The syncon definition of the OCaml language includes most syntax described in chapters 7 and 8 in the OCaml reference manual (the base language and extensions, respectively) and is sufficient to parse roughly 75\% (1012 out of 1334 files) of the \verb|.ml| files present in the OCaml compiler itself. The definition is just under 700 lines, excluding comments and empty lines (just over 1000 lines otherwise). It has been written to be as close to the grammar presented in the reference manual as possible, but with additions to conform to how the canonical compiler behaves on cases that are underspecified in the manual.
+
+The failing cases stem from three different causes:
+
+\begin{itemize}
+\item As of yet unspecified syntax. Due to a lack of time there are still parts of the language that we have not yet implemented. These appear solvable, but we can of course not be sure until we do.
+\item Our system does not support specifying ``longest match'' on a production, which is required to handle the pattern matching constructs correctly. We can handle some of these cases with marks, but not all.
+\item Different definitions of precedence. Our translation from precedence to marks is shallow, it only considers direct children, but OCaml has deep precedence. For example, addition binds stronger than \ocaml{if} (which syntactically functions as a prefix operator in OCaml), thus
+  \begin{lstlisting}[language={[objective]caml}]
+  1 + let x = 1 in x + 2
+  \end{lstlisting}
+  should be parsed as
+  \begin{lstlisting}[language={[objective]caml}]
+  1 + (let x = 1 in (x + 2))
+  \end{lstlisting}
+  while our tool presents the following ambiguity error message:
+  \begin{lstlisting}[language={[objective]caml}]
+Ambiguity error with 2 alternatives:
+
+  1 + ( let x = 1 in x ) + 2
+  1 + let x = 1 in ( x + 2 )
+  \end{lstlisting}
+  The former alternative is perhaps more easily understood as
+  \begin{lstlisting}[language={[objective]caml}]
+  (1 + (let x = 1 in x)) + 2
+  \end{lstlisting}
+  Looking at this tree, two levels at a time, we see ``\ocaml{(_ + _) + 2}'', ``\ocaml{1 + let _ in _}'', and ``\ocaml{let x = 1 in x}'', all of which are individually precedence correct.
+\end{itemize}
+
+The various definitions in the syncon OCaml definition are organized by the chapter in the reference manual that introduces them, plus an appendix with additions and changes required to mimic the behavior of the canonical compiler. Many of these are strict additions, requiring no changes to previous syncons, but not all. For example, OCaml allows placing ``attributes'' on most syntactical constructs in the language, extra information visible to tools but otherwise without semantic meaning. These can be written with an ``infix'' notation right after the keyword that introduces the syntactical construct, e.g., \ocaml{let[@foo] x = 1 in x}. This syntax is not fully specified; the manual merely contains seven examples, while the testsuite uses this syntax in roughly 50 different constructs. All these cases require changes to the original syncon definitions, making them slightly more complicated than the manual suggests them to be upon their introduction.
 
 \subsection{Orc} \label{sec:evaluation-orc}
 
