@@ -1506,11 +1506,11 @@ pruning (\ocaml{<}$x$\ocaml{<}), and ``otherwise'' (\ocaml{;})
 combinators. The expression $e_1$ \ocaml{|} $e_2$ runs $e_1$ and
 $e_2$ in parallel, publishing any value published by either of
 them. The expression $e_1$ \ocaml{>}$x$\ocaml{>} $e_2$ binds each
-value published by $e_1$ to $x$ and executes $e_2$, building a
-concurrent pipeline. The expression $e_1$ \ocaml{<}$x$\ocaml{<}
-$e_2$ binds the \emph{first} value published by $e_2$ to $x$ and
-executes $e_1$. Finally, $e_1$\ocaml{;}$e_2$ runs $e_2$ only if
-running $e_1$ does not publish any values.
+value published by $e_1$ to $x$ and executes $e_2$ for each such
+binding, building a concurrent pipeline. The expression $e_1$
+\ocaml{<}$x$\ocaml{<} $e_2$ binds the \emph{first} value published
+by $e_2$ to $x$ and executes $e_1$. Finally, $e_1$\ocaml{;}$e_2$
+runs $e_2$ only if running $e_1$ does not publish any values.
 
 The syncon definition of the Orc combinators is very simple (the
 precedence rules follow the original
@@ -1542,8 +1542,8 @@ between these and the Orc combinators will be undefined. With
 support for resolvable ambiguity however, we can allow this
 ambiguity and let programmers disambiguate expressions using
 parentheses. After composing the above definition with a simple
-language supporting addition, variables and function calls
-(omitted for brevity), parsing the expression
+language supporting addition, variables, and function calls
+(language definition omitted for brevity), parsing the expression
 %
 ``\ocaml{1 + 2 >x> f(x)}''
 %
@@ -1556,12 +1556,78 @@ Ambiguity error with 2 alternatives:
 \end{lstlisting}
 
 \noindent
+Because there is no precedence specified between \ocaml{+} and
+\ocaml{>x>}, disambiguation is required to specify the order of
+operations.
+%
 In this case, it is likely that the preferred semantics is to have
 all operators in the base language bind tighter than the Orc
 combinators, and these precedence rules can be added after the
-composition without changing the original definitions.
+composition without changing the original definitions. Importantly
+though, we are not \emph{required} to resolve this ambiguity at
+time of composition.
 
-% TODO: Clashes involving ">" or ";"?
+Because of how we defined the syntax of the combinators, and since
+parsing with the tool is currently whitespace insensitive, the
+multi-character combinators (sequence and pruning) are parsed as
+three separate lexical tokens (this is visible in how whitespace
+is inserted in the error message above). This means we will also
+run into \emph{unresolvable} ambiguities, for example if our base
+language includes comparison of numbers with \ocaml{<} and
+\ocaml{>}. With such a base language (assuming no associativity
+for \ocaml{>}), parsing the expression
+%
+``\ocaml{42 >x> f(x)}''
+%
+will result in the following error message:
+
+\begin{lstlisting}[language={[objective]caml}]
+Unresolvable ambiguity error with 2 alternatives.
+\end{lstlisting}
+
+\begin{minipage}{.3\textwidth}
+\begin{lstlisting}[language={[objective]caml}]
+Resolvable alternatives:
+  ( 42 > x ) > f ( x )
+  42 > ( x > f ( x ) )
+\end{lstlisting}
+\end{minipage}
+\hfill
+\begin{minipage}{.5\textwidth}
+\begin{lstlisting}[language={[objective]caml}]
+Unresolvable alternatives:
+  seq
+   - int                  gt.orc:1:1-3
+   - call                 gt.orc:1:8-12
+\end{lstlisting}
+\end{minipage}
+
+\noindent
+By adding parentheses, a programmer can disambiguate the
+expression as two comparisons. However, there is no way for a
+programmer to specify that what they want is a sequential
+combinator with left and right children being an integer and a
+function call respectively. In this case we have at least three
+choices to make as language designers:
+
+\begin{itemize}
+\item We could decide to forbid the case where two comparisons are
+  right next to each other, e.g., \syncon{forbid gt.left = gt} and
+  \syncon{forbid gt.right = gt} (where \syncon{gt} is the syncon
+  for the greater-than operator).
+\item We could change the definition of the parallel combinators
+  and define separate lexical tokens for the combinators, e.g.,
+  \syncon{token Seq = ">[[:lower:]][[:word:]]*>"}.
+\item We could change the syntax of the combinators completely to
+  avoid clashes with other operators.
+\end{itemize}
+
+The change in the first alternative can be done after composition,
+and would allow us to reuse both language definitions without
+modifications. In the latter two alternatives, we lose reuse of
+the definitions of Orc combinators, but place no additional
+restrictions on the base language. The preferred variant is likely
+to differ between different compositions and different languages.
 
 \subsection{Cyphym} \label{sec:evaluation-cyphym}
 
