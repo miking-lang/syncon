@@ -107,6 +107,8 @@
 \newcommand{\rangeset}{\mathit{rangeset}} % go from a w \in L(G'_w) to the first element of \alt(w).
 \newcommand{\altset}{\mathit{altset}} % go from a w \in L(G'_w) to \alt(w), except the second element is replaced by a set (that contains an element if the bag contained at least one of that element).
 \newcommand{\lattice}{\mathit{lattice}} % go from a t \in L(G_t) to its lattice, partitioned by equality on \altset and ordered by subset on the rangeset.
+\newcommand{\topw}{\top_w} % go from a tree to its top word
+\newcommand{\botw}{\bot_w} % go from a tree to its bottom word
 \newcommand{\localize}{\mathit{localize}} % go from a F \subseteq L(G_t) to a set of localized ambiguities, i.e., a set of subforests.
 \newcommand{\range}[2]{#1\!-\!#2}
 \newcommand{\regex}{\mathit{Reg}}
@@ -118,7 +120,8 @@
 \newcommand{\posp}[1]{\pospl#1\pospr}
 \newcommand{\dfa}{\mathit{dfa}} % Go from label to its corresponding dfa
 \newcommand{\passthrough}{\mathit{passthrough}} % Go from label to a set of (label x bool), where each element denotes a child production that can be an only child (i.e., no other terminals whatsoever), and the bool states whether it requires parentheses
-\newcommand{\nt}{\mathit{nt}} % Go from label to the non-terminal to which that labelled production belongs
+\newcommand{\labelnt}{\mathit{nt}} % Go from label to the non-terminal to which that labelled production belongs
+\newcommand{\labelregex}{\mathit{regex}} % Go from label the regex of the production with that label
 
 \synctex=1
 \begin{document}
@@ -414,7 +417,7 @@ A successful run is a sequence of states $r_0, \ldots, r_n$ and a word $a_0\cdot
 \item $r_n \in F$.
 \end{itemize}
 
-\noindent We say that the automaton accepts the word $a_0a_1\ldots a_n$ iff there is such a succesful run.
+\noindent We say that the automaton accepts the word $a_0a_1\cdots a_n$ iff there is such a succesful run.
 
 A deterministic finite automaton (DFA) has the same definition, except $\delta : Q \times \Sigma -> Q$, i.e., given a state and a symbol there is always a single state we can transition to. NFAs and DFAs have the same expressive power as regular expressions, i.e., for every regular expression there is an NFA and a DFA both reconizing the same language, and vice-versa. % TODO: probably reference for this
 
@@ -748,7 +751,7 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
   \label{fig:running-example-generated}
 \end{figure}
 
-Examples of elements in each of these four languages can be seen in Fig.~\ref{fig:example-words-in-square}, along with visualizations of the syntax trees. Each element corresponds to the word ``$(1 + 2) * 3$'' in $L(G'_D)$. Note that the word in $L(G_D)$ is ambiguous, and that there are other words in $L(G'_D)$ that correspond to the same element in $L(T_D)$, e.g., ``$((1 + 2)) * 3$'' and ``$(1 + 2) * (3)$''. As a memory aid, the primed versions ($G'_D$ and $T'_D$) contain disambiguation (grouping parentheses, precedence, associativity, etc.) while the unprimed versions ($G_D$ and $T_D$) are the (likely ambiguous) straightforward translations (i.e., ignoring marks) from $D$. We will generally refer to elements of $L(G_D)$ as $w$, $L(G'_D)$ as $w'$, $L(T_D)$ as $t$, and $L(T'_D)$ as $t'$.
+Examples of elements in each of these four languages can be seen in Fig.~\ref{fig:example-words-in-square}, along with visualizations of the syntax trees. Each element corresponds to the word ``$(1 + 2) * 3$'' in $L(G'_D)$. Note that the word in $L(G_D)$ is ambiguous, and that there are other words in $L(G'_D)$ that correspond to the same element in $L(T_D)$, e.g., ``$((1 + 2)) * 3$'' and ``$(1 + 2) * (3)$''. As a memory aid, the primed versions ($G'_D$ and $T'_D$) contain disambiguation (grouping parentheses, precedence, associativity, etc.) while the unprimed versions ($G_D$ and $T_D$) are the (likely ambiguous) straightforward translations (i.e., ignoring marks) from $D$.
 
 {
 \newcommand{\terminal}[1]{\ \underline{#1}\ }
@@ -812,8 +815,8 @@ Finally, we require a function $\semantic : L(T'_D) -> L(T_D)$ that removes grou
 
 $$
 \begin{array}{rcl}
-\parse(w') & = & \{ \semantic(t') \mid t' \in L(T'_D) \land \yield(t') = w' \} \\
-\words(t) & = & \{ w' \mid t \in \parse(w') \} \\
+\parse(w) & = & \{ \semantic(t) \mid t \in L(T'_D) \land \yield(t) = w \} \\
+\words(t) & = & \{ w \mid t \in \parse(w) \} \\
 \end{array}
 $$
 
@@ -844,14 +847,14 @@ We are now ready to construct decision procedures for the static and dynamic res
 For this section, we will use an alternative formulation of resolvable ambiguity for languages, stated in terms of interpretations instead of words:
 
 \begin{theorem}
-  A language given by $\parse : \T^{*} -> 2^T$ is resolvably ambiguous iff\\$\forall t \in T.\ \exists w' \in \T^{*}.\ \parse(w') = \{t\}$.
+  A language given by $\parse : \T^{*} -> 2^T$ is resolvably ambiguous iff\\$\forall t \in T.\ \exists w \in \T^{*}.\ \parse(w) = \{t\}$.
 \end{theorem}
 
 \begin{proof}
   The quantifier $\forall t \in T$ is equivalent with $\forall w \in \T^{*}. \forall t \in \parse(w)$, since $T = \bigcup_{w \in \T^{*}} \parse(w)$ (by definition).
 \end{proof}
 
-\noindent To determine if a given language definition $D$ is resolvably ambiguous we attempt to find a counterexample: a tree $t \in L(T_D)$ such that there is no $w' \in L(G'_D)$ for which $\parse(w') = \{t\}$, or prove that no such tree exists. Or, more briefly put: find a tree that has only ambiguous words or show that no such tree exists.
+\noindent To determine if a given language definition $D$ is resolvably ambiguous we attempt to find a counterexample: a tree $t \in L(T_D)$ such that there is no $w \in L(G'_D)$ for which $\parse(w) = \{t\}$, or prove that no such tree exists. Or, more briefly put: find a tree that has only ambiguous words or show that no such tree exists.
 
 Before an actual algorithm, we split the problem into three different versions of increasing difficulty. We then lay the groundwork for our correctness proofs, eventually culminating in the algorithm, which we show to be sound and complete for version 1 and sound for version 2.
 
@@ -886,28 +889,28 @@ We denote the functions producing the two components by $\basic$ and $\rangebag$
 The next four lemmas, all concerning the words in $\words(t)$ for some given $t \in L(G_t)$, form the basis of the lattices mentioned at the end of the previous section.
 
 \begin{lemma}
-  $\forall w'_1, w'_2 \in \words(t).\ \basic(w'_1) = \basic(w'_2)$, i.e., all $w'$ have the same basic word.
+  $\forall w_1, w_2 \in \words(t).\ \basic(w_1) = \basic(w_2)$.
   \label{lemma:same-basic}
 \end{lemma}
-\noindent Intuitively, $\words$ first applies the ``inverse'' of $\semantic$, i.e., adding some number of grouping parentheses nodes between pre-existing nodes, then $\yield$, which flattens the tree to a word. The only terminals changed in this process are parentheses, i.e., different $w'$ can only differ in their range bags. This also implies that two trees that share a word (i.e., trees $t_1$ and $t_2$ that have a word $w'$ such that $\parse(w') \supseteq \{t_1, t_2\}$) must also share a basic word.
+\noindent More informally, all $w \in \words(t)$ have the same basic word. Intuitively, $\words$ first applies the ``inverse'' of $\semantic$, i.e., adding some number of grouping parentheses nodes between pre-existing nodes, then $\yield$, which flattens the tree to a word. The only terminals changed in this process are parentheses, i.e., different $w$ can only differ in their range bags. This also implies that two trees that share a word (i.e., trees $t_1$ and $t_2$ that have a word $w$ such that $\parse(w) \supseteq \{t_1, t_2\}$) must also share a basic word.
 
 \begin{lemma}
-  $\exists R$ such that $\exists w' \in \words(t).\ \rangebag(w') = R$ and $\forall w' \in \words(t).\\ R \subseteq \support(\rangebag(w'))$, i.e., some parentheses are required.
+  There exists a set $R$ such that $\exists w \in \words(t).\ \rangebag(w) = R$ and $\forall w \in \words(t).\\ R \subseteq \support(\rangebag(w))$
   \label{lemma:required-parentheses}
 \end{lemma}
-\noindent For example, removing the parentheses in ``\verb|(1 + 2) * 3|'' changes the produced parse trees. Each required range is a direct consequence of a mark on a non-terminal in $D$. We will write $w'_\bot$ for the word implied by the first quantified expression. It is unique, since its basic word is fixed by $t$, and its rangebag is a set.
+\noindent Recall that $\support(B)$ is the support of the bag $B$, i.e., the underlying set of elements in $B$. More informally, some parentheses are required. For example, removing the parentheses in ``\verb|(1 + 2) * 3|'' changes the produced parse trees. Each required range is a direct consequence of a mark on a non-terminal in $D$. We will write $\botw(t)$ for the word implied by the first quantified expression. It is unique, since its basic word is fixed by $t$, and its rangebag is a set.
 
 \begin{lemma}
-  $\exists R$ such that $\exists w' \in \words(t).\ \rangebag(w') = R$ and $\forall w' \in \words(t).\\ \support(\rangebag(w')) \subseteq R$, i.e., there is a finite set of possible parentheses.
+  There exists a set $R$ such that $\exists w \in \words(t).\ \rangebag(w) = R$ and $\forall w \in \words(t).\\ \support(\rangebag(w)) \subseteq R$.
   \label{lemma:possible-parentheses}
 \end{lemma}
-\noindent As mentioned in Section~\ref{sec:parse-time-disambiguation}, grouping parentheses can only be added if they exactly cover a production, which amounts to an internal node in $t$, and each tree has a finite amount of nodes. We will write $w'_\top$ for the word implied by the first quantified expression, which is also unique.
+\noindent More informally, there is a finite set of possible parentheses. As mentioned in Section~\ref{sec:parse-time-disambiguation}, grouping parentheses can only be added if they exactly cover a production, which amounts to an internal node in $t$, and each tree has a finite amount of nodes. We will write $\topw(t)$ for the word implied by the first quantified expression, which is also unique.
 
 \begin{lemma}
-  $\forall w'_1, w'_2 \in \words(t).\ \support(\rangebag(w'_1)) = \support(\rangebag(w'_2)) => \parse(w'_1) = \parse(w'_2)$, i.e., duplicated parentheses do not matter.
+  $\forall w_1, w_2 \in \words(t).\ \support(\rangebag(w_1)) = \support(\rangebag(w_2)) => \parse(w_1) = \parse(w_2)$.
   \label{lemma:rangeset-equality}
 \end{lemma}
-\noindent We first note that in version 1 and 2 there are no parentheses in $D$, i.e., all parentheses in $G'_D$ are introduced as grouping parentheses. Each pair of parentheses thus corresponds to a single grouping node $g$ in a tree in $L(T'_D)$. Duplicated grouping parentheses correspond to nested grouping nodes, all of which are removed by $\semantic$, thus producing identical sets of trees in $L(T_D)$. For example, \verb|((1 + 2)) * 3| has the same interpretations as \verb|(1 + 2) * 3|.
+\noindent More informally, duplicated parentheses do not matter. We first note that in version 1 and 2 there are no parentheses in $D$, i.e., all parentheses in $G'_D$ are introduced as grouping parentheses. Each pair of parentheses thus corresponds to a single grouping node $g$ in a tree in $L(T'_D)$. Duplicated grouping parentheses correspond to nested grouping nodes, all of which are removed by $\semantic$, thus producing identical sets of trees in $L(T_D)$. For example, \verb|((1 + 2)) * 3| has the same interpretations as \verb|(1 + 2) * 3|.
 
 \subsection{A Lattice of Word Partitions} \label{sec:lattice}
 
@@ -975,7 +978,7 @@ The next four lemmas, all concerning the words in $\words(t)$ for some given $t 
   \label{fig:lattice1}
 \end{figure}
 
-Lemma~\ref{lemma:rangeset-equality} suggests a partition of the words in $\words(t)$ for any given $t \in L(T_D)$; group words $w'$ by their \emph{rangeset}, where $\rangeset(w') = \support(\rangebag(w'))$. These partitions can be partially ordered by subset on the rangeset, resulting in a lattice of word partitions per tree. This lattice is bounded, with top and bottom elements given by lemmas~\ref{lemma:possible-parentheses} and \ref{lemma:required-parentheses} respectively. Lemma~\ref{lemma:same-basic} further states that all words in $\words(t)$ share the same basic word. For example, Fig.~\ref{fig:lattice1} contains the lattice for the tree $a(a(n(1)+n(2))+n(3))$ (from our running example, defined in Fig.~\ref{fig:running-example-definition} on page~\pageref{fig:running-example-definition}). Each partition is represented by the word whose rangebag is a set. To reduce clutter, we do not draw the partitions that have grouping parentheses around the entire word. This outermost possible pair is uninteresting since it is always allowed, and would double the size of the figure if it was included.
+Lemma~\ref{lemma:rangeset-equality} suggests a partition of the words in $\words(t)$ for any given $t \in L(T_D)$; group words $w$ by their \emph{rangeset}, where $\rangeset(w) = \support(\rangebag(w))$. These partitions can be partially ordered by subset on the rangeset, resulting in a lattice of word partitions per tree. This lattice is bounded, with top and bottom elements $\topw(t)$ and $\botw(t)$. Lemma~\ref{lemma:same-basic} further states that all words in $\words(t)$ share the same basic word. For example, Fig.~\ref{fig:lattice1} contains the lattice for the tree $a(a(n(1)+n(2))+n(3))$ (from our running example, defined in Fig.~\ref{fig:running-example-definition} on page~\pageref{fig:running-example-definition}). Each partition is represented by the word whose rangebag is a set. To reduce clutter, we do not draw the partitions that have grouping parentheses around the entire word. This outermost possible pair is uninteresting since it is always allowed, and would double the size of the figure if it was included.
 
 \begin{figure}[t]
 
@@ -1049,16 +1052,14 @@ At this point it is clear that a given tree has an unambiguous word iff its latt
 Next, we note that each lattice is uniquely determined by its top and bottom elements; it contains all elements between them:
 
 \begin{lemma}
-  Given $t \in L(T_D)$, $w'_\top, w'_\bot \in \words(t)$ such that $\forall w'.\ w' \in \words(t) => \rangebag(w'_\bot) \subseteq \rangeset(w') \subseteq \rangebag(w'_\top)$ the following holds:\\
-  $\forall w'.\ \rangebag(w'_\bot) \subseteq \rangeset(w') \subseteq \rangebag(w'_\top) => w' \in \words(t)$. \label{lemma:top-bottom-determine}
+  Given $t \in L(T_D)$, we have that:\\
+  $\forall w.\ \rangebag(\botw(t)) \subseteq \rangeset(w) \subseteq \rangebag(\topw(t)) => w \in \words(t)$. \label{lemma:top-bottom-determine}
 \end{lemma}
 
-\noindent Lemmas~\ref{lemma:possible-parentheses} and \ref{lemma:required-parentheses} guarantee the existence of two such words $w'_\top$ and $w'_\bot$.
-
-Finally, we show the difference between versions~1 and 2 in the lattice setting: in version~1, the rangeset of the bottom word is the empty set:
+\noindent Recall that $\rangebag = \rangeset$ for $\botw(t)$ and $\topw(t)$. Finally, we show the difference between versions~1 and 2 in the lattice setting: in version~1, the rangeset of the bottom word is the empty set:
 
 \begin{lemma}
-  In version~1, $rangeset(w'_\bot) = \emptyset$ for all trees, where $w'_\bot$ is given by Lemma~\ref{lemma:required-parentheses}. \label{lemma:version1-bot}
+  In version~1, $\forall t \in L(T_D).\ \rangeset(\botw(t)) = \emptyset$. \label{lemma:version1-bot}
 \end{lemma}
 
 \noindent Since version~1 has no markings there are no required parentheses, thus the bottom word has no parentheses.
@@ -1066,20 +1067,20 @@ Finally, we show the difference between versions~1 and 2 in the lattice setting:
 Our approach centers around finding a pair of lattices, such that one is entirely contained in the other. Since the former shares \emph{all} partitions with the latter, it has only ambiguous words, thus any of those words will be unresolvably ambiguous.
 
 \begin{theorem}
-  In versions~1 and 2, given a $t \in L(T_D)$ with a lattice determined by $w_\bot$ and $w_\top$, $\exists t' \in L(T_D).\ \basic(w_\bot) = \basic(w'_\bot) \land \rangeset(w_\bot) \subseteq \rangeset(w'_\bot) \land \rangeset(w'_\top) \subseteq \rangeset(w_\top) => \neg \exists w.\ \parse(w) = \{t\}$. \label{lemma:lattice-containment-implies-unresolvable}
+  In versions~1 and 2, given a $t \in L(T_D)$, $w_\bot = \botw(t)$, and $w_\top = \topw(t)$, the existence of a tree $t' \in L(T_D)$ such that $\basic(w_\bot) = \basic(\botw(t')) \land \rangeset(w_\bot) \subseteq \rangeset(\botw(t')) \land \rangeset(\topw(t')) \subseteq \rangeset(w_\top)$ implies $\neg \exists w.\ \parse(w) = \{t\}$. \label{lemma:lattice-containment-implies-unresolvable}
 \end{theorem}
 
 
 \noindent For version~1, \emph{every} unresolvable ambiguity has this form:
 
 \begin{theorem}
-  In version 1, given a $t \in L(T_D)$ with a lattice determined by $w_\bot$ and $w_\top$, $\exists t' \in L(T_D).\ \basic(w_\bot) = \basic(w'_\bot) \land \rangeset(w'_\bot) \subseteq \rangeset(w_\bot) \land \rangeset(w_\top) \subseteq \rangeset(w'_\top) <=> \neg \exists w.\ \parse(w) = \{t\}$.
+  In version 1, given a $t \in L(T_D)$, $w_\bot = \botw(t)$, and $w_\top = \topw(t)$, $\exists t' \in L(T_D).\ \basic(w_\bot) = \basic(\botw(t')) \land \rangeset(\botw(t')) \subseteq \rangeset(w_\bot) \land \rangeset(w_\top) \subseteq \rangeset(\topw(t')) <=> \neg \exists w.\ \parse(w) = \{t\}$.
 \end{theorem}
 
 \begin{proof}
-  The left-to-right implication is already given in Theorem~\ref{lemma:lattice-containment-implies-unresolvable}, and Lemma~\ref{lemma:version1-bot} together with $\basic(w_\bot) = \basic(w'_\bot)$ implies that $w_\bot = w'_\bot$. We thus need to show that $\neg \exists w.\ \parse(w) = \{t\} => \exists t' \in L(T_D).\ \basic(w_\bot) = \basic(w'_\bot) \land \rangeset(w'_\top) \subseteq \rangeset(w_\top)$.
+  The left-to-right implication is already given in Theorem~\ref{lemma:lattice-containment-implies-unresolvable}, and Lemma~\ref{lemma:version1-bot} together with $\basic(w_\bot) = \basic(\botw(t'))$ implies that $w_\bot = \botw(t')$. We thus need to show that $\neg \exists w.\ \parse(w) = \{t\} => \exists t' \in L(T_D).\ \basic(w_\bot) = \basic(\botw(t')) \land \rangeset(\topw(t')) \subseteq \rangeset(w_\top)$.
 
-  If all words in $\words(t)$ are ambiguous, then $\exists t' \in L(T_D).\ t' \neq t \land t' \in \parse(w_\top)$. Lemma~\ref{lemma:same-basic} gives $\basic(w_\bot) = \basic(w'_\bot)$. The definition of $w'_\top$ (Lemma~\ref{lemma:possible-parentheses}) gives $\rangeset(w_\top) \subseteq \rangebag(w'_\top)$, but since the rangebag of $w'_\top$ is a set, this also implies that $\rangeset(w_\top) \subseteq \rangeset(w'_\top)$.
+  If all words in $\words(t)$ are ambiguous, then $\exists t' \in L(T_D).\ t' \neq t \land t' \in \parse(w_\top)$. Lemma~\ref{lemma:same-basic} gives $\basic(w_\bot) = \basic(\botw(t'))$. The definition of $\topw(t')$ (Lemma~\ref{lemma:possible-parentheses}) gives $\rangeset(w_\top) \subseteq \rangebag(\topw(t'))$, but since the rangebag of $\topw(t')$ is a set, this also implies that $\rangeset(w_\top) \subseteq \rangeset(\topw(t'))$.
 \end{proof}
 
 \subsection{A Lattice as a Word, and an Algorithm} \label{sec:lattice-vpl}
@@ -1112,7 +1113,7 @@ We will now walk through the construction of this automaton, using the following
 
 \noindent We first present a simplified construction that assumes no production can match a single non-terminal, i.e., for all right-hand side regular expressions $r$, $\neg \exists N_m.\ N_m \in L(r)$, to make the base idea easier to follow. Such cases introduce duplicated parentheses if handled in a naive way, and the extra book-keeping required to correctly handle them complicate this presentation, and will so be introduced after the more naive method.
 
-Conceptually, each non-terminal represents a choice of which child production should replace it, and whether that production requires parentheses around it. We now make this explicit, to ensure that standard operations on finite automata produce the correct result. We replace each $N_m$ with a sum of the labels of productions in $N$, where each label has a subscript $\top$ or $\bot$ if parentheses are required or possible, respectively. For example, $E_{\{s\}}$ is replaced with $s_\top + v_\bot$.
+Conceptually, each non-terminal represents a choice of which production should replace it, and whether that production requires parentheses around it. We now make this explicit, to ensure that standard operations on finite automata produce the correct result. We replace each $N_m$ with a sum of the labels of productions in $N$, where each label has a subscript $\top$ or $\bot$ if parentheses are required or possible, respectively. For example, $E_{\{s\}}$ is replaced with $s_\top + v_\bot$.
 
 \begin{center}
 \begin{tabular}{@{}l@{\quad$->$\quad}l@{ $:$\quad}l@{}}
@@ -1154,7 +1155,7 @@ Conceptually, each non-terminal represents a choice of which child production sh
   \item an edge $q' \xrightarrow{'\reqpr', -(p, q)} q$ for every final state $q'$ in the DFA corresponding to the production with label $l$.
 \end{itemize}
 
-\noindent Similarly, for every edge $p \xrightarrow{l_\bot} q$, where $l \in \Labels$, we add edges $p \xrightarrow{'\pospl', +(p, q)} p'$ and $q' \xrightarrow{'\pospr', -(p, q)} q$.
+\noindent Similarly, for every edge $p \xrightarrow{l_\bot} q$, where $l \in \Labels$, we add edges $p \xrightarrow{'\pospl', +(p, q)} p'$ and $q' \xrightarrow{'\pospr', -(p, q)} q$. Note the difference: for $l_\top$ we add a required parenthesis ``$\reqpl$'', while $l_\bot$ adds a possible parenthesis ``$\pospl$''.
 
 Intuitively, we parse a child node with parentheses around it, then return. This is where our simplification is used, without it we might introduce double parentheses here.
 
@@ -1176,10 +1177,10 @@ Intuitively, we parse a child node with parentheses around it, then return. This
   \path (1) edge[loop above] node{$'\reqpl', +(1, 2)$} (1)
   (4) edge[bend right, above] node{$'\reqpr', -(1, 2)$} (2);
   \path (1) edge[bend right, left] node{$'\pospl', +(1, 2)$} (5)
-  (6) edge[left, in=270, out=90] node[xshift=-9.8mm,yshift=3mm]{$'\pospr', -(1, 2)$} (2);
+  (6) edge[right] node[xshift=5mm,yshift=-3mm]{$'\pospr', -(1, 2)$} (2);
   \path (3) edge[bend right, above] node[xshift=-1mm]{$'\pospl', +(3, 4)$} (1)
   (4) edge[loop above] node{$'\pospr', -(3, 4)$} (4);
-  \path (3) edge[in=90, out=270, right] node[xshift=9mm,yshift=3mm]{$'\pospl', +(3, 4)$} (5)
+  \path (3) edge[right] node[xshift=5mm,yshift=3mm]{$'\pospl', +(3, 4)$} (5)
   (6) edge[bend right, right] node[xshift=1mm]{$'\pospr', -(3, 4)$} (4);
 
 \end{tikzpicture}
@@ -1208,10 +1209,10 @@ Intuitively, we parse a child node with parentheses around it, then return. This
   \path (1) edge[loop above] node{$'\reqpl', +(1, 2)$} (1)
   (4) edge[bend right, above] node{$'\reqpr', -(1, 2)$} (2);
   \path (1) edge[bend right, left] node{$'\pospl', +(1, 2)$} (5)
-  (6) edge[left, in=270, out=90] node[xshift=-9.8mm,yshift=3mm]{$'\pospr', -(1, 2)$} (2);
+  (6) edge[right] node[xshift=5mm,yshift=-3mm]{$'\pospr', -(1, 2)$} (2);
   \path (3) edge[bend right, above] node[xshift=-1mm]{$'\pospl', +(3, 4)$} (1)
   (4) edge[loop above] node{$'\pospr', -(3, 4)$} (4);
-  \path (3) edge[in=90, out=270, right] node[xshift=9mm,yshift=3mm]{$'\pospl', +(3, 4)$} (5)
+  \path (3) edge[right] node[xshift=5mm,yshift=3mm]{$'\pospl', +(3, 4)$} (5)
   (6) edge[bend right, right] node[xshift=1mm]{$'\pospr', -(3, 4)$} (4);
 
   \path (7) edge[bend left, left] node{$'\pospl', +(7, 8)$} (1)
@@ -1222,98 +1223,133 @@ Intuitively, we parse a child node with parentheses around it, then return. This
 \end{tikzpicture}
 \end{center}
 
-\noindent The resulting pushdown automaton has only two sources of non-determinism: the edges labelled $'\pospl'$ and $'\reqpl'$. Each one corresponds to one of the allowable child productions at that point in the tree, thus there is one run per tree.
+\noindent For example, the linearly encoded lattice $\posp{\posp{e};\posp{e}}$ is recognized by the run
+
+\begin{minipage}{.7\textwidth}
+$$
+\begin{array}{l@{\enspace}l@{\;}r@{\enspace}l@{\;}r@{\enspace}l@{\;}r}
+  (7, \epsilon) &\xrightarrow{\pospl} (1, &(7,8)) &\xrightarrow{\pospl} (5, &(1,2)\cdot(7,8)) &\xrightarrow{e} (6, &(1,2)\cdot(7,8)) \\
+  &\xrightarrow{\pospr} (2, &(7,8)) &\xrightarrow{;} (3, &(7,8)) &\xrightarrow{\pospl} (5, &(3,4)\cdot(7,8)) \\
+  &\xrightarrow{e} (6, &(3,4)\cdot(7,8)) &\xrightarrow{\pospr} (4, &(7, 8)) &\xrightarrow{\pospr} (8, &\epsilon) \\
+\end{array}
+$$
+\end{minipage}
+\begin{minipage}{.3\textwidth}
+\begin{center}
+{
+\newcommand{\terminal}[1]{\ \underline{#1}\ }
+\Tree [.{$s$}
+    [.{$v$} \terminal{e} ]
+    \terminal{;}
+    [.{$v$} \terminal{e} ] ]
+}
+\end{center}
+\end{minipage}
+
+\noindent and corresponds to the tree on the right.
+
+We now illustrate the issue that our previous simplification avoids, and then modify the construction such that the simplification is no longer required. Consider the following language definition:
+
+\begin{center}
+\begin{tabular}{@{}l@{\quad$->$\quad}l@{ $:$\quad}l@{}}
+  \toprule
+  $A$ & $a$ & $B$ \\
+  $B$ & $b$ & $C$ $(\verb|';'| + \epsilon)$ \\
+  $C$ & $c$ & \verb|'e'| \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Following the simplified construction we produce the following automaton:
+
+\begin{center}
+\begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
+    scale = 1,transform shape]
+
+  \node[state,initial] (8) [left of=1, xshift=-1cm] {$8$};
+  \node[state,accepting] (9) [right of=2, xshift=1cm] {$9$};
+
+  \node[state] (1) {$1$};
+  \node[state] (2) [right of=1] {$2$};
+
+  \node[state] (3) [below of=1,yshift=3mm] {$3$};
+  \node[state] (4) [right of=3] {$4$};
+  \node[state] (5) [right of=4] {$5$};
+
+  \node[state] (6) [below of=3,yshift=3mm] {$6$};
+  \node[state] (7) [right of=6] {$7$};
+
+  \path (4) edge[below] node {$';'$} (5);
+  \path (6) edge[below] node {$'e'$} (7);
+
+  \path (1) edge[left] node {$'\pospl', +(1,2)$} (3)
+  (4) edge node {$'\pospr', -(1,2)$} (2)
+  (5) edge[right] node {$'\pospr', -(1,2)$} (2);
+  \path (3) edge[left] node {$'\pospl', +(3, 4)$} (6)
+  (7) edge[left] node {$'\pospr', -(3, 4)$} (4);
+
+  \path (8) edge node {$'\pospl', +(8, 9)$} (1)
+  (2) edge node {$'\pospr', -(8, 9)$} (9);
+
+\end{tikzpicture}
+\end{center}
+
+\noindent Unfortunately, this automaton recognizes the word $(((e)))$, which is not the unique linear encoding we require; it should be $(e)$.
+
+\begin{center}
+\begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
+    scale = 1,transform shape]
+
+  \node[state,initial] (8) [left of=1, xshift=-1cm] {$8$};
+  \node[state,accepting] (9) [right of=2, xshift=1cm] {$9$};
+
+  \node[state] (1) {$1$};
+
+  \node[state] (3) [below of=1,yshift=3mm] {$3$};
+  \node[state] (4) [right of=3] {$4$};
+  \node[state] (5) [right of=4] {$5$};
+
+  \node[state] (6) [below of=3,yshift=3mm] {$6$};
+  \node[state] (7) [right of=6] {$7$};
+
+  \path (4) edge[below] node {$';'$} (5);
+  \path (6) edge[below] node {$'e'$} (7);
+
+  \path (3) edge[left] node {$'\pospl', +(3, 4, \epsilon)$} (6)
+  (7) edge[left] node {$'\pospr', -(3, 4, \epsilon)$} (4);
+
+  \path (8) edge node {$'\pospl', +(8, 9, \epsilon)$} (1)
+  (8) edge[right] node[xshift=1mm,yshift=1mm] {$'\pospl', +(8, 9, a)$} (3)
+  (5) edge[left] node {$'\pospr', -(8,9,a)$} (9)
+  (8) edge[left,out=270,in=180] node {$'\pospl', +(8, 9, ab)$} (6)
+  (7) edge[right,out=0,in=270] node {$'\pospr', -(8, 9, ab)$} (9);
+
+\end{tikzpicture}
+\end{center}
 
 UNFINISHED
 
-%% TODO: Continue here. Also figure out how to handle (E + E_m).
+%%%%%%%%%%%%%%%%%%%%%%%%
+% FORMAL STUFF BARRIER %
+%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% We now have a pushdown automaton (call it $A_{()}$) that recognizes the top word for each tree in $L(G_t)$. Next we need to be able to add arbitrary parentheses, to produce a word with a rangeset superset. To do this we create a copy of $A_{()}$ with one modification: for every state $s$ in $A_{()}$ (except the initial and final states), add two transitions $s \xrightarrow{'(', +p} s$ and $s \xrightarrow{')', -p} s$. To avoid cluttering the graph too much, these transitions are shown unlabeled below:
+Given a language definition $D$, with terminals $\T$, non-terminals $\NT$, labels $\Labels$, and starting non-terminal $S$. We use $\labelnt(l)$ and $\labelregex(l)$ as the non-terminal and regex, respectively, of the production labelled $l$. We define the set $T : \Labels \times \Labels \times \{\top, \bot\} \times \Labels^{*}$ of transitions between productions inductively through:
 
-%% \begin{center}
-%% \begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
-%%     scale = 1,transform shape]
+\begin{itemize}
+\item $(l, l, \bot, \epsilon) \in T$ for all $l \in \Labels$.
+\item $(l, l', l' \in m, l) \in T$ for all $N_m \in L(\labelregex(l))$ where $\labelnt(l') = N$.
+\item $(l_1, l_3, r_1 \lor r_2, w_1 \cdot w_2) \in T$ for all $(l_1, l_2, r_1, w_1), (l_2, l_3, r_2, w_2) \in T$.
+\end{itemize}
 
-%%   \node[state] (1) {$1$};
-%%   \node[state] (2) [right of=1] {$2$};
-%%   \node[state] (3) [right of=2] {$3$};
-%%   \node[state] (4) [below of=1, xshift=1cm] {$4$};
-%%   \node[state] (5) [right of=4] {$5$};
-%%   \node[state,initial] (s) [left of=4] {};
-%%   \node[state,accepting] (e) [right of=5] {};
+\noindent The third component of each element denotes whether that transition introduces a required pair of parentheses ($\top$) or a possible pair ($\bot$). $T$ is finite if $D$ has no cycles $N =>^{+} N$\footnote{This is notation from CFGs, which is semi-obvious what it means, but technically not defined here.}. Such a cycle is easy to detect (depth-first search), and means that any tree that contains a production from the non-terminal $N$ only ever produces infinitely ambiguous words, i.e., all words for such a tree are unresolvably ambiguous.
 
-%%   \draw
-%%   (1) edge[loop, in=80, out=100, looseness=7] node{} (1)
-%%   (1) edge[loop, in=70, out=110, looseness=6] node{} (1)
-%%   (2) edge[loop, in=80, out=100, looseness=7] node{} (2)
-%%   (2) edge[loop, in=70, out=110, looseness=6] node{} (2)
-%%   (3) edge[loop, in=-10, out=10, looseness=7] node{} (3)
-%%   (3) edge[loop, in=-20, out=20, looseness=6] node{} (3)
-%%   (4) edge[loop, in=-80, out=-100, looseness=7] node{} (4)
-%%   (4) edge[loop, in=-70, out=-110, looseness=6] node{} (4)
-%%   (5) edge[loop, in=-80, out=-100, looseness=7] node{} (5)
-%%   (5) edge[loop, in=-70, out=-110, looseness=6] node{} (5)
-%%   (s) edge[left] node{$'(', +s$} (1)
-%%   (s) edge[above] node{$'(', +s$} (4)
-%%   (3) edge[right] node{$')', -s$} (e)
-%%   (5) edge[above] node{$')', -s$} (e)
-%%   (1) edge[above] node{$s$} (2)
-%%   (4) edge[above] node{$z$} (5)
-%%   (2) edge[bend left, below] node{$'(', +(2, 3)$} (1)
-%%   (2) edge[bend left, left] node{$'(', +(2, 3)$} (4)
-%%   (3) edge[loop above] node{$')', -(2, 3)$} (3)
-%%   (5) edge[left, bend right] node{$')', -(2, 3)$} (3);
-
-%% \end{tikzpicture}
-%% \end{center}
-
-%% \noindent We will call this automaton $A'_{()}$. Successful runs in this automaton have a surjection to runs in $A_($ (ignore transitions along the newly added edges), and thus also have a surjection to parse trees in $L(G_t)$. We can also note that every sucessful run in $A_{()}$ is also a successful run in $A'_{()}$, since the latter has all states and transitions of the former. Furthermore, two distinct runs, one in $A_{()}$ (call it $p$) and one in $A'_{()}$ (call it $p'$), that both recognize the same word must represent different parse trees in $L(G_t)$. To see why, we consider two cases:
-
-%% \begin{enumerate}
-%%   \item $p'$ only uses transitions present in $A_{()}$. This is a successful run in $A_{()}$, and distinct from $p$. But there is a bijection between runs in $A_{()}$ and parse trees in $L(T)$, thus $p'$ represents a different parse tree.
-%%   \item $p'$ uses at least one transition added in $A'_{()}$. Using the surjection between runs in $A'_{()}$ and $A_{()}$ we find a new successful run that produces a different word (at least one fewer pair of parentheses). Since this run produces a different word, it must be distinct from $p$, and thus represent a different parse tree.
-%% \end{enumerate}
-
-%% \noindent Two distinct successful runs that accept the same word thus represent two trees where one permits a superset rangeset of the other. To find such runs we construct a product automaton and trim it. We can construct a product automaton since both $A_{()}$ and $A'_{()}$ are visibly pushdown, with the same partition of the input alphabet (push on open parenthesis, pop on close parenthesis, do nothing otherwise). We can trim the product since it retains the same partitioning and thus is also visibly pushdown.
-
-%% In this product automaton, if any transition pushes a stack symbol $(a, b)$ where $a \neq b$, or transitions to a state $(p, q)$ where $p \neq q$, then there is a successful run that corresponds to two distinct runs through $A_{()}$ and $A'_{()}$ (since the automaton is trim).
-
-\begin{theorem}
-  There is a bijection between successful runs in $A_{\posp{}}$ and trees $t \in L(T_D)$.
-\end{theorem}
-
-\begin{proof}
-  (These are two attempts at showing the same thing, next attempt starts at ``Proof sketch''. I would strongly suggest reading ``Formal stuff'' first.)
-  $A_{\posp{}}$ has a single initial state, and a single final state, call them $s$ and $f$ respectively. The two are distinct, and $f$ is reachable only through transitions that pop a stack symbol with $s$ and $f$ as the two first components. Transitions that push such symbols originate in $s$, and no other transitions originate in $s$. Thus all successful runs start in configuration $(s, \epsilon)$ and end in $(f, \epsilon)$, whereby every pushing transition in the run can be paired with a corresponding popping transition. We will now construct a tree $t \in L(T_D)$ in a bottom-up fashion.
-
-  Select a subsequence of the run $R = (s, \epsilon) \; R_1 \; (p, s) \xrightarrow{a, +(p, q, w)} (p', (p, q, w) \cdot s) \; R_2 \; (q', (p, q, w) \cdot s \xrightarrow{b, -(p, q, w)} (q, s) \; R_2 \; (f, \epsilon)$ such that $R_2$ contains no pushing or popping operations. The only transitions that leave the stack unchanged in $A_{\posp{}}$ come from DFAs generated from productions in $D$. There is no way to transition between two such DFAs without using a pushing or popping transition, thus $R_2$ must be a successful run in the DFA for some labelled production $N -> l : r$ in $D$. $T_D$ must contain a corresponding production $N -> l(r)$. Now consider the sequence of input symbols $w'$ along the transitions in $R_2$. We have $w' \in L(r)$, since $R_2$ is a successful run in a DFA constructed from $r$. Thus $l(w') \in L_N(T_D)$. Now add parent nodes to this subtree for every label in $w$, e.g., if $w = l_1 \cdot l_2 \cdot l_3$ construct $l_1(l_2(l_3(l(w'))))$. We can then replace the subsequence of $R$ with this subtree, and then repeat the process until we have a tree with root $l'$, where $D$ has a labelled production $S -> l': r'$ for some $r'$ and the starting symbol $S$.
-
-  To construct a successful run from a tree $t \in L(T_D)$ we can traverse the tree in a preorder, while at the same time constructing a run in $A_{\posp{}}$ starting from $(s, \epsilon)$. If the next terminal is in $\T$, i.e., a strictly zero-arity terminal, we take a transition originating in a DFA, which must be unique. If the next terminal is in $\Labels$, i.e., an unranked terminal, we take one of the added edges. However, this choice of edge might not be unique: there may be multiple edges from the current state to an appropriate DFA initial state. These stem from the original DFA having two transitions from the same state with the same label but different subscripts, e.g., $p \xrightarrow{l_\bot} q$ and $p \xrightarrow{l_\top} q'$. However, if both of these transitions were valid choices for the current tree that would imply that the DFA for that level can recognize two distinct words that differ only in subscripts. But distinctly subscripted terminals must originate from distinct occurances of marked non-terminals (since a $\top$ subscript corresponds to a mark, and a $\bot$ subscript corresponds to the absence of a mark), which would imply that the original regular expression is ambiguous if the marks are removed, which we explicitly ruled out in Section~\ref{sec:parse-time-disambiguation}.
-
-  Proof sketch: to go from a successful run to a tree $t \in L(T_D)$: by construction, all successful runs must begin and end with an empty stack. Every pushing transition can thus be paired with a popping transition in the run. We can construct a tree in a bottom-up fashion by replacing every such pair with a tree $l_1(l_2(\ldots l_n(x)\ldots))$, where $x$ is the sequence of terminals and/or trees between the pair, the terminals $l_1, l_2, \ldots, l_{n-1}$ stem from the third component of the pushed stack symbol ($l_1 \cdots l_{n-1}$), and $l_n$ is the label of the production whose DFA the pushing transition ends in.
-
-  For the inverse direction we construct a run by traversing the tree in a preorder\footnote{Where we also keep track of when we ``go back up'' the tree.}. Terminals in $\T$ cause transitions internally in a DFA, while terminals in $\Labels$ cause a pushing transition (and later a corresponding, unique popping transition) to the initial state of the DFA corresponding to the production with that label. Note that a sequence of terminals in $\Labels$ that have only a single child (which is also in $\Labels$) cause only one transition, all terminals but the last end up in the third component of the pushed stack symbol. The choice of pushing transition is \emph{not} unique however; there may be multiple available transitions that differ in the recognized input symbol and the second component of the pushed stack symbol, neither of which are necessarily determined by the shape of the tree. This non-determinism does not introduce multiple successful runs however, since two such runs would imply the existence of two distinct runs through the DFA corresponding to some labelled production that recognize the same word, except with different subscripts. But two otherwise equal terminals with different subscripts must originate from different occurrences of marked non-terminals in the original regular expression (since a $\top$ subscript represents a mark, and a $\bot$ subscript represents the absence of a mark), thus that regular expression must be ambiguous after all marks are removed. But Section~\ref{sec:parse-time-disambiguation} explicitly ruled this out, thus only one of the pushing transitions can be a valid choice.
-
-% TODO: technically, we should perhaps mention that these two constructions are inverses of each other, but that's relatively easy to see once you understand them.
-\end{proof}
-
-\subsubsection{Formal Stuff}
-
-Given a language definition $D$, with terminals $\T$, labels $\Labels$, and starting non-terminal $S$. Construct two functions $\dfa : \Labels -> \mathit{DFA}(\T \cup (\Labels \times \{\top, \bot\})$ and $\passthrough : \Labels -> 2^{\Labels \times \Labels \times \{\top, \bot\} \times \Labels^{*}}$:
+We define the translation from production to DFA through a function $\dfa$ from a label to a DFA with the alphabet $\T \cup (\Labels \times \{\top, \bot\})$:
 
 \begin{description}
-\item[$\dfa(l)$:] Given the production $N -> l : r$, compute the regular language $L' := L(r) \setminus \{N'_m \mid N' \in \NT, m \subseteq \Labels\}$. Then replace every marked non-terminal $N'_m$ with the regular expression $l_{1l_1 \in m} + l_{2l_2 \in m} + \ldots + l_{nl_n \in m}$, where $l_i$ are all the labels of productions $N' -> l_i : r_i$, e.g., $E_{\{a\}}$ in the running example would be replaced by $l_\bot + a_\top + m_\bot + n_\bot$. Then construct a DFA for this language.
-
-\item[$\passthrough(l)$:] Given a production $N -> l : r$, this is the set $\{(l, l, \bot, \epsilon)\} \cup \{(l, l', l' \in m, l) \mid \nt(l') = N', N'_m \in L(r)\}$.
+\item[$\dfa(l)$:] Compute the regular language $L' := L(\labelregex(l)) \setminus \{N'_m \mid N' \in \NT, m \subseteq \Labels\}$. Then replace every marked non-terminal $N_m$ with the regular expression $(l_1, l_1 \in m) + (l_2, l_2 \in m) + \ldots + (l_n, l_n \in m)$, where $l_i$ are all the labels of productions $N -> l_i : r_i$. For example, $E_{\{a\}}$ in the running example would be replaced by $(l, \bot) + (a, \top) + (m, \bot) + (n, \bot)$. Then construct a DFA for this language.
 \end{description}
 
-\noindent Compute the set $P$ as the closure of $\bigcup_l \passthrough(l)$ using the following operation:
-
-$$ (l_1, l_2, r_1, w_1) \cdot (l_2, l_3, r_2, w_2) = (l_1, l_3, r_1 \lor r_2, w_1 \cdot w_2) $$
-
-\noindent $P$ is finite if $D$ has no cycles $N =>^{+} N$\footnote{This is notation from CFGs, which is semi-obvious what it means, but technically not defined here.}. Such a cycle is easy to detect (depth-first search), and means that any tree that contains a production from the non-terminal $N$ only ever produces infinitely ambiguous words, i.e., all words for such a tree are unresolvably ambiguous.
-
-Given $\dfa(l) = (Q_l, \T \cup (\Labels \times \{\top, \bot\}), \delta_l, s_l, F_l)$ for all $l \in Labels$, and $\nt(l) = N$ iff $(N -> l : r) \in D$, construct a VPDA $A_{\posp{}} = (Q, \T', \Gamma, \delta, s, \{f\})$ where:
+\noindent We now define the visibly pushdown automaton $A_{\posp{}}$. Given $\dfa(l) = (Q_l, \T \cup (\Labels \times \{\top, \bot\}), \delta_l, s_l, F_l)$ for all $l \in Labels$, $A_{\posp{}} = (Q, \T', \Gamma, \delta, s, \{f\})$ where:
 
 \begin{itemize}
 \item $s$ and $f$ are two new distinct states.
@@ -1340,11 +1376,11 @@ Given $\dfa(l) = (Q_l, \T \cup (\Labels \times \{\top, \bot\}), \delta_l, s_l, F
 
     \delta(s, \text{``}\reqpl\text{''}, \lambda)
     & \{ (s_{l_2}, (s, f, w))
-    & \nt(l_1) = S, (l_1, l_2, \top, w) \in P \} \\
+    & \labelnt(l_1) = S, (l_1, l_2, \top, w) \in P \} \\
 
     \delta(s, \text{``}\pospl\text{''}, \lambda)
     & \{ (s_{l_2}, (s, f, w))
-    & \nt(l_1) = S, (l_1, l_2, \bot, w) \in P \} \\
+    & \labelnt(l_1) = S, (l_1, l_2, \bot, w) \in P \} \\
 
     \delta(f_{l_2}, \text{``}\reqpr\text{''}, (s, f, w))
     & \{ (f, \lambda)
@@ -1372,25 +1408,54 @@ Given $\dfa(l) = (Q_l, \T \cup (\Labels \times \{\top, \bot\}), \delta_l, s_l, F
   $$
 \end{itemize}
 
-\noindent To find two distinct successful runs, one in each automaton, that recognize the same word we construct the product automaton $A_{\posp{}} \times A'_{\posp{}} = (Q \times Q, \T', \Gamma \times (\Gamma \cup \{\gamma\}), \delta_{\times}, (s, s), \{(f, f)\})$, where $\delta_{\times}$ is given in Section~\ref{sec:preliminaries-vpls} (using the partitions $\T_c = \{ \reqpl, \pospl \}$, $\T_i = \T$, and $\T_r = \{\reqpr\}$). If the product automaton has a successful run that passes through at least one configuration $((p, p'), (g, g')\cdot w)$ such that $p \neq p' \lor g \neq g'$, then that run corresponds to two distinct runs in $A_{\posp{}}$ and $A'_{\posp{}}$. We check for the existence of such a run by trimming the product automaton and looking for a transition that pushes $(g, g')$ where $g \neq g'$, or transitions to $(q, q')$ where $q \neq q'$.
+\noindent To find two distinct successful runs, one in each automaton, that recognize the same word we construct the product automaton $A_{\posp{}} \times A'_{\posp{}} = (Q \times Q, \T', \Gamma \times (\Gamma \cup \{\gamma\}), \delta_{\times}, (s, s), \{(f, f)\})$, where $\delta_{\times}$ is given in Section~\ref{sec:preliminaries-vpls} (using the partitions $\T_c = \{ \reqpl, \pospl \}$, $\T_i = \T$, and $\T_r = \{\reqpr\}$). If the product automaton has a successful run that passes through at least one configuration $((p, p'), (g, g')\cdot w)$ such that $p \neq p' \lor g \neq g'$ (distinct states, or distinct stack symbols, respectively), then that run corresponds to two distinct runs in $A_{\posp{}}$ and $A'_{\posp{}}$. We check for the existence of such a run by trimming the product automaton and looking for a transition that pushes $(g, g')$ where $g \neq g'$, or transitions to $(q, q')$ where $q \neq q'$.
 
 Performing this procedure directly on a language definition $D$ gives a sound decision procedure where the presence of two distinct runs implies unresolvably ambiguous. If we instead do it on a modified $D$ with no marks on the right hand side of any production (i.e., all non-terminals have the form $N_\emptyset$) we get a sound decision procedure where the absence of two distinct runs implies resolvably ambiguous.
 
 There are thus cases where we can answer resolvably ambiguous or unresolvably ambiguous with certainty, and cases where we cannot answer either way with certainty.
 
+\begin{lemma}
+  There is a bijection between successful runs in $A_{\posp{}}$ and trees $t \in L(T_D)$.
+\end{lemma}
+
+\begin{proof}
+  (These are two attempts at showing the same thing, next attempt starts at ``Proof sketch''. I would strongly suggest reading ``Formal stuff'' first.)
+  $A_{\posp{}}$ has a single initial state, and a single final state, call them $s$ and $f$ respectively. The two are distinct, and $f$ is reachable only through transitions that pop a stack symbol with $s$ and $f$ as the two first components. Transitions that push such symbols originate in $s$, and no other transitions originate in $s$. Thus all successful runs start in configuration $(s, \epsilon)$ and end in $(f, \epsilon)$, whereby every pushing transition in the run can be paired with a corresponding popping transition. We will now construct a tree $t \in L(T_D)$ in a bottom-up fashion.
+
+  Select a subsequence of the run $R = (s, \epsilon) \; R_1 \; (p, s) \xrightarrow{a, +(p, q, w)} (p', (p, q, w) \cdot s) \; R_2 \; (q', (p, q, w) \cdot s \xrightarrow{b, -(p, q, w)} (q, s) \; R_2 \; (f, \epsilon)$ such that $R_2$ contains no pushing or popping operations. The only transitions that leave the stack unchanged in $A_{\posp{}}$ come from DFAs generated from productions in $D$. There is no way to transition between two such DFAs without using a pushing or popping transition, thus $R_2$ must be a successful run in the DFA for some labelled production $N -> l : r$ in $D$. $T_D$ must contain a corresponding production $N -> l(r)$. Now consider the sequence of input symbols $w'$ along the transitions in $R_2$. We have $w' \in L(r)$, since $R_2$ is a successful run in a DFA constructed from $r$. Thus $l(w') \in L_N(T_D)$. Now add parent nodes to this subtree for every label in $w$, e.g., if $w = l_1 \cdot l_2 \cdot l_3$ construct $l_1(l_2(l_3(l(w'))))$. We can then replace the subsequence of $R$ with this subtree, and then repeat the process until we have a tree with root $l'$, where $D$ has a labelled production $S -> l': r'$ for some $r'$ and the starting symbol $S$.
+
+  To construct a successful run from a tree $t \in L(T_D)$ we can traverse the tree in a preorder, while at the same time constructing a run in $A_{\posp{}}$ starting from $(s, \epsilon)$. If the next terminal is in $\T$, i.e., a strictly zero-arity terminal, we take a transition originating in a DFA, which must be unique. If the next terminal is in $\Labels$, i.e., an unranked terminal, we take one of the added edges. However, this choice of edge might not be unique: there may be multiple edges from the current state to an appropriate DFA initial state. These stem from the original DFA having two transitions from the same state with the same label but different subscripts, e.g., $p \xrightarrow{l_\bot} q$ and $p \xrightarrow{l_\top} q'$. However, if both of these transitions were valid choices for the current tree that would imply that the DFA for that level can recognize two distinct words that differ only in subscripts. But distinctly subscripted terminals must originate from distinct occurances of marked non-terminals (since a $\top$ subscript corresponds to a mark, and a $\bot$ subscript corresponds to the absence of a mark), which would imply that the original regular expression is ambiguous if the marks are removed, which we explicitly ruled out in Section~\ref{sec:parse-time-disambiguation}.
+
+% TODO: technically, we should perhaps mention that these two constructions are inverses of each other, but that's relatively easy to see once you understand them.
+\end{proof}
+
+\begin{lemma}
+  The word recognized by a successful run in $A_{\posp{}}$ is the unique linear encoding of the lattice for the corresponding $t \in L(T_D)$.
+\end{lemma}
+
+\begin{lemma}
+  For every successful run $R'$ in $A'_{\posp{}}$ there is one (or more) successful runs $R$ in $A_{\posp{}}$ such that the lattice encoded in the word recognized by $R'$ is larger than the lattice for the tree corresponding to $R$.
+\end{lemma}
+
+\begin{theorem}
+  The existence of two distinct runs $R$ and $R'$, where $R$ is a successful run in $A_{\posp{}}$ and $R'$ in $A'_{\posp{}}$, implies the existence of two distinct trees such that the lattice of one is entirely contained in the other.
+\end{theorem}
+
 \section{Dynamic Resolvability Analysis} \label{sec:dynamic}
 
 The dynamic resolvability problem is as follows: for a given $w' \in L(G'_D)$ determine whether $\forall t \in \parse(w').\ \exists w'_2.\ \parse(w'_2) = \{t\}$. Furthermore, for practical reasons, if the word is resolvably ambiguous we wish to produce a (minimal) witness for each tree. Additionally, while Section~\ref{sec:static} requires a language definition $D$ to not contain parentheses, this section merely requires parentheses to be balanced.
 
-Our approach centers around around $\words(t)$, which, being a set of words, can be considered a language in the classical sense. Each such language turns out to be a visibly pushdown language. Given a set of trees in $L(T_D)$ we can construct a corresponding set of non-overlapping visibly pushdown automata (i.e., each automaton only accepts words not accepted by any other automaton) since VPLs are closed under complement and intersection \cite{alurVisiblyPushdownLanguages2004}. These automata can then be examined to determine if they accept the empty language (which implies that the corresponding tree only has ambiguous words), or otherwise produce a witness, a word accepted only by that automaton.
+Our approach centers around around $\words(t)$, which, being a set of words, can be considered a language in the classical sense. Each such language turns out to be a visibly pushdown language. VPLs are closed under difference, which enables us to create a visibly pushdown automaton for the language $\words(t_1) \setminus \words(t_2)$ for any pair of trees $t_1, t_2 \in L(T_D)$. This is useful, since $\words(t_1)$ is the set of possible resolutions for $t_1$ in an ambiguity, and $\words(t_1) \cap \words(t_2)$ is the set of ambiguous words that can parse as both $t_1$ and $t_2$, i.e., words that \emph{cannot} resolve an ambiguity.
+
+Intuitively we then need to, for each tree $t \in \parse(w)$, determine if $\words(t) \setminus \bigcup_{t' \in L(T_D) \land t' \neq t} \words(t)$ is the empty set. Unfortunately, $L(T_D)$ tends to be infinite. However, for any particular $t$, most trees $t' \in L(T_D)$ are irrelevant: their words do not overlap at all; $\words(t) \cap \words(t') = \emptyset$. Hence we construct a (finite) subset of $L(T_D)$ such that all other trees are irrelevant. As a bonus, this approach constructs a VPDA per tree that recognizes valid resolutions for that tree; a minimal witness is thus a shortest word recognized by a VPDA, and the problem of finding such a word is a known one.
 
 For this section, we assume the presence of a single language definition $D$ with terminals in $\T$, labels in $\Labels$, and non-terminals in $\NT$.
 
-\begin{theorem}
+\begin{lemma}
   Given a $t \in L(T_D)$, we can construct a visibly pushdown automaton that accepts exactly $\words(t)$.
-\end{theorem}
+\end{lemma}
 
-\noindent We construct this automaton in a bottom-up fashion. A sequence of terminals in $\T$ is easily recognized by a sequence of transitions that do not interact with the stack. Each subtree allows surrounding grouping parentheses, which can be represented by transitions that push and pop stack symbols (one unique stack symbol per subtree), to ensure that they are balanced. With that, there are two remaining complications: a subtree $l(w)$ recognized from a marked non-terminal $N_m$ where $l \in m$ must have one or more surrounding parentheses instead of zero or more, and we must maintain the visibly pushdown property, i.e., all transitions labelled ``$($'' or ``$)$'' must push or pop stack symbols, respectively. The former can be solved by either tracking the subtree's origin when parsing, or reparsing with the right hand side regular expression, while the latter is solved by introducing a new stack symbol $\gamma$ that is pushed and popped by all non-grouping parenthesis terminals. Writing the transition function $\delta : Q \times \T \times (\Gamma \cup \{\lambda\}) -> 2^{Q \times (\Gamma \cup \{\lambda\})}$ as a subset of $Q \times \T \times (\Gamma \cup \{\lambda\}) \times Q \times (\Gamma \cup \{\lambda\})$, and using $\sqcup$ for disjoint union:
+\noindent We construct this automaton in a bottom-up fashion. A sequence of terminals in $\T$ is easily recognized by a sequence of transitions that do not interact with the stack. Each subtree allows surrounding grouping parentheses, which can be represented by transitions that push and pop stack symbols (one unique stack symbol per subtree), to ensure that they are balanced. With that, there are two remaining complications: a subtree $l(w)$ recognized from a marked non-terminal $N_m$ where $l \in m$ must have one or more surrounding parentheses instead of zero or more, and we must maintain the visibly pushdown property, i.e., all transitions labelled ``$($'' or ``$)$'' must push or pop stack symbols, respectively. The former can be solved by either tracking the subtree's origin when parsing, or reparsing with the right hand side regular expression, while the latter is solved by introducing a new stack symbol $\gamma$ that is pushed and popped by all non-grouping parenthesis terminals. We now present the function $f : L(T_D) -> VPDA$ that performs this construction. Writing the transition function $\delta : Q \times \T \times (\Gamma \cup \{\lambda\}) -> 2^{Q \times (\Gamma \cup \{\lambda\})}$ as a subset of $Q \times \T \times (\Gamma \cup \{\lambda\}) \times Q \times (\Gamma \cup \{\lambda\})$, and using $\sqcup$ for disjoint union:
 
 $$
 \begin{array}{r@{\;}l}
@@ -1422,6 +1487,10 @@ $$
   & \hphantom{\text{ where }} \delta_2 = \{(s, \text{``}(\text{''}, \lambda, s, g), (f, \text{``})\text{''}, g, f, \lambda)\} \\
 \end{array}
 $$
+
+\begin{lemma}
+  Given a finite set $\{t_1, t_2, \ldots, t_n\} \subseteq L(T_D)$ we can construct a set of VPDAs $\{A_1, A_2, \ldots, A_n\}$ such that $\forall i.\ L(A_i) \setminus \bigcup_{i \neq i'} \words(t_{i'})$.
+\end{lemma}
 
 UNFINISHED
 
