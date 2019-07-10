@@ -1432,27 +1432,37 @@ UNFINISHED
 We have implemented a tool and a small DSL for syntax definition
 that generates a language definition in the style of
 Section~\ref{sec:parse-time-disambiguation}, which the tool then
-uses to construct a parser and do a dynamic resolvability
-analysis. The tool is implemented in Haskell and uses an
-off-the-shelf
+uses to construct a parser and do dynamic resolvability analysis.
+The tool is implemented in Haskell and uses an off-the-shelf
 implementation\footnote{\url{http://hackage.haskell.org/package/Earley}}
 of the Earley parsing algorithm
 \cite{earleyEfficientContextfreeParsing1970}. The purpose of these
 case studies is to showcase possible use cases of resolvable
-ambiguity in the context of a pre-existing general purpose
-programming language (OCaml, Section~\ref{sec:evaluation-ocaml}),
-a pre-existing DSL (Orc, Section~\ref{sec:evaluation-orc}), and a
-new DSL that is under development (Cyphym, Section~\ref{sec:evaluation-cyphym}).
+ambiguity in the context of composing separately defined DSLs (a
+subset of Orc, Section~\ref{sec:evaluation-orc}), and of defining
+a pre-existing general purpose programming language (OCaml,
+Section~\ref{sec:evaluation-ocaml}.
 
-The syntax definition DSL builds on the the ``syncons''
-introduced by
+The syntax definition DSL builds on the ``syncons'' introduced by
 \citet{palmkvistCreatingDomainSpecificLanguages2019}, wherein each
 production is defined separately from each other (one
-\syncon{syncon} each), and marks are primarily introduced through
-precedence lists. For example, the running example used in
+\syncon{syncon} each).
+%
+The main difference between the DSL and the formalism in
+Section~\ref{sec:parse-time-disambiguation} is that marks are
+introduced as separate \syncon{forbid} declarations rather than
+inline in productions. This allows supporting high-level
+convenience constructs, e.g., specifying precedence between
+previously defined operators instead of manually inserting marks,
+but is also important for composability as ambiguities can be
+statically resolved without changing the original definitions.
+Other convenience constructs include defining prefix, infix and
+postfix operators with a given associativity.
+
+The running example used in
 Section~\ref{sec:parse-time-disambiguation}
 (Fig.~\ref{fig:running-example-definition} on
-page~\pageref{fig:running-example-definition}) can be written as
+page~\pageref{fig:running-example-definition}) can be defined as
 follows:
 
 \begin{tabular}{ll}
@@ -1467,64 +1477,38 @@ precedence {
 &
 \begin{lstlisting}[language=syncon,boxpos=t]
 token Integer = "[0-9]+"
+syncon literal: Exp = n:Integer
 syncon list: Exp =
-  "[" (head:Exp (";" tail:Exp))? "]"
+  "[" (head:Exp (";" tail:Exp)*)? "]"
 infix add: Exp = "+"
 infix mul: Exp = "*"
-syncon literal: Exp = n:Integer
 \end{lstlisting}
 \end{tabular}\smallskip
 
-\noindent The design of the DSL diverges from the formalism in
-Section~\ref{sec:parse-time-disambiguation} partially for
-familiarity (precedence instead of marks), but also for
-composability reasons: the DSL allows marks to be introduced
-without altering the original definition of a syncon. If marks are
-needed in non-precedence related situations, e.g., adding
-sequential composition to the running example, they can be
-introduced with ``forbids'':
+\noindent Here, we define a syntax type \syncon{Exp} for
+expressions, and declare that parentheses can be used to group
+expressions. We define a lexical token for integers, and a
+\syncon{syncon} for integer literals using this token. A list is
+defined as a sequence of zero or more expressions separated by
+semi-colons wrapped in square braces. Finally, addition and
+multiplication is defined as infix syncons with the expected
+precedence rules. Note that we could just as well have replaced
+the precedence list with explicit \syncon{forbid} declarations,
+``\syncon{forbid mul.left = add}'' and ``\syncon{forbid mul.right
+  = add}'' (cf. the mark $\{a\}$ in the production of $m$ in
+Fig.~\ref{fig:running-example-definition}).
 
-\begin{lstlisting}[language=syncon]
-infix seqComp: Exp = ";"
-forbid list.head = seqComp
-forbid list.tail = seqComp
-\end{lstlisting}
+% If marks are needed in non-precedence related
+% situations, e.g., adding sequential composition to the running
+% example, they can be introduced with ``forbids'':
 
-\subsection{OCaml} \label{sec:evaluation-ocaml}
+% \begin{lstlisting}[language=syncon]
+% infix seqComp: Exp = ";"
+% forbid list.head = seqComp
+% forbid list.tail = seqComp
+% \end{lstlisting}
 
-The syncon definition of the OCaml language includes most syntax described in chapters 7 and 8 in the OCaml reference manual (the base language and extensions, respectively) and is sufficient to parse roughly 75\% (1012 out of 1334 files) of the \verb|.ml| files present in the OCaml compiler itself. The definition is just under 700 lines, excluding comments and empty lines (just over 1000 lines otherwise). It has been written to be as close to the grammar presented in the reference manual as possible, but with additions to conform to how the canonical compiler behaves on cases that are underspecified in the manual.
-
-The failing cases stem from three different causes:
-
-\begin{itemize}
-\item As of yet unspecified syntax. Due to a lack of time there are still parts of the language that we have not yet implemented. These appear solvable, but we can of course not be sure until we do.
-\item Our system does not support specifying ``longest match'' on a production, which is required to handle the pattern matching constructs correctly. We can handle some of these cases with marks, but not all.
-\item Different definitions of precedence. Our translation from precedence to marks is shallow, it only considers direct children, but OCaml has deep precedence. For example, addition binds stronger than \ocaml{if} (which syntactically functions as a prefix operator in OCaml), thus
-  \begin{lstlisting}[language={[objective]caml}]
-  1 + let x = 1 in x + 2
-  \end{lstlisting}
-  should be parsed as
-  \begin{lstlisting}[language={[objective]caml}]
-  1 + (let x = 1 in (x + 2))
-  \end{lstlisting}
-  while our tool presents the following ambiguity error message:
-  \begin{lstlisting}[language={[objective]caml}]
-Ambiguity error with 2 alternatives:
-
-  1 + ( let x = 1 in x ) + 2
-  1 + let x = 1 in ( x + 2 )
-  \end{lstlisting}
-  The former alternative is perhaps more easily understood as
-  \begin{lstlisting}[language={[objective]caml}]
-  (1 + (let x = 1 in x)) + 2
-  \end{lstlisting}
-  Looking at this tree, two levels at a time, we see ``\ocaml{(_ + _) + 2}'', ``\ocaml{1 + let _ in _}'', and ``\ocaml{let x = 1 in x}'', all of which are individually precedence correct.
-\end{itemize}
-
-The various definitions in the syncon OCaml definition are organized by the chapter in the reference manual that introduces them, plus an appendix with additions and changes required to mimic the behavior of the canonical compiler. Many of these are strict additions, requiring no changes to previous syncons, but not all. For example, OCaml allows placing ``attributes'' on most syntactical constructs in the language, extra information visible to tools but otherwise without semantic meaning. These can be written with an ``infix'' notation right after the keyword that introduces the syntactical construct, e.g., \ocaml{let[@foo] x = 1 in x}. This syntax is not fully specified; the manual merely contains seven examples, while the testsuite uses this syntax in roughly 50 different constructs. All these cases require changes to the original syncon definitions, making them slightly more complicated than the manual suggests them to be upon their introduction.
-
-\subsection{Orc} \label{sec:evaluation-orc}
-%TODO Title should be descriptive
+\subsection{Composing Language Definitions} \label{sec:evaluation-orc}
 
 In this section, we consider the use case of defining a language
 and composing it with another previously defined language, showing
@@ -1534,7 +1518,8 @@ composition.
 The language being defined is a subset of
 Orc~\cite{kitchinOrc2009}, a functional programming language which
 includes a number of special-purpose combinators for coordinating
-concurrent workflows.
+concurrent workflows. On their own, these combinators act as a DSL
+for concurrency.
 
 In Orc, every expression can ``publish'' zero or more values. Orc
 defines four combinators for orchestrating these published values:
@@ -1692,7 +1677,41 @@ general since dynamic resolvability analysis allows deferring
 disambiguation to the programmer, while removing ambiguities from
 the resulting grammar is also possible.
 
-\subsection{Cyphym} \label{sec:evaluation-cyphym}
+
+\subsection{Applying Resolvable Ambiguity to a Full Language} \label{sec:evaluation-ocaml}
+
+The syncon definition of the OCaml language includes most syntax described in chapters 7 and 8 in the OCaml reference manual (the base language and extensions, respectively) and is sufficient to parse roughly 75\% (1012 out of 1334 files) of the \verb|.ml| files present in the OCaml compiler itself. The definition is just under 700 lines, excluding comments and empty lines (just over 1000 lines otherwise). It has been written to be as close to the grammar presented in the reference manual as possible, but with additions to conform to how the canonical compiler behaves on cases that are underspecified in the manual.
+
+The failing cases stem from three different causes:
+
+\begin{itemize}
+\item As of yet unspecified syntax. Due to a lack of time there are still parts of the language that we have not yet implemented. These appear solvable, but we can of course not be sure until we do.
+\item Our system does not support specifying ``longest match'' on a production, which is required to handle the pattern matching constructs correctly. We can handle some of these cases with marks, but not all.
+\item Different definitions of precedence. Our translation from precedence to marks is shallow, it only considers direct children, but OCaml has deep precedence. For example, addition binds stronger than \ocaml{if} (which syntactically functions as a prefix operator in OCaml), thus
+  \begin{lstlisting}[language={[objective]caml}]
+  1 + let x = 1 in x + 2
+  \end{lstlisting}
+  should be parsed as
+  \begin{lstlisting}[language={[objective]caml}]
+  1 + (let x = 1 in (x + 2))
+  \end{lstlisting}
+  while our tool presents the following ambiguity error message:
+  \begin{lstlisting}[language={[objective]caml}]
+Ambiguity error with 2 alternatives:
+
+  1 + ( let x = 1 in x ) + 2
+  1 + let x = 1 in ( x + 2 )
+  \end{lstlisting}
+  The former alternative is perhaps more easily understood as
+  \begin{lstlisting}[language={[objective]caml}]
+  (1 + (let x = 1 in x)) + 2
+  \end{lstlisting}
+  Looking at this tree, two levels at a time, we see ``\ocaml{(_ + _) + 2}'', ``\ocaml{1 + let _ in _}'', and ``\ocaml{let x = 1 in x}'', all of which are individually precedence correct.
+\end{itemize}
+
+The various definitions in the syncon OCaml definition are organized by the chapter in the reference manual that introduces them, plus an appendix with additions and changes required to mimic the behavior of the canonical compiler. Many of these are strict additions, requiring no changes to previous syncons, but not all. For example, OCaml allows placing ``attributes'' on most syntactical constructs in the language, extra information visible to tools but otherwise without semantic meaning. These can be written with an ``infix'' notation right after the keyword that introduces the syntactical construct, e.g., \ocaml{let[@foo] x = 1 in x}. This syntax is not fully specified; the manual merely contains seven examples, while the testsuite uses this syntax in roughly 50 different constructs. All these cases require changes to the original syncon definitions, making them slightly more complicated than the manual suggests them to be upon their introduction.
+
+% \subsection{Cyphym} \label{sec:evaluation-cyphym}
 
 \section{Related Work}
 
