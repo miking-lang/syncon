@@ -585,8 +585,7 @@ Before introducing this formalism however, we introduce the two central problems
 
 \noindent Our main concern is producing decision procedures for these problems. First, we define soundness and completeness for the static problem.
 
-% todo: improve label (where used?)
-\begin{definition}[Soundness of Static Resolvability]\label{def:static-procedure}
+\begin{definition}[Soundness of Static Resolvability]\label{def:static-procedure-sound}
   A decision procedure $f$ solving the static resolvability problem is sound iff
 
   $f(P) \implies \rho(P) \text{ for all abstract parsers } P$
@@ -597,7 +596,7 @@ $g$ such that $g(P) \implies \lnot \rho(P) \text{ for all abstract
   parsers } P$. It turns out, we can give $g$ for the parse languages
 studied in the following sections.
 
-\begin{definition}[Completeness of Static Resolvability]
+\begin{definition}[Completeness of Static Resolvability]\label{def:static-procedure-complete}
   A decision procedure $f$ solving the static resolvability problem is \emph{complete} iff
 
   $\rho(P) \implies f(P) \text{ for all abstract parsers } P$
@@ -606,8 +605,7 @@ studied in the following sections.
 
 \noindent Similarly, we define soundness and completeness for the dynamic problem.
 
-% todo: improve label (where used?)
-\begin{definition}[Soundness of Dynamic Resolvability]\label{def:dynamic-procedure}
+\begin{definition}[Soundness of Dynamic Resolvability]\label{def:dynamic-procedure-sound}
   A decision procedure $f$ solving the dynamic resolvability problem is sound iff
 
   $f(\parse, w) \implies \rho_P(w) \text{ for all } w \in \Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$
@@ -618,7 +616,7 @@ following sections we can also provide a decision procedure $g$ such
 that $g(\parse, w) \implies \lnot \rho_P(w) \text{ for all } w \in
 \Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$.
 
-\begin{definition}[Completeness of Dynamic Resolvability]
+\begin{definition}[Completeness of Dynamic Resolvability]\label{def:dynamic-procedure-complete}
   A decision procedure $f$ solving the dynamic resolvability problem is complete iff
 
   $\rho_P(w) \implies f(\parse, w) \text{ for all } w \in \Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$
@@ -850,7 +848,7 @@ $$
 
 \noindent In this case, $t_4$ has an unambigous word (namely \verb|'[(1 ; 2)]'|), but $t_3$ does not. The solution is to forbid list elements from being sequences by modify the language definition in Fig.~\ref{fig:running-example-definition} so that both non-terminals in the production $l$ are marked with $s$ (i.e., they look like $E_{\{s\}}$), at which point $\parse($\verb|'[1 ; 2]'|$) = \{t_3\}$.
 
-We are now ready to construct decision procedures for the static and dynamic resolvability problems, as given in Definitions~\ref{def:static-procedure} and \ref{def:dynamic-procedure}. Section~\ref{sec:static} gives a partial solution to the former problem, while Section~\ref{sec:dynamic} fully solves the latter with one caveat: we only consider languages with balanced parentheses.
+We are now ready to construct decision procedures for the static and dynamic resolvability problems, as given in Definitions~\ref{def:static-procedure-sound}, \ref{def:static-procedure-complete}, \ref{def:dynamic-procedure-sound}, and \ref{def:dynamic-procedure-complete}. Section~\ref{sec:static} gives a partial solution to the static problem, while Section~\ref{sec:dynamic} fully solves the dynamic problem with one caveat: we only consider languages with balanced parentheses.
 
 \section{Static Resolvability Analysis} \label{sec:static}
 
