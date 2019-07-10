@@ -195,7 +195,7 @@
 %% Note: \begin{abstract}...\end{abstract} environment must come
 %% before \maketitle command
 \begin{abstract}
-A common point of view when designing grammars for parsing is that
+A common standpoint when designing the syntax of programming languages is that
 the grammar definition has to be unambiguous.  However, up front unambiguous grammars
 can force language designers to make arbitrary choice to disambiguate
 the language. In this paper, we depart from the traditional view of
@@ -251,24 +251,19 @@ languages.
 \section{Introduction}
 
 % Motivate why unambiguous parsing is a good (and important) idea.
-Ever since the early 60s, the problem of deciding if a context-free
-grammar is ambiguous has been known to be
-undecidable~\cite{cantorAmbiguityProblemBackus1962}. As a consequence,
+Ever since the early 60s, it is known to be undecidable to determine whether a context-free
+grammar is ambiguous~\cite{cantorAmbiguityProblemBackus1962}. As a consequence,
 a large number of restricted grammars have been developed to guarantee
 that a language definition is unambiguous. This traditional view of
 only allowing unambiguous grammars has been taken for granted as the
 only truth: \emph{the} way of how the syntax of a language must be
-defined
-%This seems to stem
-%from the view that ambiguity has no place in programming language
-%syntax, which is highly prevalent
-~\cite{sudkampLanguagesMachinesIntroduction1997,ahoCompilersPrinciplesTechniques2006,webberModernProgrammingLanguages2003,cooperEngineeringCompiler2011,ginsburgAmbiguityContextFree1966}.
+defined ~\cite{sudkampLanguagesMachinesIntroduction1997,ahoCompilersPrinciplesTechniques2006,webberModernProgrammingLanguages2003,cooperEngineeringCompiler2011,ginsburgAmbiguityContextFree1966}.
 %
 However, recent work by
 ~\citet{palmkvistCreatingDomainSpecificLanguages2019} shows why
 carefully designed ambiguous syntax definitions are in some cases
 preferable compared to completely unambiguous
-definitions. Specifically, instead of forcing a language designers to
+definitions. Specifically, instead of forcing language designers to
 make arbitrary choice to disambiguate the language, a more natural
 choice may be to postpone the decision to the programmer.
 
@@ -276,7 +271,7 @@ choice may be to postpone the decision to the programmer.
 % Motivation II, compising DSLs
 Another area---where ambiguous grammars naturally arises---is
 domain-specific language development.  An important
-objective of domain-specific language development is to construct
+objective when designing domain-specific languages is to construct
 languages by composing and extending existing
 languages.
 Unfortunately, the composition of restricted
@@ -297,9 +292,9 @@ into two categories: those that handle ambiguities on the
 grammar-level (detection, prevention, etc.), and those that work on
 particular examples of ambiguous programs. The former is well explored
 in the form of heuristics for ambiguity detection
-(e.g. \cite{bastenAmbiguityDetectionProgramming2011,axelssonAnalyzingContextFreeGrammars2008,brabrandAnalyzingAmbiguityContextFree2007})
-or restrictions on the grammars to be composed
-(e.g. \cite{kaminskiModularWellDefinednessAnalysis2013}), while the
+\cite{bastenAmbiguityDetectionProgramming2011,axelssonAnalyzingContextFreeGrammars2008,brabrandAnalyzingAmbiguityContextFree2007}
+or restrictions on the composed grammars
+\cite{kaminskiModularWellDefinednessAnalysis2013}, while the
 latter has received relatively little attention.
 
 
@@ -311,46 +306,43 @@ latter has received relatively little attention.
 
 % The problem
 
-This paper focuses on the problems that arises if a grammar definition
-is not guaranteed to be unambiguous. Specifically, if parsing a
-program results in several parse trees, the grammar was obviously
+This paper focuses on the problems that arise if a grammar definition
+is not guaranteed to be unambiguous. Concretely, if parsing a program
+results in several parse trees, the grammar is obviously
 ambiguous. The programmer then needs to disambiguate the program by,
-for instance, inserting extra parenthesis. However, is it always
-possible to resolve an ambiguous input program by augmenting the
-program? We say that a program has a \emph{resolvable ambiguity} if
-the ambiguity can be solved by augmenting the program. The \emph{resolvable ambiguity problem} can then be divided into several decision problems: (i) the dynamic decidability problem: given a program (or a
+for instance, inserting extra parenthesis. We say that a program has a
+\emph{resolvable ambiguity} if the ambiguity can be solved by
+modifying the program, such that each of the possible parse trees can
+be selected using different modifications.
+We can divide the problem
+related to resolvable ambiguity into several different decision
+problems. The \emph{dynamic resolvable ambiguity problem} is as follows: given a parse function for a language, and a specific program that is parsed into a set of parse trees, decided whether it possible to rewrite the program, such that each of the parse trees can be generated unambiguously. This problem can be generalized into the \emph{static resolvable ambiguity problem}: decide whether all possible parsable programs are resolvably ambiguous. Static resolvablity means that a language designer can be confident that the end-user (the program designer) always can resolve an ambiguity by modifying the program. By contrast, dynamic resolvability means that a language designed knows if a \emph{specific} program is resolvable. Hence, static resolvability gives formally verified guarantees on the syntax definition, whereas dynamic resolvability enables the language designer to test the resolvability of the syntax definition, program by program.
 
-dynamic resolvable ambiguity problem of deciding if a context-free grammar is
 
 
-This presents a problem, since such an ambiguity is an error an end-user might encounter, yet it can only be solved by the language designer, since it requires a change to the language grammar. We thus have a concept of ambiguities that can be resolved by an end-user, and those that cannot. We call an instance of the former a \emph{resolvable ambiguity}, and the latter an \emph{unresolvable ambiguity}. This paper introduces these concepts in the context of language theory, thus we henceforth use terms such as ``word'' instead of ``program''.
+%This presents a problem, since such an ambiguity is an error an end-user might encounter, yet it can only be solved by the language designer, since it requires a change to the language grammar. We thus have a concept of ambiguities that can be resolved by an end-user, and those that cannot. We call an instance of the former a \emph{resolvable ambiguity}, and the latter an \emph{unresolvable ambiguity}. This paper introduces these concepts in the context of language theory, thus we henceforth use terms such as ``word'' instead of ``program''.
 
 % TODO: I feel like there should be a clear transition between the more pracctical setting of programs and code, and the theoretical setting with words and terminals, but I'm not convince the above sentence is very good at that.
 
 % TODO: resolvable ambiguity cannot be defined solely in terms of a grammar, we require interpretations of words as well, thus we have to introduce a new formalism that does this, the formalism is an intuitive extension of EBNF grammars. this is probably written as a contrast with classical ambiguity, which should be described briefly for contrast
 
-Resolvable ambiguity, like classical ambiguity, gives rise to two questions: can we determine if a particular word is resolvably ambiguous (dynamic resolvability), and can we determine if all ambiguous words in a language are resolvably ambiguous (static resolvability)? For classical ambiguity in context-free grammars, the former problem is solved by any general parser, while the latter is undecidable \cite{cantorAmbiguityProblemBackus1962}. For resolvable ambiguity, in a formalism that associates trees with EBNF-grammars, the dynamic problem is similarly solvable, and the static problem is similarly difficult. We do not yet know if the latter is undecidable in general, but we have found a subclass of languages for which it is decidable.
+%Resolvable ambiguity, like classical ambiguity, gives rise to two questions: can we determine if a particular word is resolvably ambiguous (dynamic resolvability), and can we determine if all ambiguous words in a language are resolvably ambiguous (static resolvability)? For classical ambiguity in context-free grammars, the former problem is solved by any general parser, while the latter is undecidable \cite{cantorAmbiguityProblemBackus1962}. For resolvable ambiguity, in a formalism that associates trees with EBNF-grammars, the dynamic problem is similarly solvable, and the static problem is similarly difficult. We do not yet know if the latter is undecidable in general, but we have found a subclass of languages for which it is decidable.
 
-More specifically, this paper makes the following contributions:
+In this paper, we solve the static resolvability problems for certain classes of languages, and demonstrate practically how dynamic resolvability may be used when designing language syntaxes. More specifically, we make the following contributions:
 
 \begin{itemize}
-\item A formal definition of \emph{resolvable ambiguity} in terms of languages where words have associated interpretations, as well as formulations of the \emph{static} and \emph{dynamic} resolvability problems, i.e., determine if a grammar (resp. word) is resolvably ambiguous (Section~\ref{sec:resolvable-definition}).
-\item A syntax definition formalism based on EBNF, where ambiguities can be resolved with grouping parentheses (Section~\ref{sec:parse-time-disambiguation}). For this formalism we also provide:
-  \begin{itemize}
-  \item A formulation of three versions of the static resolvability problem of increasing difficulty, and a decidable algorithm that is sound and complete for the first version, and sound for the second (Section~\ref{sec:static}).
-  \item A decidable algorithm that solves the dynamic resolvability problem for languages that have only well-balanced parentheses (Section~\ref{sec:dynamic}).
-  \end{itemize}
-\item Three case studies of programming languages and the errors produced when we allow (resolvable) ambiguity:
-  \begin{itemize}
-  \item A large subset of OCaml where some ambiguities have been reintroduced (Section~\ref{sec:evaluation-ocaml}).
-  \item A domain-specific language for orchestrating parallel computations (Section~\ref{sec:evaluation-orc}).
-  \item A domain-specific language for cyber-physical systems (Section~\ref{sec:evaluation-cyphym}).
-  \end{itemize}
-  % Briefly say something about the tool, that it lies ``on top of'' what's presented herein
+\item We formally define the term \emph{resolvable ambiguity}, as well as giving precise formalizations of the static and dynamic \emph{resolvable ambiguity problems} (Section~\ref{sec:resolvable-definition}).
+\item We formulate the \emph{static resolvability problem} of increasing difficulty, by introducing two different restricted language versions. We formalize a decidable algorithm that is sound and complete for the first version, and sound for the second (Section~\ref{sec:static}).
+\item We define a decidable algorithm that solves the \emph{dynamic resolvability problem} for general context-free languages with well-balanced parentheses (Section~\ref{sec:dynamic}).
+\item The dynamic resolvability methodology is implemented as a tool and a small DSL for defining syntax definitions. Two different cases studies are evaluated using this methodology and tool (Section~\ref{sec:evaluation}): (i) an implementation and evaluation of a large subset of OCaml's syntax, where we study the effect of implementing an underspecified language definition, and (ii) a domain-specific language for orchestrating parallel computations, where we investigate the effects of composing language fragments.
 \end{itemize}
 
-\section{Motivating Example}
+\noindent As part of the formalization of the dynamic and static resolvability problems, we define a syntax definition formalism based on Extended Backus–Naur Form (EBNF), where ambiguities can be resolved with grouping parentheses (Section~\ref{sec:parse-time-disambiguation}). Before the above contributions are introduced, the paper starts with motivating examples (Section~\ref{sec:motivation}), and a section with preliminaries (Section~\ref{sec:prel}).
 
+
+
+\section{Motivating Example}
+\label{sec:motivation}
 This section walks through an example from OCaml where an ambiguity error can be clearer than what the actual compiler produces, suggesting that (resolvable) ambiguity has merit even in the context of a general purpose programming language.
 
 Consider the following nested match expression (from \cite{palmkvistCreatingDomainSpecificLanguages2019}), and the resulting error message:
@@ -416,6 +408,7 @@ match 1 with
 \end{center}
 
 \section{Preliminaries}
+\label{sec:prel}
 
 This section briefly describes the theoretical foundations we build upon. Sections~\ref{sec:preliminaries-cfgs} and \ref{sec:preliminaries-automata} describe context-free grammars and various forms of automata, the latter with some non-standard notation to make later sections easier to read. Section~\ref{sec:preliminaries-vpls} then describes visibly pushdown languages, which enable the analyses described in Sections~\ref{sec:static} and \ref{sec:dynamic}. Finally, Sections~\ref{sec:preliminaries-trees} and \ref{sec:preliminaries-ambiguity} describe trees and ambiguity, the former with some non-standard notation and the latter with a slightly wider definition than normal.
 
