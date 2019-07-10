@@ -195,39 +195,22 @@
 %% Note: \begin{abstract}...\end{abstract} environment must come
 %% before \maketitle command
 \begin{abstract}
-% Why?
-
-Ever since the early 60s, the problem of deciding if a context-free
-grammar is unambiguous or not has been known to be undecidable. As a
-consequence, a large number of restricted grammars have been developed
-to guarantee that a language definition is unambiguous. This
-traditional view of only allowing unambiguous grammars has until
-recently been taken for granted as the only truth: \emph{the} way of
-how the syntax of a language must be defined. However, up front
-unambiguous grammars can force language designers to make arbitrary
-choice to disambiguate the language, although the natural choice may be to
-postpone the decision to the programmer. Moreover, an important
-objective of domain-specific language development is to construct
-languages by composing and extending existing
-languages. Unfortunately, the composition of restricted unambiguous
-grammars easily results in ambiguous grammars, which again are
-undecidable. In this paper, we depart from the traditional view of
+A common point of view when designing grammars for parsing is that
+the grammar definition has to be unambiguous.  However, up front unambiguous grammars
+can force language designers to make arbitrary choice to disambiguate
+the language. In this paper, we depart from the traditional view of
 unambiguous grammar design, and allow ambiguities to be delayed until
 compile time, allowing the user to perform the disambiguation. A
-natural decision problems follows: given a language definition, can a
+natural decision problem follows: given a language definition, can a
 user always disambiguate an ambiguous program?  We introduce and
 formalize this fundamental problem---called the \emph{resolvable
   ambiguity problem}---and divide it into separate static and dynamic
 resolvability problems. We prove soundness and completeness for a
 restricted language in the static case, and soundness in the general
 case for dynamic resolvability. The approach is evaluated through
-three separate case studies, covering both a large
-existing programming language, and the composability of
-domain-specific languages.
-%A traditional view when designing programming languages is that syntax
-%definitions should be unambiguous: only unambiguous grammars are used
-%to construct language specific parsers that either rejects a program,
-%or accepts it and produces a unique parse tree. However,
+two separate case studies, covering both a large existing
+programming language, and the composability of domain-specific
+languages.
 \end{abstract}
 
 
@@ -267,11 +250,80 @@ domain-specific languages.
 
 \section{Introduction}
 
-When constructing domain-specific programming languages there is often a desire to reuse work, to compose smaller language fragments. However, how to make such compositions well-behaved is not always obvious. In particular, composing multiple syntaxes is likely to produce an ambiguous grammar, even if all of the original grammars are unambiguous. Approaches for solving this problem can be broadly split into two categories: those that handle ambiguities on the grammar-level (detection, prevention, etc.), and those that work on particular examples of ambiguous programs. The former is well explored in the form of heuristics for ambiguity detection (e.g. \cite{bastenAmbiguityDetectionProgramming2011,axelssonAnalyzingContextFreeGrammars2008,brabrandAnalyzingAmbiguityContextFree2007}) or restrictions on the grammars to be composed (e.g. \cite{kaminskiModularWellDefinednessAnalysis2013}), while the latter has received relatively little scrutiny. This seems to stem from the view that ambiguity has no place in programming language syntax, which is highly prevalent (e.g. \cite{sudkampLanguagesMachinesIntroduction1997,ahoCompilersPrinciplesTechniques2006,webberModernProgrammingLanguages2003,cooperEngineeringCompiler2011,ginsburgAmbiguityContextFree1966}).
+% Motivate why unambiguous parsing is a good (and important) idea.
+Ever since the early 60s, the problem of deciding if a context-free
+grammar is ambiguous has been known to be
+undecidable~\cite{cantorAmbiguityProblemBackus1962}. As a consequence,
+a large number of restricted grammars have been developed to guarantee
+that a language definition is unambiguous. This traditional view of
+only allowing unambiguous grammars has been taken for granted as the
+only truth: \emph{the} way of how the syntax of a language must be
+defined
+%This seems to stem
+%from the view that ambiguity has no place in programming language
+%syntax, which is highly prevalent
+~\cite{sudkampLanguagesMachinesIntroduction1997,ahoCompilersPrinciplesTechniques2006,webberModernProgrammingLanguages2003,cooperEngineeringCompiler2011,ginsburgAmbiguityContextFree1966}.
+%
+However, recent work by
+~\citet{palmkvistCreatingDomainSpecificLanguages2019} shows why
+carefully designed ambiguous syntax definitions are in some cases
+preferable compared to completely unambiguous
+definitions. Specifically, instead of forcing a language designers to
+make arbitrary choice to disambiguate the language, a more natural
+choice may be to postpone the decision to the programmer.
 
-Handling ambiguity at parse-time on the other hand, beyond just using a general parsing algorithm (e.g. \cite{earleyEfficientContextfreeParsing1970,scottGLLParsing2010,youngerRecognitionParsingContextfree1967}), seems limited to merely presenting each possible interpretation as an abstract syntax tree of some form \cite{palmkvistCreatingDomainSpecificLanguages2019,danielssonParsingMixfixOperators2011}. However, an abstract syntax tree is essentially an implementation detail, and might not provide any useful clues for an end-user to resolve the ambiguity. Another possibility, mentioned by \citet{palmkvistCreatingDomainSpecificLanguages2019} but not yet explored, is to automatically generate several unambiguous programs, one for each possible interpretation, thereby directly showing a user how to resolve the ambiguity, regardless of their desired interpretation. For example, in a language without precedence, \verb|'1 + 2 * 3'| is ambiguous, but the two possible interpretations can be written unambiguously as \verb|'(1 + 2) * 3'| and \verb|'1 + (2 * 3)'| respectively.
 
-In exploring this approach, we find that this is not always possible; some ambiguities have one or more interpretations for which no unambiguous program exists. For example, in a language with semicolon for both sequential composition and element separation in a list (e.g. OCaml), ``$[1; 2]$'' is ambiguous: it is either a list of two elements, or a list of one element, namely the sequential composition of $1$ and $2$. The latter can be written unambiguously as ``$[(1; 2)]$'', but the former has no unambiguous alternative. This presents a problem, since such an ambiguity is an error an end-user might encounter, yet it can only be solved by the language designer, since it requires a change to the language grammar. We thus have a concept of ambiguities that can be resolved by an end-user, and those that cannot. We call an instance of the former a \emph{resolvable ambiguity}, and the latter an \emph{unresolvable ambiguity}. This paper introduces these concepts in the context of language theory, thus we henceforth use terms such as ``word'' instead of ``program''.
+% Motivation II, compising DSLs
+Another area---where ambiguous grammars naturally arises---is
+domain-specific language development.  An important
+objective of domain-specific language development is to construct
+languages by composing and extending existing
+languages.
+Unfortunately, the composition of restricted
+%grammars easily results in ambiguous grammars, which again are
+%undecidable.
+%
+%constructing domain-specific programming languages there is often
+%a desire to reuse work, to compose smaller language
+%fragments.
+%However, how to make such compositions well-behaved is not
+%always obvious.
+%In particular, when constructing new domain-specific languages from
+%existing languages, by composing multiple syntax definitions,
+grammars easily produces
+an ambiguous grammar, even if all of the original grammars are
+unambiguous. Approaches for solving this problem can be broadly split
+into two categories: those that handle ambiguities on the
+grammar-level (detection, prevention, etc.), and those that work on
+particular examples of ambiguous programs. The former is well explored
+in the form of heuristics for ambiguity detection
+(e.g. \cite{bastenAmbiguityDetectionProgramming2011,axelssonAnalyzingContextFreeGrammars2008,brabrandAnalyzingAmbiguityContextFree2007})
+or restrictions on the grammars to be composed
+(e.g. \cite{kaminskiModularWellDefinednessAnalysis2013}), while the
+latter has received relatively little attention.
+
+
+
+
+%Handling ambiguity at parse-time on the other hand, beyond just using a general parsing algorithm (e.g. \cite{earleyEfficientCo%ntextfreeParsing1970,scottGLLParsing2010,youngerRecognitionParsingContextfree1967}), seems limited to merely presenting each possible interpretation as an abstract syntax tree of some form \cite{palmkvistCreatingDomainSpecificLanguages2019,danielssonParsingMixfixOperators2011}. However, an abstract syntax tree is essentially an implementation detail, and might not provide any useful clues for an end-user to resolve the ambiguity. Another possibility, mentioned by \citet{palmkvistCreatingDomainSpecificLanguages2019} but not yet explored, is to automatically generate several unambiguous programs, one for each possible interpretation, thereby directly showing a user how to resolve the ambiguity, regardless of their desired interpretation. For example, in a language without precedence, \verb|'1 + 2 * 3'| is ambiguous, but the two possible interpretations can be written unambiguously as \verb|'(1 + 2) * 3'| and \verb|'1 + (2 * 3)'| respectively.
+
+%In exploring this approach, we find that this is not always possible; some ambiguities have one or more interpretations for which no unambiguous program exists. For example, in a language with semicolon for both sequential composition and element separation in a list (e.g. OCaml), ``$[1; 2]$'' is ambiguous: it is either a list of two elements, or a list of one element, namely the sequential composition of $1$ and $2$. The latter can be written unambiguously as ``$[(1; 2)]$'', but the former has no unambiguous alternative.
+
+% The problem
+
+This paper focuses on the problems that arises if a grammar definition
+is not guaranteed to be unambiguous. Specifically, if parsing a
+program results in several parse trees, the grammar was obviously
+ambiguous. The programmer then needs to disambiguate the program by,
+for instance, inserting extra parenthesis. However, is it always
+possible to resolve an ambiguous input program by augmenting the
+program? We say that a program has a \emph{resolvable ambiguity} if
+the ambiguity can be solved by augmenting the program. The \emph{resolvable ambiguity problem} can then be divided into several decision problems: (i) the dynamic decidability problem: given a program (or a
+
+dynamic resolvable ambiguity problem of deciding if a context-free grammar is
+
+
+This presents a problem, since such an ambiguity is an error an end-user might encounter, yet it can only be solved by the language designer, since it requires a change to the language grammar. We thus have a concept of ambiguities that can be resolved by an end-user, and those that cannot. We call an instance of the former a \emph{resolvable ambiguity}, and the latter an \emph{unresolvable ambiguity}. This paper introduces these concepts in the context of language theory, thus we henceforth use terms such as ``word'' instead of ``program''.
 
 % TODO: I feel like there should be a clear transition between the more pracctical setting of programs and code, and the theoretical setting with words and terminals, but I'm not convince the above sentence is very good at that.
 
