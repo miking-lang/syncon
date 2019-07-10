@@ -595,7 +595,7 @@ Before introducing this formalism however, we introduce the two central problems
 In practice, we may additionally be interested in a decision procedure
 $g$ such that $g(P) \implies \lnot \rho(P) \text{ for all abstract
   parsers } P$. It turns out, we can give $g$ for the parse languages
-studied in following sections.
+studied in the following sections.
 
 \begin{definition}[Completeness of Static Resolvability]
   A decision procedure $f$ solving the static resolvability problem is \emph{complete} iff
@@ -604,16 +604,26 @@ studied in following sections.
 \end{definition}
 
 
-\noindent Similarly, for the dynamic problem:
+\noindent Similarly, we define soundness and completeness for the dynamic problem.
 
-\begin{definition}
-  A decision procedure $f$ (with possible outputs $\mathit{resolvable}$, $\mathit{unresolvable}$, and $\mathit{unknown}$) solving the dynamic resolvability problem is:
-  \begin{itemize}
-  \item Sound if $f(\parse, w) = \mathit{resolvable}$ implies that $w$ is resolvably ambiguous, and $f(\parse, w) = \mathit{unresolvable}$ implies $w$ is not resolvably ambiguous.
-  \item Complete if $f(\parse) \neq \mathit{unknown}$ for all possible inputs $\parse$ and $w$.
-  \end{itemize}
-  \label{def:dynamic-procedure}
+% todo: improve label (where used?)
+\begin{definition}[Soundness of Dynamic Resolvability]\label{def:dynamic-procedure}
+  A decision procedure $f$ solving the dynamic resolvability problem is sound iff
+
+  $f(\parse, w) \implies \rho_P(w) \text{ for all } w \in \Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$
 \end{definition}
+
+Analogous to the static case, for the parse languages studied in the
+following sections we can also provide a decision procedure $g$ such
+that $g(\parse, w) \implies \lnot \rho_P(w) \text{ for all } w \in
+\Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$.
+
+\begin{definition}[Completeness of Dynamic Resolvability]
+  A decision procedure $f$ solving the dynamic resolvability problem is complete iff
+
+  $\rho_P(w) \implies f(\parse, w) \text{ for all } w \in \Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$
+\end{definition}
+
 
 \section{Parse-time Disambiguation} \label{sec:parse-time-disambiguation}
 
