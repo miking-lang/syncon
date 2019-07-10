@@ -122,6 +122,7 @@
 
 \synctex=1
 \begin{document}
+% TODO: Decide on British or American English.
 
 % Submission may be up to 25 pages, excluding references
 
@@ -1426,6 +1427,8 @@ UNFINISHED
 
 \section{Case Studies} \label{sec:evaluation}
 
+% TODO: Make sure that forbids are explained
+
 We have implemented a tool and a small DSL for syntax definition
 that generates a language definition in the style of
 Section~\ref{sec:parse-time-disambiguation}, which the tool then
@@ -1521,25 +1524,38 @@ Ambiguity error with 2 alternatives:
 The various definitions in the syncon OCaml definition are organized by the chapter in the reference manual that introduces them, plus an appendix with additions and changes required to mimic the behavior of the canonical compiler. Many of these are strict additions, requiring no changes to previous syncons, but not all. For example, OCaml allows placing ``attributes'' on most syntactical constructs in the language, extra information visible to tools but otherwise without semantic meaning. These can be written with an ``infix'' notation right after the keyword that introduces the syntactical construct, e.g., \ocaml{let[@foo] x = 1 in x}. This syntax is not fully specified; the manual merely contains seven examples, while the testsuite uses this syntax in roughly 50 different constructs. All these cases require changes to the original syncon definitions, making them slightly more complicated than the manual suggests them to be upon their introduction.
 
 \subsection{Orc} \label{sec:evaluation-orc}
+%TODO Title should be descriptive
 
-Orc~\cite{kitchinOrc2009} is a functional programming language
-which includes a number of special-purpose combinators for
-coordinating concurrent workflows. In this section, we consider
-the use case of adding these concurrency combinators to an already
-defined programming language.
+In this section, we consider the use case of defining a language
+and composing it with another previously defined language, showing
+how we can deal with the resulting ambiguities that arise from the
+composition.
+%
+The language being defined is a subset of
+Orc~\cite{kitchinOrc2009}, a functional programming language which
+includes a number of special-purpose combinators for coordinating
+concurrent workflows.
 
 In Orc, every expression can ``publish'' zero or more values. Orc
 defines four combinators for orchestrating these published values:
 the parallel (\ocaml{|}), sequential (\ocaml{>}$x$\ocaml{>}),
 pruning (\ocaml{<}$x$\ocaml{<}), and ``otherwise'' (\ocaml{;})
-combinators. The expression $e_1$ \ocaml{|} $e_2$ runs $e_1$ and
+combinators.
+%
+The expression $e_1$ \ocaml{|} $e_2$ runs $e_1$ and
 $e_2$ in parallel, publishing any value published by either of
-them. The expression $e_1$ \ocaml{>}$x$\ocaml{>} $e_2$ binds each
-value published by $e_1$ to $x$ and executes $e_2$ for each such
-binding, building a concurrent pipeline. The expression $e_1$
-\ocaml{<}$x$\ocaml{<} $e_2$ binds the \emph{first} value published
-by $e_2$ to $x$ and executes $e_1$. Finally, $e_1$\ocaml{;}$e_2$
-runs $e_2$ only if running $e_1$ does not publish any values.
+them.
+%
+The expression $e_1$ \ocaml{>}$x$\ocaml{>} $e_2$ executes
+$[x\mapsto v]e_2$ for \emph{each} value $v$ published by $e_1$,
+building a concurrent pipeline.
+%
+The expression $e_1$ \ocaml{<}$x$\ocaml{<} $e_2$ executes
+$[x\mapsto v]e_1$ for \emph{first} value $v$ published by $e_2$
+(discarding any remaining values published by $e_2$).
+%
+Finally, $e_1$\ocaml{;}$e_2$ runs $e_2$ only if running $e_1$ does
+not publish any values.
 
 The syncon definition of the Orc combinators is very simple (the
 precedence rules follow the original
@@ -1598,7 +1614,7 @@ time of composition.
 
 Because of how we defined the syntax of the combinators, and since
 parsing with the tool is currently whitespace insensitive, the
-multi-character combinators (sequence and pruning) are parsed as
+multi-character combinators (sequencing and pruning) are parsed as
 three separate lexical tokens (this is visible in how whitespace
 is inserted in the error message above). This means we can also
 run into \emph{unresolvable} ambiguities, for example if our base
@@ -1653,7 +1669,8 @@ choices to make as language designers:
   avoid clashes with other operators.
 \end{itemize}
 
-The change in the first alternative can be done after composition,
+\noindent
+The change in the first alternative is somewhat ad-hoc, but can be done after composition
 and would allow us to reuse both language definitions without
 modifications. In the latter two alternatives, we lose reuse of
 the definitions of Orc combinators, but place no additional
@@ -1667,6 +1684,13 @@ expressions (this would clash with the ``otherwise'' combinator).
 In this case, there is no reasonable way to disambiguate
 ``\ocaml{e1; e2}'' without changing the syntax of one of the
 operations.
+
+The main takeaway from this case study is that resolvable
+ambiguity makes composition of languages less restrictive than if
+all ambiguity is completely banned. The approach is strictly more
+general since dynamic resolvability analysis allows deferring
+disambiguation to the programmer, while removing ambiguities from
+the resulting grammar is also possible.
 
 \subsection{Cyphym} \label{sec:evaluation-cyphym}
 
