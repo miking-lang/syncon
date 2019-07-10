@@ -1848,7 +1848,8 @@ end of this section).
 
 By using our implementation of the OCaml syntax to parse
 real-world OCaml code, we can dynamically identify ambiguities in
-the grammar presented in the reference manual.
+the grammar presented in the reference manual, instead of silently
+resolving these in the implementation of an unambiguous parser.
 %
 For example, TODO: INSERT EXAMPLES.
 
@@ -1863,6 +1864,8 @@ In this case study, out of the 700 lines of syncon code, $\sim$200
 lines are additions to conform to how the canonical compiler
 behaves on cases that are under-specified in the manual.
 
+% TODO: State that we don't report exact numbers since we don't
+% have the full language specified.
 
 \paragraph{Limitations of Syncons}
 %
