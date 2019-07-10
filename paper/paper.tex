@@ -1574,8 +1574,11 @@ UNFINISHED
 
 \section{Case Studies} \label{sec:evaluation}
 
-% TODO: Make sure that forbids are explained
-
+In this section, we showcase two possible use-cases of dynamic
+resolvability analysis: composing separately defined DSLs
+(Section~\ref{sec:evaluation-orc}), and finding ambiguities in
+grammars through testing (Section~\ref{sec:evaluation-ocaml}).
+%
 We have implemented a tool and a small DSL for syntax definition
 that generates a language definition in the style of
 Section~\ref{sec:parse-time-disambiguation}, which the tool then
@@ -1583,12 +1586,7 @@ uses to construct a parser and do dynamic resolvability analysis.
 The tool is implemented in Haskell and uses an off-the-shelf
 implementation\footnote{\url{http://hackage.haskell.org/package/Earley}}
 of the Earley parsing algorithm
-\cite{earleyEfficientContextfreeParsing1970}. The purpose of these
-case studies is to showcase possible use cases of resolvable
-ambiguity in the context of composing separately defined DSLs (a
-subset of Orc, Section~\ref{sec:evaluation-orc}), and of defining
-a pre-existing general purpose programming language (OCaml,
-Section~\ref{sec:evaluation-ocaml}.
+\cite{earleyEfficientContextfreeParsing1970}.
 
 The syntax definition DSL builds on the ``syncons'' introduced by
 \citet{palmkvistCreatingDomainSpecificLanguages2019}, wherein each
@@ -1598,7 +1596,7 @@ production is defined separately from each other (one
 The main difference between the DSL and the formalism in
 Section~\ref{sec:parse-time-disambiguation} is that marks are
 introduced as separate \syncon{forbid} declarations rather than
-inline in productions. This allows supporting high-level
+being inlined in productions. This allows supporting high-level
 convenience constructs, e.g., specifying precedence between
 previously defined operators instead of manually inserting marks,
 but is also important for composability as ambiguities can be
@@ -1613,6 +1611,7 @@ page~\pageref{fig:running-example-definition}) can be defined as
 follows:
 
 \begin{tabular}{ll}
+\small
 \begin{lstlisting}[language=syncon,boxpos=t]
 type Exp
 grouping "(" Exp ")"
@@ -1622,6 +1621,7 @@ precedence {
 }
 \end{lstlisting}
 &
+\small
 \begin{lstlisting}[language=syncon,boxpos=t]
 token Integer = "[0-9]+"
 syncon literal: Exp = n:Integer
@@ -1694,6 +1694,7 @@ precedence rules follow the original
 definition~\cite{kitchinOrc2009}):
 
 \begin{tabular}{ll}
+\small
 \begin{lstlisting}[language=syncon,boxpos=t]
 type Exp
 grouping "(" Exp ")"
@@ -1702,6 +1703,7 @@ precedence {
 }
 \end{lstlisting}
 &
+\small
 \begin{lstlisting}[language=syncon,boxpos=t]
 token Ident = "[[:lower:]][[:word:]]*"
 infix par:Exp = "|"
@@ -1726,11 +1728,13 @@ language supporting addition, variables, and function calls
 %
 results in the following error message from our tool:
 
+{\small
 \begin{lstlisting}[language={[objective]caml}]
 Ambiguity error with 2 alternatives:
   ( 1 + 2 ) > x > f ( x )
   1 + ( 2 > x > f ( x ) )
 \end{lstlisting}
+}
 
 \noindent
 Because there is no precedence specified between \ocaml{+} and
@@ -1758,6 +1762,7 @@ for \ocaml{>}), parsing the expression
 %
 will result in the following error message:
 
+{\small
 \begin{lstlisting}[language={[objective]caml}]
 Unresolvable ambiguity error with 2 alternatives.
 \end{lstlisting}
@@ -1778,6 +1783,7 @@ Unresolvable alternatives:
    - call                 gt.orc:1:8-12
 \end{lstlisting}
 \end{minipage}
+}
 
 \noindent
 By adding parentheses, a programmer can disambiguate the
@@ -1825,38 +1831,71 @@ disambiguation to the programmer, while removing ambiguities from
 the resulting grammar is also possible.
 
 
-\subsection{Applying Resolvable Ambiguity to a Full Language} \label{sec:evaluation-ocaml}
+\subsection{Finding Ambiguities with Dynamic Resolvability Analysis} \label{sec:evaluation-ocaml}
 
-The syncon definition of the OCaml language includes most syntax described in chapters 7 and 8 in the OCaml reference manual (the base language and extensions, respectively) and is sufficient to parse roughly 75\% (1012 out of 1334 files) of the \verb|.ml| files present in the OCaml compiler itself. The definition is just under 700 lines, excluding comments and empty lines (just over 1000 lines otherwise). It has been written to be as close to the grammar presented in the reference manual as possible, but with additions to conform to how the canonical compiler behaves on cases that are underspecified in the manual.
+In this section, we investigate how to apply dynamic resolvability
+analysis to identify ambiguities in the grammar of a real-world
+language.
+%
+Using syncons, we have specified a substantial subset of OCaml's
+syntax as described in chapters 7 and 8 (base language and
+extensions) of the OCaml reference manual~\cite{OCamlReference}.
+The syncon definition is just under 700 lines of code (excluding
+comments), and is currently complete enough to parse roughly 75\%
+(1012 out of 1334 files) of the \verb|.ml| files present in the
+OCaml compiler itself (we discuss limitations of our tool in the
+end of this section).
 
-The failing cases stem from three different causes:
+By using our implementation of the OCaml syntax to parse
+real-world OCaml code, we can dynamically identify ambiguities in
+the grammar presented in the reference manual.
+%
+For example, TODO: INSERT EXAMPLES.
 
-\begin{itemize}
-\item As of yet unspecified syntax. Due to a lack of time there are still parts of the language that we have not yet implemented. These appear solvable, but we can of course not be sure until we do.
-\item Our system does not support specifying ``longest match'' on a production, which is required to handle the pattern matching constructs correctly. We can handle some of these cases with marks, but not all.
-\item Different definitions of precedence. Our translation from precedence to marks is shallow, it only considers direct children, but OCaml has deep precedence. For example, addition binds stronger than \ocaml{if} (which syntactically functions as a prefix operator in OCaml), thus
-  \begin{lstlisting}[language={[objective]caml}]
-  1 + let x = 1 in x + 2
-  \end{lstlisting}
-  should be parsed as
-  \begin{lstlisting}[language={[objective]caml}]
-  1 + (let x = 1 in (x + 2))
-  \end{lstlisting}
-  while our tool presents the following ambiguity error message:
-  \begin{lstlisting}[language={[objective]caml}]
-Ambiguity error with 2 alternatives:
+As this case study shows, implementing a parser that reports
+ambiguities lets us identify ambiguities in a grammar through
+testing. Even though detecting ambiguities in a grammar is
+undecidable in general, dynamic resolvability analysis over a
+large corpus of code lets us find (and fix) many cases of
+ambiguity in practice.
+%
+In this case study, out of the 700 lines of syncon code, $\sim$200
+lines are additions to conform to how the canonical compiler
+behaves on cases that are under-specified in the manual.
 
-  1 + ( let x = 1 in x ) + 2
-  1 + let x = 1 in ( x + 2 )
-  \end{lstlisting}
-  The former alternative is perhaps more easily understood as
-  \begin{lstlisting}[language={[objective]caml}]
-  (1 + (let x = 1 in x)) + 2
-  \end{lstlisting}
-  Looking at this tree, two levels at a time, we see ``\ocaml{(_ + _) + 2}'', ``\ocaml{1 + let _ in _}'', and ``\ocaml{let x = 1 in x}'', all of which are individually precedence correct.
-\end{itemize}
 
-The various definitions in the syncon OCaml definition are organized by the chapter in the reference manual that introduces them, plus an appendix with additions and changes required to mimic the behavior of the canonical compiler. Many of these are strict additions, requiring no changes to previous syncons, but not all. For example, OCaml allows placing ``attributes'' on most syntactical constructs in the language, extra information visible to tools but otherwise without semantic meaning. These can be written with an ``infix'' notation right after the keyword that introduces the syntactical construct, e.g., \ocaml{let[@foo] x = 1 in x}. This syntax is not fully specified; the manual merely contains seven examples, while the testsuite uses this syntax in roughly 50 different constructs. All these cases require changes to the original syncon definitions, making them slightly more complicated than the manual suggests them to be upon their introduction.
+\paragraph{Limitations of Syncons}
+%
+Other than syntactic constructs that are not yet specified, there
+are two sources of failure in the parts of the OCaml compiler that
+we cannot parse.
+%
+First, our parsing tool does not support specifying ``longest
+match'' on a production, which is required to handle the pattern
+matching constructs correctly. Some cases can be handled using
+\syncon{forbid} declarations, but it does not get us all the way.
+%
+Second, our system uses a different definition of precedence than
+the OCaml language. Our translation from precedence to implicit
+\syncon{forbid} declarations is shallow (it only considers direct
+children), while the OCaml has deep precedence. For example,
+addition binds stronger than \ocaml{let} (which syntactically
+functions as a prefix operator in OCaml), and thus
+%
+``\ocaml{1 + let x = 1 in x + 2}'' should be parsed as
+%
+``\ocaml{1 + (let x = 1 in (x + 2))}''. Our tool, however, reports
+the expression as ambiguous, additionally suggesting the
+alternative interpretation
+%
+``\ocaml{(1 + (let x = 1 in x)) + 2}''.
+%
+This interpretation is indeed valid if we only look at the direct
+children of each operator, since ``\ocaml{(_ + _) + 2}'',
+``\ocaml{1 + let _ in _}'', and ``\ocaml{let x = 1 in x}'' are all
+individually correct with regards to precedence.
+
+% The various definitions in the syncon OCaml definition are organized by the chapter in the reference manual that introduces them, plus an appendix with additions and changes required to mimic the behavior of the canonical compiler. Many of these are strict additions, requiring no changes to previous syncons, but not all. For example, OCaml allows placing ``attributes'' on most syntactical constructs in the language, extra information visible to tools but otherwise without semantic meaning. These can be written with an ``infix'' notation right after the keyword that introduces the syntactical construct, e.g., \ocaml{let[@foo] x = 1 in x}. This syntax is not fully specified; the manual merely contains seven examples, while the testsuite uses this syntax in roughly 50 different constructs. All these cases require changes to the original syncon definitions, making them slightly more complicated than the manual suggests them to be upon their introduction.
 
 % \subsection{Cyphym} \label{sec:evaluation-cyphym}
 
