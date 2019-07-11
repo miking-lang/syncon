@@ -1000,10 +1000,10 @@ We are now ready to construct decision procedures for the static and dynamic res
 
 \section{Static Resolvability Analysis} \label{sec:static}
 
-For this section, we will use an alternative formulation of resolvable ambiguity for languages, stated in terms of interpretations instead of words:
+For this section, we will use an alternative formulation of resolvable ambiguity for languages, stated in terms of parse trees instead of words:
 
 \begin{theorem}
-  A language given by $\parse : \T^{*} -> 2^T$ is resolvably ambiguous iff\\$\forall t \in T.\ \exists w \in \T^{*}.\ \parse(w) = \{t\}$.
+  Given an abstract parser $P = (\T, T, \parse)$, the language $L(P)$ is resolvably ambiguous iff $\quad\forall t \in T.\ \exists w \in \T^{*}.\ \parse(w) = \{t\}$.
 \end{theorem}
 
 \begin{proof}
@@ -1510,6 +1510,8 @@ corresponding to production $c$.
 %%%%%%%%%%%%%%%%%%%%%%%%
 % FORMAL STUFF BARRIER %
 %%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Formalization}
 
 Given a language definition $D$, with terminals $\T$, non-terminals $\NT$, labels $\Labels$, and starting non-terminal $S$. We use $\labelnt(l)$ and $\labelregex(l)$ as the non-terminal and regex, respectively, of the production labelled $l$. We define the set $T : \Labels \times \Labels \times \{\top, \bot\} \times \Labels^{*}$ of transitions between productions inductively through:
 
