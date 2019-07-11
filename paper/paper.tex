@@ -200,21 +200,24 @@
 %% before \maketitle command
 \begin{abstract}
 A common standpoint when designing the syntax of programming languages is that
-the grammar definition has to be unambiguous.  However, up front unambiguous grammars
-can force language designers to make arbitrary choice to disambiguate
+the grammar definition has to be unambiguous.  However, requiring up front unambiguous grammars
+can force language designers to make more or less arbitrary choices to disambiguate
 the language. In this paper, we depart from the traditional view of
-unambiguous grammar design, and allow ambiguities to be delayed until
-compile time, allowing the user to perform the disambiguation. A
+unambiguous grammar design, and allow detection of ambiguities to be delayed until
+parse time, allowing the user of the language to perform the disambiguation. A
 natural decision problem follows: given a language definition, can a
 user always disambiguate an ambiguous program?  We introduce and
 formalize this fundamental problem---called the \emph{resolvable
   ambiguity problem}---and divide it into separate static and dynamic
-resolvability problems. We prove soundness and completeness for a
-restricted language in the static case, and soundness in the general
-case for dynamic resolvability. The approach is evaluated through
-two separate case studies, covering both a large existing
-programming language, and the composability of domain-specific
-languages.
+resolvability problems. We provide solutions to the static problem
+for two restricted classes of languages and prove them sound and,
+depending on the restrictions, complete. We also provide a sound
+and complete solution to the dynamic problem for a much less
+restricted class of languages.
+%
+The approach is evaluated through two separate case studies,
+covering both a large existing programming language, and the
+composability of domain-specific languages.
 \end{abstract}
 
 
