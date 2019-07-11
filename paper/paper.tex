@@ -1160,6 +1160,8 @@ The centerpiece of our algorithm is a \emph{visibly pushdown automaton} construc
 
 \noindent Two distinct successful runs through this automaton that recognize the same word thus imply two distinct trees that have exactly the same lattice. To detect lattices contained in each other, we create a modified copy, where the copy may add arbitrary (balanced, well-nested) possible parentheses, and replace any required pair of parentheses with a possible pair. The copy maintains much of the structure of the original, and in particular, keeps the connection to trees in $L(T_D)$ (though it is no longer a bijection: there are multiple successful runs per tree since there are multiple larger lattices). Two distinct successful runs, one in each automaton, that recognize the same word then imply two distinct trees where the lattice of one is entirely contained in the other.
 
+\subsubsection{Example for Simplified Construction}
+
 We will now walk through the construction of this automaton, using the following language definition:
 
 \begin{center}
@@ -1208,7 +1210,7 @@ Conceptually, each non-terminal represents a choice of which production should r
 \end{tikzpicture}
 \end{center}
 
-\noindent We then combine them into a single visibly pushdown automaton. Every time we transition from a production to a child we push a symbol to the stack, which we then pop when we go back. We use $Q \times Q$ as our stack alphabet, to record the transition we are replacing in the parent. We thus replace every edge $p \xrightarrow{l_\top} q$, where $l \in \Labels$, with:
+\noindent We then combine the DFAs into a single visibly pushdown automaton. Every time we transition from a production to a child we push a symbol to the stack, which we then pop when we return. We use $Q \times Q$ as our stack alphabet, to record the transition we are replacing in the parent. We thus replace every edge $p \xrightarrow{l_\top} q$, where $l \in \Labels$, with:
 
 \begin{itemize}
   \item an edge $p \xrightarrow{'\reqpl', +(p, q)} p'$, where $p'$ is the initial state in the DFA corresponding to the production with label $l$, and
@@ -1246,7 +1248,7 @@ Intuitively, we parse a child node with parentheses around it, then return. This
 \end{tikzpicture}
 \end{center}
 
-\noindent Finally, we add a new initial state and a new final state, and connect them with the initial and final states belonging to the starting non-terminal:
+\noindent Finally, we add a new initial state and a new final state, and connect them to the initial and final states belonging to the starting non-terminal:
 
 \begin{center}
 \begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
@@ -1307,6 +1309,8 @@ $$
 \end{minipage}
 
 \noindent and corresponds to the tree on the right.
+
+\subsubsection{Example for Full Construction}
 
 We now illustrate the issue that our previous simplification avoids, and then modify the construction such that the simplification is no longer required. Consider the following language definition:
 
