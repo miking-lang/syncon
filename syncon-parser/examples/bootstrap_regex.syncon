@@ -1,0 +1,129 @@
+// This file contains an attempt at defining the syntax of a syncon
+// language definition, using a syncon language definition. Note that
+// it does not cover bindings nor spliced syntax in the body
+
+// Posix character classes in token definitions
+token Name = "[[:lower:]][[:word:]]*"
+token TypeName = "[[:upper:]][[:word:]]*"
+token String = "\"(\\\\.|[^\"\\\\])*\""
+
+comment "//[^\\n]*(\\n|$)"
+comment "/\\*" "\\*/"
+
+type Decl
+syncon decls: Top = d:Decl+
+
+// === Regular Expressions ===
+
+syncon regexDecl: Decl = "regex" name:Name "=" regex:Regex
+
+type Regex
+grouping "(" Regex ")"
+
+syncon regVar: Regex = name:Name
+syncon regStr: Regex = str:String
+syncon preOr: Regex = "(" "|" r:Regex+ ")"
+infix left regOr: Regex = "|"
+infix left regConcat: Regex =
+infix left regMinus: Regex = "-"
+postfix regStar: Regex = "*"
+postfix regPlus: Regex = "+"
+postfix regQuestion: Regex = "?"
+
+precedence {
+  regStar regPlus regQuestion;
+  regConcat;
+  regOr regMinus;
+} except {
+  regOr regMinus;
+}
+
+forbid preOr.r = regConcat
+forbid preOr.r = regMinus
+forbid preOr.r = regOr
+
+// === Syntax Types ===
+
+syncon typeDef: Decl = "type" syType:TypeName
+
+// === Token Definitions ===
+
+syncon tokenDef: Decl = "token" syType:TypeName "=" regex:Regex
+
+// === Comment Definitions ===
+
+syncon commentDef: Decl = "comment" regex:Regex
+syncon blockCommentDef: Decl = "comment" openRegex:Regex closeRegex:Regex
+
+// === Grouping Definitions ===
+
+syncon groupingDef: Decl =
+  "grouping" (oStr:String | oTy:TypeName) ty:TypeName (cStr:String | cTy:TypeName)
+
+// === Syncon Definitions (including operators) ===
+
+syncon synconDef: Decl =
+  "syncon" name:Name ":" syType:TypeName "="
+  descr:SyntaxDescription+ ("{" body:SynconBody "}")?
+
+syncon prefixDef: Decl =
+  "prefix" name:Name ":" syType:TypeName "="
+  descr:SyntaxDescription+ ("{" body:SynconBody "}")?
+
+syncon postfixDef: Decl =
+  "postfix" name:Name ":" syType:TypeName "="
+  descr:SyntaxDescription+ ("{" body:SynconBody "}")?
+
+syncon infixDef: Decl =
+  "infix" assoc:("left" | "right")? name:Name ":" syType:TypeName "="
+  descr:SyntaxDescription* ("{" body:SynconBody "}")?
+
+type SynconBody
+syncon builtinBody: SynconBody = "builtin"
+
+// === Properties ===
+
+type Property
+
+
+// === Syntax Descriptions ===
+
+type SyntaxDescription
+grouping "(" SyntaxDescription ")"
+
+// TODO: This might be problematic?
+syncon sdSeq: SyntaxDescription =
+  "(" head:SyntaxDescription tail:SyntaxDescription+ ")"
+
+postfix sdStar: SyntaxDescription = "*"
+postfix sdPlus: SyntaxDescription = "+"
+postfix sdQuestion: SyntaxDescription = "?"
+
+syncon sdAlt: SyntaxDescription = left:rec+ ("|" right:rec+)+
+forbid sdAlt.left = sdAlt
+forbid sdAlt.right = sdAlt
+forbid sdSeq.head = sdAlt
+forbid sdSeq.tail = sdAlt
+
+prefix sdName: SyntaxDescription = name:(Name | "left" | "right") ":"
+
+precedence {
+  sdName;
+  sdStar sdPlus sdQuestion;
+  sdAlt;
+}
+
+syncon sdLitToken: SyntaxDescription = tok:String
+syncon sdSyTy: SyntaxDescription = name:TypeName
+syncon sdRec: SyntaxDescription = "rec"
+
+
+// === Disambiguation ===
+
+syncon forbidDef: Decl =
+  "forbid" syName:Name "." sdName:(Name | "left" | "right") "=" syName2:Name
+
+
+syncon precedenceList: Decl =
+  "precedence" "{" line:((nonOp:"!"? name:Name)+ ";")+ "}"
+  ("except" "{" eLine:(eName:Name+ ";")+ "}")?
