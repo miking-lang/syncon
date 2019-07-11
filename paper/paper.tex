@@ -767,11 +767,11 @@ that $g(\parse, w) \implies \lnot \rho_P(w) \text{ for all } w \in
 
 This section describes our chosen language definition formalism, and motivates its design.
 
-The primary purpose of this formalism is, as described in the previous section, to produce a $\parse$ function, i.e., to describe a word language and assign one or more interpretations to each word. The interpretations will be unranked trees, intended to be somewhat reminiscent of the abstract syntax trees used in most compilers. Section~\ref{sec:resolvable-definition} suggests that $\parse$ discard some information, to enable the resolution of some ambiguities; we here choose to discard grouping parentheses.
+The primary purpose of this formalism is, as described in the previous section, to produce a $\parse$ function, i.e., to describe a word language and assign one or more parse trees to each word. Parse trees are unranked trees; Section~\ref{sec:resolvable-definition} suggests that $\parse$ discards some information, to enable the resolution of some ambiguities; here, we choose to discard grouping parentheses.
 
-With that in mind, we define a language definition $D$ as a set of labelled productions, as described in Fig.~\ref{fig:input-language-definition}. Note that we require the labels to uniquely identify the production, i.e., there can be no two distinct productions in $D$ that share the same label. Also note that the right-hand side of a production is a regular expression, rather than the theoretically simpler sequence used in a context-free grammar. For proof-technical reasons (see Section~\ref{sec:lattice-vpl}) we require each regular expression to be unambiguous, in the classical sense, when marks are removed. This can be checked using, e.g., the approach described by \citet{brabrandTypedUnambiguousPattern2010}. In practice, this is likely desireable regardless, since a user is likely to attach different semantic meaning to each occurrence of a non-terminal.
+With that in mind, we define a language definition $D$ as a set of labelled productions, as described in Fig.~\ref{fig:input-language-definition}. Note that we require the labels to uniquely identify the production, i.e., there can be no two distinct productions in $D$ that share the same label. Also note that the right-hand side of a production is a regular expression, rather than the theoretically simpler sequence used in a context-free grammar. For proof-technical reasons (see Section~\ref{sec:lattice-vpl}) we require each regular expression to be unambiguous, in the classical sense, when marks are removed. This can be checked using, e.g., the approach described by \citet{brabrandTypedUnambiguousPattern2010}. In practice, this is likely desirable regardless, since a user is likely to attach different semantic meanings to each occurrence of a non-terminal.
 
-Each non-terminal appearing in the regular expression of a production carry a \emph{mark} $m$, which is a set of labels whose productions may \emph{not} replace that non-terminal. To lessen clutter, we will write $E_\emptyset$ as $E$. As an example, consider the language definition in Fig.~\ref{fig:running-example-definition}, which will be used as a running example. In the production describing multiplication ($m$) both non-terminals are marked with $\{a\}$, which thus forbids addition from being a direct child of a multiplication. By ``direct child'' we mean ``without an intermediate node'', most commonly grouping parentheses, thus this enforces conventional precedence.
+Each non-terminal appearing in the regular expression of a production carries a \emph{mark} $m$ which is a set of labels whose productions may \emph{not} replace that non-terminal. To lessen clutter, we write $E_\emptyset$ as $E$. Consider the language definition shown in Fig.~\ref{fig:running-example-definition} which we use as a running example. In the production describing multiplication ($m$) both non-terminals are marked with $\{a\}$, which thus forbids addition from being a direct child of a multiplication. By ``direct child'' we mean ``without an intermediate node'', most commonly grouping parentheses; thus, this enforces conventional precedence.
 
 \begin{figure}
 \centering
@@ -804,7 +804,7 @@ Each non-terminal appearing in the regular expression of a production carry a \e
 \end{minipage}
 \end{figure}
 
-From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Technically, only $G'_D$ and $T_D$ are required, $G'_D$ is used as the defined word language and $T_D$ as the interpretations, but the remaining two grammars help the presentation.
+From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Technically, only $G'_D$ and $T_D$ are required, $G'_D$ is used as the defined word language and $T_D$ as the parse trees, but the remaining two grammars help the presentation.
 
 \begin{itemize}
 \item $G_D$ represents a word language describing all semantically distinct programs.
@@ -968,7 +968,7 @@ $$
 \end{array}
 $$
 
-\noindent The latter is mostly useful in later sections, but $\parse$ allow us to consider some concrete examples of resolvable and unresolvable ambiguities. For example, in our running example (Fig.~\ref{fig:running-example-definition}), the word \texttt|'1 + 2 + 3'| is ambiguous, since $\parse($\verb|'1 + 2 + 3'|$) = \{t_1, t_2\}$ where
+\noindent The latter is mostly useful in later sections, but $\parse$ allows us to consider some concrete examples of resolvable and unresolvable ambiguities. For example, in our running example (Fig.~\ref{fig:running-example-definition}), the word \verb|'1 + 2 + 3'| is ambiguous, since $\parse($\verb|'1 + 2 + 3'|$) = \{t_1, t_2\}$ where
 
 \begin{center}
   \begin{tabular}{l}
@@ -986,7 +986,7 @@ $$
   \end{tabular}
 \end{center}
 
-\noindent In this case, $t_4$ has an unambigous word (namely \verb|'[(1 ; 2)]'|), but $t_3$ does not. The solution is to forbid list elements from being sequences by modify the language definition in Fig.~\ref{fig:running-example-definition} so that both non-terminals in the production $l$ are marked with $s$ (i.e., they look like $E_{\{s\}}$), at which point $\parse($\verb|'[1 ; 2]'|$) = \{t_3\}$.
+\noindent In this case, $t_4$ has an unambigous word (namely \verb|'[(1 ; 2)]'|), but $t_3$ does not. The solution is to forbid list elements from being sequences by modifying the language definition in Fig.~\ref{fig:running-example-definition} so that both non-terminals in the production $l$ are marked with $s$ (i.e., they look like $E_{\{s\}}$), at which point $\parse($\verb|'[1 ; 2]'|$) = \{t_3\}$.
 
 We are now ready to construct decision procedures for the static and dynamic resolvability problems, as given in Definitions~\ref{def:static-procedure-sound}, \ref{def:static-procedure-complete}, \ref{def:dynamic-procedure-sound}, and \ref{def:dynamic-procedure-complete}. Section~\ref{sec:static} gives a partial solution to the static problem, while Section~\ref{sec:dynamic} fully solves the dynamic problem with one caveat: we only consider languages with balanced parentheses.
 
