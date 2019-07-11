@@ -1126,7 +1126,7 @@ The next four lemmas, all concerning the words in $\words(t)$ for some given $t 
   \label{fig:lattice1}
 \end{figure}
 
-Lemma~\ref{lemma:rangeset-equality} suggests a partition of the words in $\words(t)$ for any given $t \in L(T_D)$; group words $w$ by their \emph{rangeset}, where $\rangeset(w) = \support(\rangebag(w))$. These partitions can be partially ordered by subset on the rangeset, resulting in a lattice of word partitions per tree. This lattice is bounded, with top and bottom elements $\topw(t)$ and $\botw(t)$. Lemma~\ref{lemma:same-basic} further states that all words in $\words(t)$ share the same basic word. For example, Fig.~\ref{fig:lattice1} contains the lattice for the tree $a(a(n(1)+n(2))+n(3))$ (from our running example, defined in Fig.~\ref{fig:running-example-definition} on page~\pageref{fig:running-example-definition}). Each partition is represented by the word whose rangebag is a set. To reduce clutter, we do not draw the partitions that have grouping parentheses around the entire word. This outermost possible pair is uninteresting since it is always allowed, and would double the size of the figure if it was included.
+Lemma~\ref{lemma:rangeset-equality} suggests a partition of the words in $\words(t)$ for any given $t \in L(T_D)$; group words $w$ by their \emph{rangeset}, where $\rangeset(w) = \support(\rangebag(w))$. These partitions can be partially ordered by subset on the rangeset, resulting in a lattice of word partitions per tree. This lattice is bounded, with top and bottom elements $\topw(t)$ and $\botw(t)$. We denote this lattice by $\lattice(t)$. Lemma~\ref{lemma:same-basic} further states that all words in $\words(t)$ share the same basic word. For example, Fig.~\ref{fig:lattice1} contains the lattice for the tree $a(a(n(1)+n(2))+n(3))$ (from our running example, defined in Fig.~\ref{fig:running-example-definition} on page~\pageref{fig:running-example-definition}). Each partition is represented by the word whose rangebag is a set. To reduce clutter, we do not draw the partitions that have grouping parentheses around the entire word. This outermost possible pair is uninteresting since it is always allowed, and would double the size of the figure if it was included.
 
 \begin{figure}[t]
 
@@ -1233,11 +1233,11 @@ Our approach centers around finding a pair of lattices, such that one is entirel
 
 \subsection{A Lattice as a Word, and an Algorithm} \label{sec:lattice-vpl}
 
-This section introduces a linear encoding of the lattices of the previous section as words. Lemmas~\ref{lemma:same-basic} and \ref{lemma:top-bottom-determine} imply that a lattice encoding requires three things: a basic word, a set of \emph{required} parentheses, and a set of \emph{possible} parentheses. We encode required parentheses with ``$\reqp{}$'' and possible parentheses with ``$\posp{}$''. For example, the lattice in Fig.~\ref{fig:lattice2} is represented by ``$\posp{\posp{1} + \posp{\posp{2} + \posp{3}}}$'', while the tree for ``$(1 + 2) * 3$'' has a lattice represented by ``$\posp{\reqp{\posp{1} + \posp{2}} * \posp{3}}$''. With this encoding we can apply the formidable body of knowledge available for word languages, albeit with some extra care; the linear encoding of a lattice is not unique.
+This section introduces a linear encoding of the lattices of the previous section as words. Lemmas~\ref{lemma:same-basic} and \ref{lemma:top-bottom-determine} imply that a lattice encoding requires three things: a basic word, a set of \emph{required} parentheses, and a set of \emph{possible} parentheses. We encode required parentheses with ``$\reqp{}$'' and possible parentheses with ``$\posp{}$''. For example, the lattice in Fig.~\ref{fig:lattice2} is represented by ``$\posp{\posp{1} + \posp{\posp{2} + \posp{3}}}$'', while the tree for ``$(1 + 2) * 3$'' has a lattice represented by ``$\posp{\reqp{\posp{1} + \posp{2}} * \posp{3}}$''. We denote the lattice encoded by such a word by $\lattice(w)$. With this encoding we can apply the formidable body of knowledge available for word languages, albeit with some extra care; the linear encoding of a lattice is not unique.
 
-For example, ``$\posp{\posp{1}}$'' and ``$\posp{1}$'' represent the same lattice, as do ``$\reqp{\posp{2}}$'' and ``$\reqp{2}$''. To gain uniqueness we forbid duplicated parentheses and prioritize required parentheses over possible parentheses. For example, ``$\posp{\posp{1}}$'' is uniquely represented as ``$\posp{1}$'' while ``$\reqp{\posp{2}}$'' is uniquely represented as ``$\reqp{2}$''.
+For example, ``$\posp{\posp{1}}$'' and ``$\posp{1}$'' represent the same lattice, as do ``$\reqp{\posp{2}}$'' and ``$\reqp{2}$''. To gain uniqueness we forbid duplicated parentheses and prioritize required parentheses over possible parentheses. For example, ``$\posp{\posp{1}}$'' is uniquely represented as ``$\posp{1}$'' while ``$\reqp{\posp{2}}$'' is uniquely represented as ``$\reqp{2}$''. We define a linear encoding of this form to be \emph{well-formed}.
 
-Lattice equality is now equivalent with equality of the linear encoding. To determine if a lattice is entirely contained in another, we make the following observation: we can move the top of the lattice ``up'' (new top rangeset is a strict superset) by adding a pair of possible parentheses, and move the bottom ``down'' (new bottom rangeset is a strict subset) by replacing a required pair with a possible pair. For example, ``$\reqp{1}2$'' is entirely contained in ``$\reqp{1}\posp{2}$'', which is entirely contained in ``$\posp{1}\posp{2}$''.
+Lattice equality is now equivalent with equality of the linear encoding. To determine if a lattice is entirely contained in another, we make the following observation: we can move the top of the lattice ``up'' (new top rangeset is a superset) by adding a pair of possible parentheses, and move the bottom ``down'' (new bottom rangeset is a subset) by replacing a required pair with a possible pair. For example, ``$\reqp{1}2$'' is entirely contained in ``$\reqp{1}\posp{2}$'', which is entirely contained in ``$\posp{1}\posp{2}$''.
 
 The centerpiece of our algorithm is a \emph{visibly pushdown automaton} constructed in such a way that
 
@@ -1592,11 +1592,11 @@ There are thus cases where we can answer resolvably ambiguous or unresolvably am
   By defining two functions $\treetorun$ and $\runtotree$, the former from a tree to a run, the latter from run to tree, then showing these two functions to be inverses of each other.
 \end{proof}
 
-TODO: define a \emph{well-formed} linear encoding as a linear encoding without double parens. Ensure $\runtoword$ and $\lattice$ are defined.
-
 \begin{lemma}
   All words $w \in L(A_{\posp{}})$ are well-formed linear encodings.
 \end{lemma}
+
+We denote the word recognized by a run $R$ by $\runtoword(R)$.
 
 \begin{lemma}
   $\forall t \in L(T_D).\ \lattice(\runtoword(\treetorun(t))) = \lattice(t)$.
@@ -1673,7 +1673,7 @@ $$
 $$
 
 \begin{lemma}
-  Given a finite set $\{t_1, t_2, \ldots, t_n\} \subseteq L(T_D)$ we can construct a set of VPDAs $\{A_1, A_2, \ldots, A_n\}$ such that $\forall i.\ L(A_i) \setminus \bigcup_{i \neq i'} \words(t_{i'})$.
+  Given a finite set $\{t_1, t_2, \ldots, t_n\} \subseteq L(T_D)$ we can, in finite time, construct a set of VPDAs $\{A_1, A_2, \ldots, A_n\}$ such that $\forall i.\ L(A_i) \setminus \bigcup_{i \neq i'} \words(t_{i'})$.
 \end{lemma}
 
 \begin{proof}
