@@ -2073,7 +2073,27 @@ Numerous language development frameworks and libraries support syntactic languag
 UNFINISHED
 
 \section{Conclusion}
-In this paper, we introduce the concept of \emph{resolvable ambiguity}. This means that a language syntax definition can be ambiguous, but the ambiguity is resolvable later by the end user when compiling a program. This approach departs from the common standpoint that grammars and syntax definitions of languages must be unambiguous. We motivate our work both for general-purpose languages in general, but for domain-specific languages in particular. As part of the new concept, we formalize the fundamental \emph{resolvable ambiguity problem}, and divide it into static and dynamic parts. We prove soundness and completeness of static resolvablity for a restricted class of languages, and soundness and completeness of dynamic resolvability for general context-free languages with balanced parenthesis. The approach is evaluated on two case studies, including the definition of a large subset of OCaml, and on the composition of domain-specific languages.
+In this paper, we have introduced the concept of \emph{resolvable
+  ambiguity}. A language grammar is resolvably ambiguous if all
+ambiguities can be resolved by the end-user at parse time. This
+approach departs from the common standpoint that grammars and
+syntax definitions of languages must be unambiguous.
+%
+As part of the new concept, we have formalized the fundamental
+\emph{resolvable ambiguity problem}, divided it into static and
+dynamic parts, and provided solutions for both variants for a
+restricted class of languages. Through case studies, we have
+showed practical applicability of the approach, both for building
+new domain-specific languages and for reasoning about existing
+general-purpose languages.
+
+In future work, we will investigate weakning the restrictions
+currently needed for the static and dynamic resolvability
+algorithms to work. We also intend to develop our theory and tools
+to support handling deep precedence ambiguities and ambiguities
+based on ``longest match''. A long term goal is to be able to
+suggest changes to the grammar of a language, based on ambiguities
+found through dynamic analysis.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
