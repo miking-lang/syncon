@@ -1636,9 +1636,18 @@ We denote the word recognized by a run $R$ by $\runtoword(R)$.
 
 \section{Dynamic Resolvability Analysis} \label{sec:dynamic}
 
-The dynamic resolvability problem is as follows: for a given $w' \in L(G'_D)$ determine whether $\forall t \in \parse(w').\ \exists w'_2.\ \parse(w'_2) = \{t\}$. Furthermore, for practical reasons, if the word is resolvably ambiguous we wish to produce a (minimal) witness for each tree. Additionally, while Section~\ref{sec:static} requires a language definition $D$ to not contain parentheses, this section merely requires parentheses to be balanced.
+The dynamic resolvability problem is as follows: for a given $w' \in L(G'_D)$ determine whether $\forall t \in \parse(w').\ \exists w'_2.\ \parse(w'_2) = \{t\}$. Furthermore, for practical reasons, if the word is resolvably ambiguous we wish to produce a (minimal) witness for each tree. Similarly to Section~\ref{sec:static} we place some restrictions on $D$, though the restrictions are less severe:
 
-Our approach centers around around $\words(t)$, which, being a set of words, can be considered a language in the classical sense. Each such language turns out to be a visibly pushdown language. VPLs are closed under difference, which enables us to create a visibly pushdown automaton for the language $\words(t_1) \setminus \words(t_2)$ for any pair of trees $t_1, t_2 \in L(T_D)$. This is useful, since $\words(t_1)$ is the set of possible resolutions for $t_1$ in an ambiguity, and $\words(t_1) \cap \words(t_2)$ is the set of ambiguous words that can parse as both $t_1$ and $t_2$, i.e., words that \emph{cannot} resolve an ambiguity.
+Additionally, while Section~\ref{sec:static} requires a language definition $D$ to not contain parentheses, this section merely requires parentheses to be balanced.
+
+\begin{enumerate}
+\item Each right-hand side regular expression must only recognize words with balanced parentheses, e.g., ``$\verb|(| \verb|)|$'' is permissible, but ``$\verb|(|^{*} \verb|)|^{*}$'' is not.
+\item $G_D$, but with parentheses removed, must not be infinitely ambiguous.
+\end{enumerate}
+
+\noindent Both of these restrictions can be checked statically.
+
+Our approach centers around around $\words(t)$, which, being a set of words, can be considered a language in the classical sense. Given restriction (1), each such language turns out to be a visibly pushdown language. VPLs are closed under difference, which enables us to create a visibly pushdown automaton for the language $\words(t_1) \setminus \words(t_2)$ for any pair of trees $t_1, t_2 \in L(T_D)$. This is useful, since $\words(t_1)$ is the set of possible resolutions for $t_1$ in an ambiguity, and $\words(t_1) \cap \words(t_2)$ is the set of ambiguous words that can parse as both $t_1$ and $t_2$, i.e., words that \emph{cannot} resolve an ambiguity.
 
 Intuitively we then need to, for each tree $t \in \parse(w)$, determine if $\words(t) \setminus \bigcup_{t' \in L(T_D) \land t' \neq t} \words(t)$ is the empty set. Unfortunately, $L(T_D)$ tends to be infinite. However, for any particular $t$, most trees $t' \in L(T_D)$ are irrelevant: their words do not overlap at all; $\words(t) \cap \words(t') = \emptyset$. Hence we construct a (finite) subset of $L(T_D)$ such that all other trees are irrelevant. As a bonus, this approach constructs a VPDA per tree that recognizes valid resolutions for that tree; a minimal witness is thus a shortest word recognized by a VPDA, and the problem of finding such a word is a known one.
 
@@ -1691,9 +1700,14 @@ $$
 \end{proof}
 
 \begin{lemma}
+  Given a finite set $\{t_1, t_2, \ldots, t_n\} \subseteq L(T_D)$, the set of trees $t' \in L(T_D)$ such that $\words(t) \cap \words(t') \neq \emptyset$ is finite.
 \end{lemma}
 
-UNFINISHED
+\begin{proof}
+  Lemma~\ref{lemma:same-basic}, presented in Section~\ref{sec:word-view}, holds since restriction (1) implies only well-balanced parentheses, thus all $t'$ must share a basic word with all $t_i$. $G_D$ with parentheses removed recognizes these basic words, and has a one-to-one correspondence between leftmost derivations and trees in $L(T_D)$, by construction. Restriction (2) states that $G_D$ without parentheses is not infinitely ambiguous, thus there must be a finite number of trees that have the same basic word as all $t_i$.
+\end{proof}
+
+Restriction (2) also implies that $G'_D$ is not infinitely ambiguous, whereby $\parse(w)$ must be finite. The dynamic analysis thus parses $\basic(w)$ using $G_D$ with parentheses removed to produce a set $R$ of relevant trees. For every $t \in parse(w)$, we construct a VPDA recognizing $\words(t) \setminus \bigcup_{t' \in R, t \neq t'}\words(t')$. If none of these VPDAs recognize the empty language, then the word is resolvably ambiguous, otherwise it is unresolvably ambiguous.
 
 \section{Case Studies} \label{sec:evaluation}
 
