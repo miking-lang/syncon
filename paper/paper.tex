@@ -631,7 +631,7 @@ Finally, $yield : L(T) -> \T^{*}$ is the sequence of terminals $a \in \T$ obtain
 
 This section introduces our definition of \emph{resolvable ambiguity}, and then relates it to standard concepts in formal languages.
 
-A formal language is defined as a set of words, i.e., a subset of $\T^{*}$ for some alphabet $\T$. For defining \emph{resolvable ambiguity} we additionally have to consider the results of parsing words. In order to stay as general as possible, we first define the notion of an \emph{abstract parser}.
+A formal language is defined as a set of words, i.e., a subset of $\T^{*}$ for some alphabet $\T$. To be able to define \emph{resolvable ambiguity}, we additionally have to consider the results of parsing words. In order to stay as general as possible, we first define the notion of an \emph{abstract parser}.
 
 \begin{definition}
   An abstract parser $P$ is a triple $(\T, T, \parse)$ consisting of
@@ -642,7 +642,7 @@ A formal language is defined as a set of words, i.e., a subset of $\T^{*}$ for s
 \end{itemize}
 \end{definition}
 
-This notion of an abstract parser enables the introduction of a particular class of formal languages that we will use throughout the rest of the paper; we call members of this class \emph{parse languages:}
+\noindent This notion of an abstract parser enables the introduction of a particular class of formal languages that we will use throughout the rest of the paper; we call members of this class \emph{parse languages:}
 
 \begin{definition}
   Given a word $w \in \T^{*}$ and an abstract parser $P = (\T, T,
@@ -652,31 +652,31 @@ This notion of an abstract parser enables the introduction of a particular class
   $w \in L(P)$ iff $\parse(w) \neq \emptyset$.
 \end{definition}
 
-\noindent For example, consider a simple arithmetic language without precedence and parentheses. In such a language, $\parse(1 + 2 \cdot 3)$ would produce a set containing the two parse trees shown in Fig.~\ref{fig:arith-example}.
-
-\begin{figure}[t]
-\begin{tabular}{cc}
-  \Tree [.{$+$}
-    1
-    [.{$\cdot$}
-      2
-      3 ] ] &
-  \Tree [.{$\cdot$}
-    [.{$+$}
-      1
-      2 ]
-    3 ] \\
-\end{tabular}
-\caption{The two allowable parse trees of $1 + 2 \cdot 3$ in an arithmetic language without precedence.}
-\label{fig:arith-example}
-\end{figure}
-
+\noindent For example, consider a simple arithmetic language without precedence and parentheses. In such a language, $\parse(1 + 2 \cdot 3)$ would produce a set containing two parse trees. %the two parse trees shown in Fig.~\ref{fig:arith-example}.
+%
+%\begin{figure}[t]
+%\begin{tabular}{cc}
+%  \Tree [.{$+$}
+%    1
+%    [.{$\cdot$}
+%      2
+%      3 ] ] &
+%  \Tree [.{$\cdot$}
+%    [.{$+$}
+%      1
+%      2 ]
+%    3 ] \\
+%\end{tabular}
+%\caption{The two allowable parse trees of $1 + 2 \cdot 3$ in an arithmetic language without precedence.}
+%\label{fig:arith-example}
+%\end{figure}
+%
 The ambiguity of a word $w \in \T^{*}$ is defined in terms of $\parse$:
 
 \begin{definition}
   Given an abstract parser $P = (\T, T, \parse)$, a word $w \in L(P)$
   is ambiguous, written $\amb_P(w)$, iff
-
+%
   $\exists t_1, t_2 \in T.\ t_1 \neq t_2 \land \{t_1, t_2\} \subseteq \parse(w)$
 \end{definition}
 
@@ -701,7 +701,9 @@ classical definition of a (formal) language as follows:
   $\forall t \in \parse(w).\ \exists w' \in \T^{*}.\ \parse(w') = \{t\}$.
 \end{definition}
 
-The example in Fig.~\ref{fig:arith-example} is not resolvably ambiguous, since neither tree can be written in any other way. However, if we add grouping parentheses to the language we find that $1 + (2 \cdot 3)$ and $(1 + 2) \cdot 3$ are unambiguously parsed as the first and second tree, respectively.
+The example $\parse(1 + 2 \cdot 3)$
+%in Fig.~\ref{fig:arith-example}
+is not resolvably ambiguous, since neither of the two resulting trees can be written in any other way. However, if we add grouping parentheses to the language, we find that $1 + (2 \cdot 3)$ and $(1 + 2) \cdot 3$ are unambiguously parsed as the first and second tree, respectively.
 
 Additionally, we define an \emph{abstract parser} to be resolvably ambiguous if all words in its corresponding parse language $L(P)$ are resolvably ambiguous, formally:
 
@@ -722,7 +724,7 @@ Additionally, we define an \emph{abstract parser} to be resolvably ambiguous if 
 
 We thus propose to loosen the common ``no ambiguity'' restriction on programming language grammars, and instead only require them to be resolvably ambiguous. However, merely having an arbitrary function $\parse$ gives us very little to work with, and no way to decide whether the language it defines is resolvably ambiguous or not. The remainder of this paper will thus consider $\parse$ functions defined using a particular formalism, introduced in Section~\ref{sec:parse-time-disambiguation}, which gives us some decidable properties.
 
-Before introducing this formalism however, we introduce the two central problems we consider in this paper:
+Before introducing this formalism, however, we introduce the two central problems we consider in this paper:
 
 \begin{description}
 \item[Static resolvability.] Given an abstract parser $P$, determine whether $\rho(P)$.
@@ -732,7 +734,7 @@ Before introducing this formalism however, we introduce the two central problems
 \noindent Our main concern is producing decision procedures for these problems. First, we define soundness and completeness for the static problem.
 
 \begin{definition}[Soundness of Static Resolvability]\label{def:static-procedure-sound}
-  A decision procedure $f$ solving the static resolvability problem is sound iff
+  A decision procedure $f$, solving the static resolvability problem, is sound iff
 
   $f(P) \implies \rho(P) \text{ for all abstract parsers } P$
 \end{definition}
@@ -743,7 +745,7 @@ $g$ such that $g(P) \implies \lnot \rho(P) \text{ for all abstract
 studied in the following sections.
 
 \begin{definition}[Completeness of Static Resolvability]\label{def:static-procedure-complete}
-  A decision procedure $f$ solving the static resolvability problem is \emph{complete} iff
+  A decision procedure $f$, solving the static resolvability problem, is \emph{complete} iff
 
   $\rho(P) \implies f(P) \text{ for all abstract parsers } P$
 \end{definition}
@@ -752,18 +754,18 @@ studied in the following sections.
 \noindent Similarly, we define soundness and completeness for the dynamic problem.
 
 \begin{definition}[Soundness of Dynamic Resolvability]\label{def:dynamic-procedure-sound}
-  A decision procedure $f$ solving the dynamic resolvability problem is sound iff
+  A decision procedure $f$, solving the dynamic resolvability problem, is sound iff
 
   $f(\parse, w) \implies \rho_P(w) \text{ for all } w \in \Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$
 \end{definition}
 
-Analogous to the static case, for the parse languages studied in the
-following sections we can also provide a decision procedure $g$ such
+\noindent Analogous to the static case, for the parse languages studied in the
+following sections, we can also provide a decision procedure $g$ such
 that $g(\parse, w) \implies \lnot \rho_P(w) \text{ for all } w \in
 \Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$.
 
 \begin{definition}[Completeness of Dynamic Resolvability]\label{def:dynamic-procedure-complete}
-  A decision procedure $f$ solving the dynamic resolvability problem is complete iff
+  A decision procedure $f$, solving the dynamic resolvability problem, is complete iff
 
   $\rho_P(w) \implies f(\parse, w) \text{ for all } w \in \Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$
 \end{definition}
