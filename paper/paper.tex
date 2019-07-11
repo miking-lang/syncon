@@ -348,11 +348,44 @@ In this paper, we solve the static resolvability problems for certain classes of
 
 
 
+
 \section{Motivating Example}
 \label{sec:motivation}
-This section walks through an example from OCaml where an ambiguity error can be clearer than what the actual compiler produces, suggesting that (resolvable) ambiguity has merit even in the context of a general purpose programming language.
+In this section, we motivate the need for ambiguous language definitions, where the decision of how to disambiguate a program is taken by the end-user (the programmer) and not the language designer. We motivate our new methodology both for engineering of new domain-specific languages, as well as for the design of existing general-purpose programming languages.
 
-Consider the following nested match expression (from \cite{palmkvistCreatingDomainSpecificLanguages2019}), and the resulting error message:
+\subsection{Domain-Specific Modeling of Components}
+Suppose we are defining a new textual modeling language, where components are composed in series using an infix operator \verb~--~, and in parallel using an infix operator \verb~||~. For instance, an expression \verb~C1 -- C2~ puts components \verb~C1~ and \verb~C2~ in series, whereas \verb~C1 || C2~ composes them in parallel. In such a case, what is then the meaning of the following expression?
+\begin{verbatim}
+  C1 -- C2 || C3 || C4
+\end{verbatim}
+
+\noindent Are there natural associativity and precedence rules for these new operators? If there are no predefined rules of how to disambiguate this expression within the language definition, it is an ambiguous expression, and a parser generates a set of parse trees. Consider Fig~\ref{fig:circuits}, which depicts four different alternatives, each with a different meaning, depending on how the ambiguity has been resolved. Clearly, the expression has totally different meanings depending on how the end-user places the parenthesis. However, if a language designer is forced to make the grammar of the syntax definition unambiguous, a specific choice has to be made for precedence and associativity. For instance, assume that the designer makes the arbitrary choice that serial composition has higher precedence than parallel composition, and that both operators are left associative. In such a case, the expression without parenthesis is parsed as Figure~\ref{fig:circuits}(d). The question is why such an arbitrary choice---which is forced by the traditional design of unambiguous grammars---is the correct way to interpret a domain-specific expression. The alternative, as argued for in this paper, is to postpone the decision, and instead give an error message to the end user (programmer or modeler), and expose different alternatives that disambiguate the expression.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%&
+\begin{figure*}[!t]
+\center
+\includegraphics[width=1.0\textwidth]{circuits.pdf}
+\caption{The figure shows four different alternatives for disambiguating the expression $\texttt{C1 -- C2 || C3 || C4}$. Note that there is a fifth alternative $\texttt{C1 -- ((C2 || C3) || C4)}$. However, the meaning of this expression is the same as (c), presupposed that the parallel operator is associative. In such a case, this expression and the expression in (c) both means that components $\texttt{C2}$, $\texttt{C3}$, and $\texttt{C4}$ are composed in parallel. }
+\label{fig:circuits}
+\end{figure*}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%&
+
+% ((C1 -- C2) || C3) || C4     --> (d)
+% (C1 -- (C2 || C3)) || C4
+% C1 -- (C2 || (C3 || C4))     --> (c)
+% C1 -- ((C2 || C3) || C4)     actually same as (c), just a different layout
+% (C1 -- C2) || (C3 || C4)     --> (b)
+
+
+\subsection{Match Cases in OCaml}
+
+Explicit ambiguity is highly relevant also for the design of new and existing general purpose programming languages. The following example shows how an ambiguity error can be clearer than what an existing compiler produces today with the traditional approach.
+
+
+%Consider the following nested match expression (from \cite{palmkvistCreatingDomainSpecificLanguages2019}), and the resulting error message:
+
+Consider the following OCaml example of nested \verb|match| expressions, as stated by \cite{palmkvistCreatingDomainSpecificLanguages2019}).
 
 \begin{minipage}{.35\textwidth}
 \begin{lstlisting}[language={[objective]caml},numbers=left]
@@ -372,7 +405,8 @@ match 1 with
 \end{lstlisting}
 \end{minipage}
 
-\noindent The compiler sees the last line as belonging to the inner \ocaml{match} rather than the outer, as was intended. The solution is simple; we put parentheses around the inner match:
+
+\noindent The OCaml compiler output is listed to the right. The compiler sees the last line as belonging to the inner \ocaml{match} rather than the outer, as was intended. The solution is simple; we put parentheses around the inner match:
 
 \begin{minipage}{\textwidth}
 \begin{lstlisting}[language={[objective]caml},numbers=left]
@@ -383,36 +417,54 @@ match 1 with
 \end{lstlisting}
 \end{minipage}
 
-\noindent However, the connection between error message and solution is not particularly clear; surrounding an expression with parentheses does not change its type.
+\noindent However, the connection between the error message and the solution is not particularly clear; surrounding an expression with parentheses does not change its type.
+%
+%
+%Instead, we look to the OCaml manual for inspiration. It contains an informal description of the syntax of the language\footnote{\url{https://caml.inria.fr/pub/docs/manual-ocaml/language.html}}, in the form of an EBNF-like grammar. Below is an excerpt of the productions for expressions, written in a more standard variant of EBNF:%
+%
+%\setlength{\grammarindent}{9.5em}
+%\begin{grammar}
+%<expr> ::= \verb|'match'| <expr> \verb|'with'| <pattern-matching>
+%
+%<pattern-matching> ::= \verb{'|'{$^{?}$ <pattern> (\verb|'when'| <expr>)$^{?}$ \\
+%(\verb{'|'{ <pattern> (\verb|'when'| <expr>)$^{?}$ \verb|'->'| <expr>)*
+%\end{grammar}
+%
+%\noindent If we use this grammar to parse the nested match we find an ambiguity: the last match arm ca%n belong to either the inner match or the outer match.
+%
+The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may or may not be the alternative the user intended. Instead, our approach is to postpone the disambiguation to the end user, and present the two alternatives as parse trees, as part of the error message.
 
-Instead, we look to the OCaml manual for inspiration. It contains an informal description of the syntax of the language\footnote{\url{https://caml.inria.fr/pub/docs/manual-ocaml/language.html}}, in the form of an EBNF-like grammar. Below is an excerpt of the productions for expressions, written in a more standard variant of EBNF:
 
-\setlength{\grammarindent}{9.5em}
-\begin{grammar}
-<expr> ::= \verb|'match'| <expr> \verb|'with'| <pattern-matching>
+%would here be informative, and useful to a language designer, but would also expose implementation details to an end-user. Instead, we can present the alternatives in the form of modified code that parses unambiguously as each corresponding alternative:
 
-<pattern-matching> ::= \verb{'|'{$^{?}$ <pattern> (\verb|'when'| <expr>)$^{?}$ \\
-(\verb{'|'{ <pattern> (\verb|'when'| <expr>)$^{?}$ \verb|'->'| <expr>)*
-\end{grammar}
+%\begin{center}
+%\begin{tabular}{l|l}
+%\begin{lstlisting}[language={[objective]caml}]
+%match 1 with
+%  | 1 -> (match "one" with
+%          | str -> str)
+%  | 2 -> "two"
+%\end{lstlisting} &
+%\begin{lstlisting}[language={[objective]caml}]
+%match 1 with
+%  | 1 -> (match "one" with
+%          | str -> str
+%  | 2 -> "two")
+%\end{lstlisting} \\
+%\end{tabular}
+%\end{center}
 
-\noindent If we use this grammar to parse the nested match we find an ambiguity: the last match arm can belong to either the inner match or the outer match. The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may or may not be the alternative the user intended. Presenting the two alternatives as parse trees would here be informative, and useful to a language designer, but would also expose implementation details to an end-user. Instead, we can present the alternatives in the form of modified code that parses unambiguously as each corresponding alternative:
 
-\begin{center}
-\begin{tabular}{l|l}
-\begin{lstlisting}[language={[objective]caml}]
-match 1 with
-  | 1 -> (match "one" with
-          | str -> str)
-  | 2 -> "two"
-\end{lstlisting} &
-\begin{lstlisting}[language={[objective]caml}]
-match 1 with
-  | 1 -> (match "one" with
-          | str -> str
-  | 2 -> "two")
-\end{lstlisting} \\
-\end{tabular}
-\end{center}
+\subsection{Resolvable Ambiguity}
+The two motivating examples above motivate briefly why grammar
+and language definitions should not always be unambiguous. However, an
+ambiguous grammar that cannot be resolved by the end user is clearly
+undesirable. In the rest of the paper, we formalize the approach of
+resolvable ambiguity, and show how we can give guarantees for
+resolvability.
+
+
+
 
 \section{Preliminaries}
 \label{sec:prel}
@@ -1924,6 +1976,8 @@ Numerous language development frameworks and libraries support syntactic languag
 UNFINISHED
 
 \section{Conclusion}
+In this paper, we introduce the concept of \emph{resolvable ambiguity}. This means that a language syntax definition can be ambiguous, but the ambiguity is resolvable later by the end user when compiling a program. This approach departs from the common standpoint that grammars and syntax definitions of languages must be unambiguous. We motivate our work both for general-purpose languages in general, but for domain-specific languages in particular. As part of the new concept, we formalize the fundamental \emph{resolvable ambiguity problem}, and divide it into static and dynamic parts. We prove soundness and completeness of static resolvablity for a restricted class of languages, and soundness and completeness of dynamic resolvability for general context-free languages with balanced parenthesis. The approach is evaluated on two case studies, including the definition of a large subset of OCaml, and on the composition of domain-specific languages.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
