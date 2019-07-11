@@ -64,7 +64,8 @@ formatErrors sources messages = sortedMessages <&> formatSingle & Text.intercala
     formatRange (r, "") = "\n" <> formatPath r <> extractRange r
     formatRange (r, t) = "\n" <> ensureLn t <> formatPath r <> extractRange r
 
-    formatPath (Range f _ _) = " " <> f <> ":\n"
+    formatPath (Range f Position{line=l1,column=c1} Position{line=l2,column=c2}) =
+      " " <> f <> " " <> show l1 <> ":" <> show c1 <> "-" <> show l2 <> ":" <> show c2 <> "\n"
     formatPath Nowhere = ""
 
     extractRange :: Range -> Text

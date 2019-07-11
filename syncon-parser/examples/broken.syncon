@@ -27,8 +27,8 @@ forbid undef.undefsdname = undef
 forbid thing.dupsd = op4
 
 // === Forbid non-syntaxtype ===
-syncon thing: Top = things:(thing:Top ";")*
-forbid thing.things = thing
+syncon thing2: Top = things:(thing:Top ";")*
+forbid thing2.things = thing
 
 // === Undefined name in precedence list ===
 precedence {
