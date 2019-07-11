@@ -1536,7 +1536,7 @@ We define the translation from production to DFA through a function $\dfa$ from 
 \item $Q = \{s, f\} \cup \bigsqcup_l Q_l$.
 \item $\T' = \T \cup \{\reqpl, \pospl, \pospr\}$.
 \item $\Gamma = Q \times Q \times \Labels^{*}$.
-\item $\delta$ is defined by (in hindsight this should probably be written as constructing a set $\delta$, i.e., instead of a function $\delta: Q \times \T' \times (\Gamma \cup \{\lambda\}) -> 2^{Q \times (\Gamma \cup \{\lambda\})}$ we have a set $\delta \subseteq Q \times \T' \times (\Gamma \cup \{\lambda\}) \times Q \times (\Gamma \cup \{\lambda\})$, would probably be easier to read):
+\item $\delta$ is defined by the following equations (unspecified cases produce $\emptyset$):
   $$
   \begin{array}{r@{\;=\;}l@{\;\mid\;}l}
     \delta(p, a, \lambda)
