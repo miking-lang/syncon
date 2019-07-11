@@ -129,8 +129,6 @@
 
 \synctex=1
 \begin{document}
-% TODO: Decide on British or American English.
-
 % Submission may be up to 25 pages, excluding references
 
 %% Title information
@@ -141,7 +139,7 @@
 
 %% Author information
 %% Contents and number of authors suppressed with 'anonymous'.
-%% Each author should be introduced by \author, followe by
+%% Each author should be introduced by \author, followed by
 %% \authornote (optional), \orcid (optional), \affiliation, and
 %% \email.
 %% An author may have multiple affiliations and/or emails; repeat the
@@ -275,7 +273,7 @@ make more or less arbitrary choices to disambiguate the language, a more natural
 solution may be to postpone the decision to the programmer.
 
 
-% Motivation II, compising DSLs
+% Motivation II, composing DSLs
 Another area where ambiguous grammars naturally arise is
 in domain-specific language development.  An important
 objective when designing domain-specific languages is to be able construct
@@ -335,7 +333,7 @@ This problem can be generalized into the \emph{static resolvable
   ambiguity problem}: given a parse function, decide whether all
 parsable programs are resolvably ambiguous.
 %
-Static resolvablity means that a language designer can be
+Static resolvability means that a language designer can be
 confident that the end-user (the programmer) can always resolve an
 ambiguity by modifying the program. Identifying such ambiguities
 for a \emph{specific} program and suggesting disambiguations is
@@ -350,7 +348,7 @@ definition, program by program.
 
 %This presents a problem, since such an ambiguity is an error an end-user might encounter, yet it can only be solved by the language designer, since it requires a change to the language grammar. We thus have a concept of ambiguities that can be resolved by an end-user, and those that cannot. We call an instance of the former a \emph{resolvable ambiguity}, and the latter an \emph{unresolvable ambiguity}. This paper introduces these concepts in the context of language theory, thus we henceforth use terms such as ``word'' instead of ``program''.
 
-% TODO: I feel like there should be a clear transition between the more pracctical setting of programs and code, and the theoretical setting with words and terminals, but I'm not convince the above sentence is very good at that.
+% TODO: I feel like there should be a clear transition between the more practical setting of programs and code, and the theoretical setting with words and terminals, but I'm not convince the above sentence is very good at that.
 
 % TODO: resolvable ambiguity cannot be defined solely in terms of a grammar, we require interpretations of words as well, thus we have to introduce a new formalism that does this, the formalism is an intuitive extension of EBNF grammars. this is probably written as a contrast with classical ambiguity, which should be described briefly for contrast
 
@@ -379,7 +377,7 @@ In this paper, we solve the static resolvability problems for certain classes of
   computations, where we investigate the effects of composing
   language fragments, and (ii) an implementation and evaluation of
   a large subset of OCaml's syntax, where we study the effect of
-  implementing an underspecified language definition.
+  implementing an under-specified language definition.
 \end{itemize}
 
 \noindent As part of the formalization of the dynamic and static resolvability problems, we define a syntax definition formalism based on Extended Backus–Naur Form (EBNF), where ambiguities can be resolved with grouping parentheses (Section~\ref{sec:parse-time-disambiguation}). Before the above contributions are introduced, the paper starts with motivating examples (Section~\ref{sec:motivation}), and a section with preliminaries (Section~\ref{sec:prel}).
