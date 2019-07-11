@@ -396,7 +396,7 @@ Suppose we are defining a new textual modeling language, where components are co
   C1 -- C2 || C3 || C4
 \end{verbatim}
 
-\noindent Are there natural associativity and precedence rules for these new operators? If there are no predefined rules of how to disambiguate this expression within the language definition, it is an ambiguous expression, and a parser generates a set of parse trees. Consider Fig~\ref{fig:circuits}, which depicts four different alternatives, each with a different meaning, depending on how the ambiguity has been resolved. Clearly, the expression has totally different meanings depending on how the end-user places the parenthesis. However, if a language designer is forced to make the grammar of the syntax definition unambiguous, a specific choice has to be made for precedence and associativity. For instance, assume that the designer makes the arbitrary choice that serial composition has higher precedence than parallel composition, and that both operators are left associative. In such a case, the expression without parenthesis is parsed as Figure~\ref{fig:circuits}(d). The question is why such an arbitrary choice---which is forced by the traditional design of unambiguous grammars---is the correct way to interpret a domain-specific expression. The alternative, as argued for in this paper, is to postpone the decision, and instead give an error message to the end user (programmer or modeler), and expose different alternatives that disambiguate the expression.
+\noindent Are there natural associativity and precedence rules for these new operators? If there are no predefined rules of how to disambiguate this expression within the language definition, it is an ambiguous expression, and a parser generates a set of parse trees. Consider Fig~\ref{fig:circuits}, which depicts four different alternatives, each with a different meaning, depending on how the ambiguity has been resolved. Clearly, the expression has totally different meanings depending on how the end-user places the parenthesis. However, if a language designer is forced to make the grammar of the syntax definition unambiguous, a specific choice has to be made for precedence and associativity. For instance, assume that the designer makes the arbitrary choice that serial composition has higher precedence than parallel composition, and that both operators are left associative. In such a case, the expression without parenthesis is parsed as Figure~\ref{fig:circuits}(d). The question is why such an arbitrary choice---which is forced by the traditional design of unambiguous grammars---is the correct way to interpret a domain-specific expression. The alternative, as argued for in this paper, is to postpone the decision, and instead give an error message to the end-user (programmer or modeler), and expose different alternatives that disambiguate the expression.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%&
@@ -469,7 +469,7 @@ match 1 with
 %
 %\noindent If we use this grammar to parse the nested match we find an ambiguity: the last match arm ca%n belong to either the inner match or the outer match.
 %
-The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may or may not be the alternative the user intended. Instead, our approach is to postpone the disambiguation to the end user, and present the two alternatives as parse trees, as part of the error message.
+The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may or may not be the alternative the user intended. With a parser that is aware of possible ambiguities, the disambiguation can be left to the end-user, with the alternatives listed as part of an error message.
 
 
 %would here be informative, and useful to a language designer, but would also expose implementation details to an end-user. Instead, we can present the alternatives in the form of modified code that parses unambiguously as each corresponding alternative:
@@ -494,8 +494,8 @@ The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may 
 
 \subsection{Resolvable Ambiguity}
 The two motivating examples above motivate briefly why grammar
-and language definitions should not always be unambiguous. However, an
-ambiguous grammar that cannot be resolved by the end user is clearly
+and language definitions do not always need to be unambiguous. However, an
+ambiguous program that cannot be resolved by the end-user is clearly
 undesirable. In the rest of the paper, we formalize the approach of
 resolvable ambiguity, and show how we can give guarantees for
 resolvability.
