@@ -506,39 +506,44 @@ resolvability.
 \section{Preliminaries}
 \label{sec:prel}
 
-This section briefly describes the theoretical foundations we build upon. Sections~\ref{sec:preliminaries-cfgs} and \ref{sec:preliminaries-automata} describe context-free grammars and various forms of automata, the latter with some non-standard notation to make later sections easier to read. Section~\ref{sec:preliminaries-vpls} then describes visibly pushdown languages, which enable the analyses described in Sections~\ref{sec:static} and \ref{sec:dynamic}. Finally, Sections~\ref{sec:preliminaries-trees} and \ref{sec:preliminaries-ambiguity} describe trees and ambiguity, the former with some non-standard notation and the latter with a slightly wider definition than normal.
+This section briefly describes the theoretical foundations we build upon.
 
-\subsection{Bags} \label{sec:bags}
+%Sections~\ref{sec:preliminaries-cfgs} and \ref{sec:preliminaries-automata} describe context-free grammars and various forms of automata, the latter with some non-standard notation to make later sections easier to read. Section~\ref{sec:preliminaries-vpls} then describes visibly pushdown languages, which enable the analyses described in Sections~\ref{sec:static} and \ref{sec:dynamic}. Finally, Sections~\ref{sec:preliminaries-trees} and \ref{sec:preliminaries-ambiguity} describe trees and ambiguity, the former with some non-standard notation and the latter with a slightly wider definition than normal.
 
-A \emph{bag}, or \emph{multiset}, is a generalization of a set; it is an unordered collection where each element may appear multiple times. The number of times an element $a$ appears in a bag $B$ is called the \emph{multiplicity} of $a$ in $B$ and is written $m_B(a)$. A bag $A$ is included in another bag $B$, written $A \subseteq B$, iff $\forall x.\ m_A(x) \leq m_B(x)$. The underlying set of elements of a bag $B$ is called the \emph{support} of $B$, and is given by $\support(B) = \{ x \mid m_B(x) > 0 \}$.
+%\subsection{Bags} \label{sec:bags}
 
-\subsection{Regular Expressions} \label{sec:preliminaries-regexes}
+%A \emph{bag}, or \emph{multiset}, is a generalization of a set; it is an unordered collection where each element may appear multiple times. The number of times an element $a$ appears in a bag $B$ is called the \emph{multiplicity} of $a$ in $B$ and is written $m_B(a)$. A bag $A$ is included in another bag $B$, written $A \subseteq B$, iff $\forall x.\ m_A(x) \leq m_B(x)$. The underlying set of elements of a bag $B$ is called the \emph{support} of $B$, and is given by $\support(B) = \{ x \mid m_B(x) > 0 \}$.
 
-A regular expression $r$ over alphabet $\T$ is defined inductively:
+%\subsection{Regular Expressions} \label{sec:preliminaries-regexes}
 
-$$r ::= \epsilon \mid a \mid r \cdot r \mid r + r \mid r^{*}$$
+%A regular expression $r$ over alphabet $\T$ is defined inductively:
 
-\noindent where $a \in \T$. The language of a regular expression $r$ is given by $L(r)$:
+%$$r ::= \epsilon \mid a \mid r \cdot r \mid r + r \mid r^{*}$$
 
-$$
-\begin{array}{r@{\ =\ }l}
-  L(t) & \{a\} \\
-  L(\epsilon) & \{\epsilon\} \\
-  L(r_1 \cdot r_2) & \{ w_1 \cdot w_2 \mid w_1 \in L(r_1), w_2 \in L(r_2) \} \\
-  L(r_1 + r_2) & L(r_1) \cup L(r_2) \\
-  L(r^{*}) & L(\epsilon + r \cdot r^{*}) \\
-\end{array}
-$$
+%\noindent where $a \in \T$. The language of a regular expression $r$ is given by $L(r)$:
 
-\noindent We denote the set of regular expressions with alphabet $\T$ as $\regex(\T)$.
+%$$
+%\begin{array}{r@{\ =\ }l}
+%  L(t) & \{a\} \\
+%  L(\epsilon) & \{\epsilon\} \\
+%  L(r_1 \cdot r_2) & \{ w_1 \cdot w_2 \mid w_1 \in L(r_1), w_2 \in L(r_2) \} \\
+%  L(r_1 + r_2) & L(r_1) \cup L(r_2) \\
+%  L(r^{*}) & L(\epsilon + r \cdot r^{*}) \\
+%\end{array}
+%$$
+
+%\noindent We denote the set of regular expressions with alphabet $\T$ as $\regex(\T)$.
 
 \subsection{Context-Free Grammars} \label{sec:preliminaries-cfgs}
 
-A context-free grammar (CFG) $G$ is a 4-tuple $(\NT, \T, P, S)$ where $\NT$ is a set of non-terminals; $\T$ a set of terminals, disjoint from $\NT$; $P$ a finite subset of $\NT \times (\NT \cup \T)^{*}$\footnote{Where $^{*}$ is the Kleene star.}, i.e., a set of productions; and $S \in \NT$ the starting non-terminal.
+A context-free grammar (CFG) $G$ is a 4-tuple $(\NT, \T, P, S)$ where $\NT$ is a set of non-terminals; $\T$ a set of terminals, disjoint from $\NT$; $P$ a finite subset of $\NT \times (\NT \cup \T)^{*}$, i.e., a set of productions; and $S \in \NT$ the starting non-terminal.
 
- A word $w \in \T^{*}$ is recognized by $G$ if there is a sequence of steps starting with $S$ and ending with $w$, where each step replaces a single non-terminal using a production in $P$. Such a sequence is called a \emph{derivation}. The set of words recognized by $G$ is written $L(G)$\footnote{We will always name a regular expression $r$ (possibly with a subscript) and a CFG $G$ (possibly with a subscript), to lessen the risk of confusion}.
+%\footnote{Where $^{*}$ is the Kleene star.}
+%
+A word $w \in \T^{*}$ is recognized by $G$ if there is a sequence of steps starting with $S$ and ending with $w$, where each step replaces a single non-terminal using a production in $P$. Such a sequence is called a \emph{derivation}. The set of words recognized by $G$ is written $L(G)$
+%\footnote{We will always name a regular expression $r$ (possibly with a subscript) and a CFG $G$ (possibly with a subscript), to lessen the risk of confusion}.
 
-\subsection{Ambiguity} \label{sec:preliminaries-ambiguity}
+%\subsection{Ambiguity} \label{sec:preliminaries-ambiguity}
 
 The standard definition of ambiguity, given a context-free grammar $G$, is expressed in terms of \emph{leftmost derivations}. A leftmost derivation is a derivation where the non-terminal being replaced is always the leftmost one.
 
@@ -585,18 +590,18 @@ A visibly pushdown language \cite{alurVisiblyPushdownLanguages2004} is a languag
 \end{itemize}
 
 \noindent i.e., the terminal recognized by a transition fully determines the change to the stack height.
-
+%
 The names of the partitions stem from their original use in program analysis, $c$ is for \emph{call}, $i$ for \emph{internal}, and $r$ for \emph{return}.
-
+%
 This partitioning gives us some useful properties. Of particular relevance to this paper are the following two points:
 
 \begin{itemize}
 \item Visibly pushdown languages with the same input partitions are closed under intersection, complement, and union \cite{alurVisiblyPushdownLanguages2004}. Intersection in particular is given by a product automaton, i.e., given a pair of VPDAs $(Q_1, \T, \delta_1, q_0, F_1)$ and $(Q_2, \T, \delta_2, q'_0, F_2)$ their product automaton has the form $(Q_1 \times Q_2, \T, \delta', (q_0, q'_0), F_1 \times F_2)$ where:
   $$
   \begin{array}{r@{\ =\ }ll}
-    \delta'((p_1, p_2), c, \lambda) & \{((q_1, q_2), (g_1, g_2)) \mid (q_1, g_1) \in \delta_1(p_1, c, \lambda), (q_2, g_2) \in \delta_2(p_2, c, \lambda) \} & \text{where } c \in \T_c \\
-    \delta'((p_1, p_2), i, \lambda) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, i, \lambda), (q_2, \lambda) \in \delta_2(p_2, i, \lambda) \} & \text{where } i \in \T_i \\
-    \delta'((p_1, p_2), r, (g_1, g_2)) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, r, \lambda), (q_2, \lambda) \in \delta_2(p_2, r, \lambda) \} & \text{where } r \in \T_r \\
+    \delta'((p_1, p_2), c, \lambda) & \{((q_1, q_2), (g_1, g_2)) \mid (q_1, g_1) \in \delta_1(p_1, c, \lambda), (q_2, g_2) \in \delta_2(p_2, c, \lambda) \} & \!\!\!\!\text{where } c \in \T_c \\
+    \delta'((p_1, p_2), i, \lambda) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, i, \lambda), (q_2, \lambda) \in \delta_2(p_2, i, \lambda) \} & \!\!\!\!\text{where } i \in \T_i \\
+    \delta'((p_1, p_2), r, (g_1, g_2)) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, r, \lambda), (q_2, \lambda) \in \delta_2(p_2, r, \lambda) \} & \!\!\!\!\text{where } r \in \T_r \\
   \end{array}
   $$
 
@@ -1127,7 +1132,7 @@ The next four lemmas, all concerning the words in $\words(t)$ for some given $t 
   \label{fig:lattice1}
 \end{figure}
 
-Lemma~\ref{lemma:rangeset-equality} suggests a partition of the words in $\words(t)$ for any given $t \in L(T_D)$; group words $w$ by their \emph{rangeset}, where $\rangeset(w) = \support(\rangebag(w))$. These partitions can be partially ordered by subset on the rangeset, resulting in a lattice of word partitions per tree. This lattice is bounded, with top and bottom elements $\topw(t)$ and $\botw(t)$. Lemma~\ref{lemma:same-basic} further states that all words in $\words(t)$ share the same basic word. For example, Fig.~\ref{fig:lattice1} contains the lattice for the tree $a(a(n(1)+n(2))+n(3))$ (from our running example, defined in Fig.~\ref{fig:running-example-definition} on page~\pageref{fig:running-example-definition}). Each partition is represented by the word whose rangebag is a set. To reduce clutter, we do not draw the partitions that have grouping parentheses around the entire word. This outermost possible pair is uninteresting since it is always allowed, and would double the size of the figure if it was included.
+Lemma~\ref{lemma:rangeset-equality} suggests a partition of the words in $\words(t)$ for any given $t \in L(T_D)$; group words $w$ by their \emph{rangeset}, where $\rangeset(w) = \support(\rangebag(w))$. These partitions can be partially ordered by subset on the rangeset, resulting in a lattice of word partitions per tree. This lattice is bounded, with top and bottom elements $\topw(t)$ and $\botw(t)$. We denote this lattice by $\lattice(t)$. Lemma~\ref{lemma:same-basic} further states that all words in $\words(t)$ share the same basic word. For example, Fig.~\ref{fig:lattice1} contains the lattice for the tree $a(a(n(1)+n(2))+n(3))$ (from our running example, defined in Fig.~\ref{fig:running-example-definition} on page~\pageref{fig:running-example-definition}). Each partition is represented by the word whose rangebag is a set. To reduce clutter, we do not draw the partitions that have grouping parentheses around the entire word. This outermost possible pair is uninteresting since it is always allowed, and would double the size of the figure if it was included.
 
 \begin{figure}[t]
 
@@ -1234,11 +1239,11 @@ Our approach centers around finding a pair of lattices, such that one is entirel
 
 \subsection{A Lattice as a Word, and an Algorithm} \label{sec:lattice-vpl}
 
-This section introduces a linear encoding of the lattices of the previous section as words. Lemmas~\ref{lemma:same-basic} and \ref{lemma:top-bottom-determine} imply that a lattice encoding requires three things: a basic word, a set of \emph{required} parentheses, and a set of \emph{possible} parentheses. We encode required parentheses with ``$\reqp{}$'' and possible parentheses with ``$\posp{}$''. For example, the lattice in Fig.~\ref{fig:lattice2} is represented by ``$\posp{\posp{1} + \posp{\posp{2} + \posp{3}}}$'', while the tree for ``$(1 + 2) * 3$'' has a lattice represented by ``$\posp{\reqp{\posp{1} + \posp{2}} * \posp{3}}$''. With this encoding we can apply the formidable body of knowledge available for word languages, albeit with some extra care; the linear encoding of a lattice is not unique.
+This section introduces a linear encoding of the lattices of the previous section as words. Lemmas~\ref{lemma:same-basic} and \ref{lemma:top-bottom-determine} imply that a lattice encoding requires three things: a basic word, a set of \emph{required} parentheses, and a set of \emph{possible} parentheses. We encode required parentheses with ``$\reqp{}$'' and possible parentheses with ``$\posp{}$''. For example, the lattice in Fig.~\ref{fig:lattice2} is represented by ``$\posp{\posp{1} + \posp{\posp{2} + \posp{3}}}$'', while the tree for ``$(1 + 2) * 3$'' has a lattice represented by ``$\posp{\reqp{\posp{1} + \posp{2}} * \posp{3}}$''. We denote the lattice encoded by such a word by $\lattice(w)$. With this encoding we can apply the formidable body of knowledge available for word languages, albeit with some extra care; the linear encoding of a lattice is not unique.
 
-For example, ``$\posp{\posp{1}}$'' and ``$\posp{1}$'' represent the same lattice, as do ``$\reqp{\posp{2}}$'' and ``$\reqp{2}$''. To gain uniqueness we forbid duplicated parentheses and prioritize required parentheses over possible parentheses. For example, ``$\posp{\posp{1}}$'' is uniquely represented as ``$\posp{1}$'' while ``$\reqp{\posp{2}}$'' is uniquely represented as ``$\reqp{2}$''.
+For example, ``$\posp{\posp{1}}$'' and ``$\posp{1}$'' represent the same lattice, as do ``$\reqp{\posp{2}}$'' and ``$\reqp{2}$''. To gain uniqueness we forbid duplicated parentheses and prioritize required parentheses over possible parentheses. For example, ``$\posp{\posp{1}}$'' is uniquely represented as ``$\posp{1}$'' while ``$\reqp{\posp{2}}$'' is uniquely represented as ``$\reqp{2}$''. We define a linear encoding of this form to be \emph{well-formed}.
 
-Lattice equality is now equivalent with equality of the linear encoding. To determine if a lattice is entirely contained in another, we make the following observation: we can move the top of the lattice ``up'' (new top rangeset is a strict superset) by adding a pair of possible parentheses, and move the bottom ``down'' (new bottom rangeset is a strict subset) by replacing a required pair with a possible pair. For example, ``$\reqp{1}2$'' is entirely contained in ``$\reqp{1}\posp{2}$'', which is entirely contained in ``$\posp{1}\posp{2}$''.
+Lattice equality is now equivalent with equality of the linear encoding. To determine if a lattice is entirely contained in another, we make the following observation: we can move the top of the lattice ``up'' (new top rangeset is a superset) by adding a pair of possible parentheses, and move the bottom ``down'' (new bottom rangeset is a subset) by replacing a required pair with a possible pair. For example, ``$\reqp{1}2$'' is entirely contained in ``$\reqp{1}\posp{2}$'', which is entirely contained in ``$\posp{1}\posp{2}$''.
 
 The centerpiece of our algorithm is a \emph{visibly pushdown automaton} constructed in such a way that
 
@@ -1593,11 +1598,11 @@ There are thus cases where we can answer resolvably ambiguous or unresolvably am
   By defining two functions $\treetorun$ and $\runtotree$, the former from a tree to a run, the latter from run to tree, then showing these two functions to be inverses of each other.
 \end{proof}
 
-TODO: define a \emph{well-formed} linear encoding as a linear encoding without double parens. Ensure $\runtoword$ and $\lattice$ are defined.
-
 \begin{lemma}
   All words $w \in L(A_{\posp{}})$ are well-formed linear encodings.
 \end{lemma}
+
+We denote the word recognized by a run $R$ by $\runtoword(R)$.
 
 \begin{lemma}
   $\forall t \in L(T_D).\ \lattice(\runtoword(\treetorun(t))) = \lattice(t)$.
@@ -1674,7 +1679,7 @@ $$
 $$
 
 \begin{lemma}
-  Given a finite set $\{t_1, t_2, \ldots, t_n\} \subseteq L(T_D)$ we can construct a set of VPDAs $\{A_1, A_2, \ldots, A_n\}$ such that $\forall i.\ L(A_i) \setminus \bigcup_{i \neq i'} \words(t_{i'})$.
+  Given a finite set $\{t_1, t_2, \ldots, t_n\} \subseteq L(T_D)$ we can, in finite time, construct a set of VPDAs $\{A_1, A_2, \ldots, A_n\}$ such that $\forall i.\ L(A_i) \setminus \bigcup_{i \neq i'} \words(t_{i'})$.
 \end{lemma}
 
 \begin{proof}
