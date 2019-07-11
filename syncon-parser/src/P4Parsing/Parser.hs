@@ -41,8 +41,9 @@ data Error l
 instance Show l => FormatError (Error l) where
   formatError _ (LexingError e) = formatError () e
   formatError _ (UnexpectedToken expected tok) = simpleErrorMessage (range tok) $
-    "Unexpected token " <> textualToken tok <> ", expected one of:\n"
-    <> (toList expected & sort & foldMap (<> "\n"))
+    "Unexpected token " <> textualToken tok <> ", expected " <> if S.null expected
+    then "end of file.\n"
+    else "one of:\n" <> (toList expected & sort & foldMap (<> "\n"))
   formatError _ (UnexpectedEOF expected) = simpleErrorMessage mempty $
     "Unexpected end of file, expected one of:\n"
     <> (toList expected & sort & foldMap (<> "\n"))
