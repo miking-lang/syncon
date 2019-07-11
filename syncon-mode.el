@@ -54,6 +54,23 @@
        (modify-syntax-entry ?\n ">" synTable)
        synTable))
 
+;;;;;;;;;;;;;;;;;
+;; compilation ;;
+;;;;;;;;;;;;;;;;;
+
+(add-hook 'syncon-mode-hook
+          (lambda ()
+            (set (make-local-variable 'compile-command)
+                 (concat "syncon-parser " (buffer-name)))))
+
+(setq syncon-error-regexp
+      '(syncon " *\\(.*\\)#\\([0-9]*\\):\\([0-9]*\\):" 1 2 3))
+(add-hook 'compilation-mode-hook
+          (lambda ()
+            (add-to-list 'compilation-error-regexp-alist-alist syncon-error-regexp)
+            (add-to-list 'compilation-error-regexp-alist 'syncon)))
+
+
 ;;;;;;;;;;;;;;;;;;;;;
 ;; mode definition ;;
 ;;;;;;;;;;;;;;;;;;;;;
