@@ -505,39 +505,44 @@ resolvability.
 \section{Preliminaries}
 \label{sec:prel}
 
-This section briefly describes the theoretical foundations we build upon. Sections~\ref{sec:preliminaries-cfgs} and \ref{sec:preliminaries-automata} describe context-free grammars and various forms of automata, the latter with some non-standard notation to make later sections easier to read. Section~\ref{sec:preliminaries-vpls} then describes visibly pushdown languages, which enable the analyses described in Sections~\ref{sec:static} and \ref{sec:dynamic}. Finally, Sections~\ref{sec:preliminaries-trees} and \ref{sec:preliminaries-ambiguity} describe trees and ambiguity, the former with some non-standard notation and the latter with a slightly wider definition than normal.
+This section briefly describes the theoretical foundations we build upon.
 
-\subsection{Bags} \label{sec:bags}
+%Sections~\ref{sec:preliminaries-cfgs} and \ref{sec:preliminaries-automata} describe context-free grammars and various forms of automata, the latter with some non-standard notation to make later sections easier to read. Section~\ref{sec:preliminaries-vpls} then describes visibly pushdown languages, which enable the analyses described in Sections~\ref{sec:static} and \ref{sec:dynamic}. Finally, Sections~\ref{sec:preliminaries-trees} and \ref{sec:preliminaries-ambiguity} describe trees and ambiguity, the former with some non-standard notation and the latter with a slightly wider definition than normal.
 
-A \emph{bag}, or \emph{multiset}, is a generalization of a set; it is an unordered collection where each element may appear multiple times. The number of times an element $a$ appears in a bag $B$ is called the \emph{multiplicity} of $a$ in $B$ and is written $m_B(a)$. A bag $A$ is included in another bag $B$, written $A \subseteq B$, iff $\forall x.\ m_A(x) \leq m_B(x)$. The underlying set of elements of a bag $B$ is called the \emph{support} of $B$, and is given by $\support(B) = \{ x \mid m_B(x) > 0 \}$.
+%\subsection{Bags} \label{sec:bags}
 
-\subsection{Regular Expressions} \label{sec:preliminaries-regexes}
+%A \emph{bag}, or \emph{multiset}, is a generalization of a set; it is an unordered collection where each element may appear multiple times. The number of times an element $a$ appears in a bag $B$ is called the \emph{multiplicity} of $a$ in $B$ and is written $m_B(a)$. A bag $A$ is included in another bag $B$, written $A \subseteq B$, iff $\forall x.\ m_A(x) \leq m_B(x)$. The underlying set of elements of a bag $B$ is called the \emph{support} of $B$, and is given by $\support(B) = \{ x \mid m_B(x) > 0 \}$.
 
-A regular expression $r$ over alphabet $\T$ is defined inductively:
+%\subsection{Regular Expressions} \label{sec:preliminaries-regexes}
 
-$$r ::= \epsilon \mid a \mid r \cdot r \mid r + r \mid r^{*}$$
+%A regular expression $r$ over alphabet $\T$ is defined inductively:
 
-\noindent where $a \in \T$. The language of a regular expression $r$ is given by $L(r)$:
+%$$r ::= \epsilon \mid a \mid r \cdot r \mid r + r \mid r^{*}$$
 
-$$
-\begin{array}{r@{\ =\ }l}
-  L(t) & \{a\} \\
-  L(\epsilon) & \{\epsilon\} \\
-  L(r_1 \cdot r_2) & \{ w_1 \cdot w_2 \mid w_1 \in L(r_1), w_2 \in L(r_2) \} \\
-  L(r_1 + r_2) & L(r_1) \cup L(r_2) \\
-  L(r^{*}) & L(\epsilon + r \cdot r^{*}) \\
-\end{array}
-$$
+%\noindent where $a \in \T$. The language of a regular expression $r$ is given by $L(r)$:
 
-\noindent We denote the set of regular expressions with alphabet $\T$ as $\regex(\T)$.
+%$$
+%\begin{array}{r@{\ =\ }l}
+%  L(t) & \{a\} \\
+%  L(\epsilon) & \{\epsilon\} \\
+%  L(r_1 \cdot r_2) & \{ w_1 \cdot w_2 \mid w_1 \in L(r_1), w_2 \in L(r_2) \} \\
+%  L(r_1 + r_2) & L(r_1) \cup L(r_2) \\
+%  L(r^{*}) & L(\epsilon + r \cdot r^{*}) \\
+%\end{array}
+%$$
+
+%\noindent We denote the set of regular expressions with alphabet $\T$ as $\regex(\T)$.
 
 \subsection{Context-Free Grammars} \label{sec:preliminaries-cfgs}
 
-A context-free grammar (CFG) $G$ is a 4-tuple $(\NT, \T, P, S)$ where $\NT$ is a set of non-terminals; $\T$ a set of terminals, disjoint from $\NT$; $P$ a finite subset of $\NT \times (\NT \cup \T)^{*}$\footnote{Where $^{*}$ is the Kleene star.}, i.e., a set of productions; and $S \in \NT$ the starting non-terminal.
+A context-free grammar (CFG) $G$ is a 4-tuple $(\NT, \T, P, S)$ where $\NT$ is a set of non-terminals; $\T$ a set of terminals, disjoint from $\NT$; $P$ a finite subset of $\NT \times (\NT \cup \T)^{*}$, i.e., a set of productions; and $S \in \NT$ the starting non-terminal.
 
- A word $w \in \T^{*}$ is recognized by $G$ if there is a sequence of steps starting with $S$ and ending with $w$, where each step replaces a single non-terminal using a production in $P$. Such a sequence is called a \emph{derivation}. The set of words recognized by $G$ is written $L(G)$\footnote{We will always name a regular expression $r$ (possibly with a subscript) and a CFG $G$ (possibly with a subscript), to lessen the risk of confusion}.
+%\footnote{Where $^{*}$ is the Kleene star.}
+%
+A word $w \in \T^{*}$ is recognized by $G$ if there is a sequence of steps starting with $S$ and ending with $w$, where each step replaces a single non-terminal using a production in $P$. Such a sequence is called a \emph{derivation}. The set of words recognized by $G$ is written $L(G)$
+%\footnote{We will always name a regular expression $r$ (possibly with a subscript) and a CFG $G$ (possibly with a subscript), to lessen the risk of confusion}.
 
-\subsection{Ambiguity} \label{sec:preliminaries-ambiguity}
+%\subsection{Ambiguity} \label{sec:preliminaries-ambiguity}
 
 The standard definition of ambiguity, given a context-free grammar $G$, is expressed in terms of \emph{leftmost derivations}. A leftmost derivation is a derivation where the non-terminal being replaced is always the leftmost one.
 
@@ -584,18 +589,18 @@ A visibly pushdown language \cite{alurVisiblyPushdownLanguages2004} is a languag
 \end{itemize}
 
 \noindent i.e., the terminal recognized by a transition fully determines the change to the stack height.
-
+%
 The names of the partitions stem from their original use in program analysis, $c$ is for \emph{call}, $i$ for \emph{internal}, and $r$ for \emph{return}.
-
+%
 This partitioning gives us some useful properties. Of particular relevance to this paper are the following two points:
 
 \begin{itemize}
 \item Visibly pushdown languages with the same input partitions are closed under intersection, complement, and union \cite{alurVisiblyPushdownLanguages2004}. Intersection in particular is given by a product automaton, i.e., given a pair of VPDAs $(Q_1, \T, \delta_1, q_0, F_1)$ and $(Q_2, \T, \delta_2, q'_0, F_2)$ their product automaton has the form $(Q_1 \times Q_2, \T, \delta', (q_0, q'_0), F_1 \times F_2)$ where:
   $$
   \begin{array}{r@{\ =\ }ll}
-    \delta'((p_1, p_2), c, \lambda) & \{((q_1, q_2), (g_1, g_2)) \mid (q_1, g_1) \in \delta_1(p_1, c, \lambda), (q_2, g_2) \in \delta_2(p_2, c, \lambda) \} & \text{where } c \in \T_c \\
-    \delta'((p_1, p_2), i, \lambda) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, i, \lambda), (q_2, \lambda) \in \delta_2(p_2, i, \lambda) \} & \text{where } i \in \T_i \\
-    \delta'((p_1, p_2), r, (g_1, g_2)) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, r, \lambda), (q_2, \lambda) \in \delta_2(p_2, r, \lambda) \} & \text{where } r \in \T_r \\
+    \delta'((p_1, p_2), c, \lambda) & \{((q_1, q_2), (g_1, g_2)) \mid (q_1, g_1) \in \delta_1(p_1, c, \lambda), (q_2, g_2) \in \delta_2(p_2, c, \lambda) \} & \!\!\!\!\text{where } c \in \T_c \\
+    \delta'((p_1, p_2), i, \lambda) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, i, \lambda), (q_2, \lambda) \in \delta_2(p_2, i, \lambda) \} & \!\!\!\!\text{where } i \in \T_i \\
+    \delta'((p_1, p_2), r, (g_1, g_2)) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, r, \lambda), (q_2, \lambda) \in \delta_2(p_2, r, \lambda) \} & \!\!\!\!\text{where } r \in \T_r \\
   \end{array}
   $$
 
