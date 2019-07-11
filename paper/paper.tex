@@ -1410,7 +1410,20 @@ We now illustrate the issue that our previous simplification avoids, and then mo
 \end{tikzpicture}
 \end{center}
 
-\noindent Unfortunately, this automaton recognizes the word $(((e)))$, which is not the unique linear encoding we require; it should be $(e)$.
+\noindent Unfortunately, this automaton recognizes the word $(((e)))$,
+which is not the unique linear encoding we require; it should be
+$(e)$. The reason for this mismatch is that each of the productions
+with labels $a$ and $b$ introduces an additional pair of parentheses
+in the word recognized by the automaton. To ensure that the automaton
+instead recognizes the required unique linear encoding $(e)$, we
+extend the construction of the automaton such that ``passing through''
+a non-terminal without recognizing any terminals does \emph{not} add
+parentheses. The idea is to skip the DFAs of such non-terminals, but
+still keep track of the skipped production(s) in the symbols pushed to
+the stack; thus, runs which differ in skipped non-terminals are still
+distinguished.
+
+For our example, the resulting automaton looks as follows:
 
 \begin{center}
 \begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
@@ -1443,7 +1456,12 @@ We now illustrate the issue that our previous simplification avoids, and then mo
 \end{tikzpicture}
 \end{center}
 
-UNFINISHED
+Note that the transition from state 8 to state 6 pushes the symbol
+$(8, 9, ab)$ to the stack. This means (a) that we started the
+``replacement'' for the transition from 8 to 9, and (b) that we passed
+through the productions with labels $a$ and $b$ without consuming
+terminals, thus ending up in the starting state of the DFA
+corresponding to production $c$.
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 % FORMAL STUFF BARRIER %
