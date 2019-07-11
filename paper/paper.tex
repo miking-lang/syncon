@@ -1972,6 +1972,8 @@ Numerous language development frameworks and libraries support syntactic languag
 UNFINISHED
 
 \section{Conclusion}
+In this paper, we introduce the concept of \emph{resolvable ambiguity}. This means that a language syntax definition can be ambiguous, but the ambiguity is resolvable later by the end user when compiling a program. This approach departs from the common standpoint that grammars and syntax definitions of languages must be unambiguous. We motivate our work both for general-purpose languages in general, but for domain-specific languages in particular. As part of the new concept, we formalize the fundamental \emph{resolvable ambiguity problem}, and divide it into static and dynamic parts. We prove soundness and completeness of static resolvablity for a restricted class of languages, and soundness and completeness of dynamic resolvability for general context-free languages with balanced parenthesis. The approach is evaluated on two case studies, including the definition of a large subset of OCaml, and on the composition of domain-specific languages.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
