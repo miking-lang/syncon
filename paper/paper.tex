@@ -1725,7 +1725,7 @@ implementation\footnote{\url{http://hackage.haskell.org/package/Earley}}
 of the Earley parsing algorithm
 \cite{earleyEfficientContextfreeParsing1970}.
 
-The syntax definition DSL builds on the ``syncons'' introduced by
+The syntax definition DSL builds on \emph{syncons}, introduced by
 \citet{palmkvistCreatingDomainSpecificLanguages2019}, wherein each
 production is defined separately from each other (one
 \syncon{syncon} each).
@@ -1738,7 +1738,7 @@ convenience constructs, e.g., specifying precedence between
 previously defined operators instead of manually inserting marks,
 but is also important for composability as ambiguities can be
 statically resolved without changing the original definitions.
-Other convenience constructs include defining prefix, infix and
+Other convenience constructs include defining prefix, infix, and
 postfix operators with a given associativity.
 
 The running example used in
@@ -1775,7 +1775,7 @@ expressions. We define a lexical token for integers, and a
 \syncon{syncon} for integer literals using this token. A list is
 defined as a sequence of zero or more expressions separated by
 semi-colons wrapped in square braces. Finally, addition and
-multiplication is defined as infix syncons with the expected
+multiplication are defined as infix syncons with the expected
 precedence rules. Note that we could just as well have replaced
 the precedence list with explicit \syncon{forbid} declarations,
 ``\syncon{forbid mul.left = add}'' and ``\syncon{forbid mul.right = add}''
@@ -1855,7 +1855,7 @@ Na\"{i}vely composing this definition with another, separately
 defined language is likely to introduce ambiguities. For example,
 if that language also contains infix operators, the precedence
 between these and the Orc combinators will be undefined. With
-support for resolvable ambiguity however, we can allow this
+support for resolvable ambiguity, however, we can allow this
 ambiguity and let programmers disambiguate expressions using
 parentheses. After composing the above definition with a simple
 language supporting addition, variables, and function calls
@@ -1878,7 +1878,7 @@ Because there is no precedence specified between \ocaml{+} and
 \ocaml{>x>}, disambiguation is required to specify the order of
 operations.
 %
-In this case, it is likely that the preferred semantics is to have
+In this case, it is likely that the preferred semantics are to have
 all operators in the base language bind tighter than the Orc
 combinators, and these precedence rules can be added after the
 composition without changing the original definitions. Importantly
@@ -1927,7 +1927,7 @@ By adding parentheses, a programmer can disambiguate the
 expression as two comparisons. However, there is no way for a
 programmer to specify that what they want is a sequential
 combinator with left and right children being an integer and a
-function call respectively. In this case we have at least three
+function call, respectively. In this case we have at least three
 choices to make as language designers:
 
 \begin{itemize}
