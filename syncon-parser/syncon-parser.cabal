@@ -29,6 +29,7 @@ executable syncon-parser
                , file-embed
                , optparse-applicative
                , filepath
+               , aeson
   main-is: Main.hs
   other-modules: Pre
                , Result
@@ -55,6 +56,7 @@ executable syncon-parser
                , P5DynamicAmbiguity.Types
                , P5DynamicAmbiguity.AmbiguityReporter
                , P5DynamicAmbiguity.TreeLanguage
+               , P6Output.JsonV1
   default-language: Haskell2010
   default-extensions: NoImplicitPrelude
                     , EmptyCase

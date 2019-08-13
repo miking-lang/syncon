@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -fno-warn-unused-imports #-}
+{-# OPTIONS_GHC -fno-warn-unused-imports -fno-warn-deprecations #-}
 
 module Main where
 
@@ -20,6 +20,7 @@ import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
+import qualified Data.ByteString.Lazy as LByteString
 import Data.FileEmbed (embedFile)
 
 import Data.Generics.Uniplate.Data (universe, universeBi)
@@ -43,6 +44,8 @@ import qualified P4Parsing.Parser as Parser
 import qualified P5DynamicAmbiguity.Types as DynAmb
 import qualified P5DynamicAmbiguity.AmbiguityReporter as DynAmb
 import qualified P5DynamicAmbiguity.TreeLanguage as DynAmb
+
+import qualified P6Output.JsonV1 as Output
 
 import qualified Data.Automaton.NVA as NVA
 import qualified Data.Automaton.GraphViz as GraphViz
@@ -88,7 +91,8 @@ testReduce = do
 
 test :: IO ()
 -- test = withArgs ["case-studies/ocaml.syncon", "case-studies/ocaml/inside_out.ml", "--html=out.html", "--two-level"] main
-test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--two-level"] main
+-- test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--two-level"] main
+test = withArgs ["examples/bootstrap.syncon", "--source=examples/bootstrap.syncon", "--json=out.json"] main
 -- test = withArgs ["--help"] main
 
 getArgsSeq :: IO (Seq [Char])
@@ -107,6 +111,10 @@ common = do
     $ Opt.long "html"
     <> Opt.metavar "FILE"
     <> Opt.help "Output the result of parsing as a debug HTML file."
+  json <- optional $ Opt.strOption
+    $ Opt.long "json"
+    <> Opt.metavar "FILE"
+    <> Opt.help "Output the ASTs as machine-readable JSON."
   outdir <- optional $ Opt.strOption
     $ Opt.long "out"
     <> Opt.metavar "DIR"
@@ -173,6 +181,10 @@ common = do
         & annotate srcSources
         & putInTextTemplate (toS $(embedFile "resources/htmlTemplate.html"))
         & writeFile htmlPath
+
+    forM_ json $ \jsonPath -> do
+      putStrLn @Text $ "Writing JSON to \"" <> toS jsonPath <> "\""
+      LByteString.writeFile jsonPath $ Output.encode srcNodes
 
     forM_ outdir $ \outPath ->
       forM_ (M.toList srcNodes) $ \(path, node) -> do
