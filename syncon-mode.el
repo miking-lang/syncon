@@ -70,6 +70,13 @@
             (add-to-list 'compilation-error-regexp-alist-alist syncon-error-regexp)
             (add-to-list 'compilation-error-regexp-alist 'syncon)))
 
+;; Add this if colored output doesn't work (from https://stackoverflow.com/questions/13397737/ansi-coloring-in-compilation-mode)
+;; (require ’ansi-color)
+;; (defun colorize-compilation-buffer ()
+;;   (toggle-read-only)
+;;   (ansi-color-apply-on-region compilation-filter-start (point))
+;;   (toggle-read-only))
+;; (add-hook ’compilation-filter-hook ’colorize-compilation-buffer)
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; mode definition ;;
