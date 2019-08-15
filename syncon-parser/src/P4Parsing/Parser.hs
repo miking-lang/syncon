@@ -11,7 +11,6 @@ module P4Parsing.Parser
 import Pre
 import Result (Result(..))
 
-import Data.Data (Data)
 import Control.Monad.Fix (mfix)
 import qualified Data.Sequence as Seq
 import qualified Data.HashMap.Strict as M
@@ -51,11 +50,6 @@ instance Show l => FormatError (Error l) where
     "You must define a syntax type named 'Top'."
 
 type Res l = Result [Error l]
-
--- | Datatype to give the lexer to convince it to only parse a single language.
-data SingleLanguage = SingleLanguage deriving (Show, Eq, Generic, Data, Typeable)
-instance Hashable SingleLanguage
-type SL = SingleLanguage
 
 type Prod r l a = Earley.Prod r Text (Tok l) a
 type Tok l = Token l TypeName

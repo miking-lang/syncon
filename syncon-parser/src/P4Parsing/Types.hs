@@ -30,6 +30,11 @@ makeBaseFunctor ''NodeInternals
 deriving instance (Eq l, Eq n, Eq a) => Eq (NodeF l n a)
 deriving instance (Show l, Show n, Show a) => Show (NodeF l n a)
 
+-- | Datatype to give the lexer to convince it to only parse a single language.
+data SingleLanguage = SingleLanguage deriving (Show, Eq, Ord, Generic, Data, Typeable)
+instance Hashable SingleLanguage
+type SL = SingleLanguage
+
 instance Ranged (Node l n) where
   range = n_range
 

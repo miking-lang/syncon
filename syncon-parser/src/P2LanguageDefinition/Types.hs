@@ -14,7 +14,7 @@ import P1Lexing.Types (Range, Ranged, range)
 
 -- TODO: make this something more fancy once we start namespacing things
 newtype Name = Name Text deriving (Show, Eq, Hashable, Data, Typeable)
-newtype TypeName = TypeName Text deriving (Show, Eq, Hashable, Data, Typeable)
+newtype TypeName = TypeName Text deriving (Show, Eq, Ord, Hashable, Data, Typeable)
 
 -- | Names for subsections of syntax descriptions.
 newtype SDName = SDName Text deriving (Show, Eq, Hashable, Data, Typeable)

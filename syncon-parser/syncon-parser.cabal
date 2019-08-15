@@ -30,6 +30,7 @@ executable syncon-parser
                , optparse-applicative
                , filepath
                , aeson
+               , gll
   main-is: Main.hs
   other-modules: Pre
                , Result
@@ -53,6 +54,7 @@ executable syncon-parser
                , P2LanguageDefinition.Elaborator
                , P4Parsing.Types
                , P4Parsing.Parser
+               , P4Parsing.ForestParser
                , P5DynamicAmbiguity.Types
                , P5DynamicAmbiguity.AmbiguityReporter
                , P5DynamicAmbiguity.TreeLanguage

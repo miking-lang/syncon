@@ -36,7 +36,7 @@ instance Monoid Range where
 data Token l n
   = LitTok Range l Text
   | OtherTok Range l n Text
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Show, Eq, Ord, Generic, Data, Typeable)
 instance (Hashable l, Hashable n) => Hashable (Token l n)
 
 textualToken :: Show n => Token l n -> Text

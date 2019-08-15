@@ -40,6 +40,10 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - pretty-terminal-0.1.0.0
+- gll-0.4.0.12
+- TypeCompose-0.9.14
+- random-strings-0.1.1.0
+
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
