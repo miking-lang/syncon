@@ -8,7 +8,8 @@ import qualified Prelude as Prelude
 import Unsafe.Coerce (unsafeCoerce)
 import GHC.Exts (Any)
 
-import Control.Monad.Fix (mfix)
+import Text.Show.Pretty (ppShow)
+
 import Data.Array (Array, listArray, bounds)
 import qualified Data.Array as Array
 import Data.STRef (STRef, newSTRef, readSTRef, modifySTRef')
@@ -20,6 +21,7 @@ import qualified Data.IntSet as IS
 import qualified Data.Map.Strict as OM
 import qualified Data.Sequence as Seq
 
+import GLL.Types.Derivations (showP)
 import GLL.Parser (Parseable(..), Symbol(..), ParseResult(ParseResult, res_success, error_message, sppf_result))
 import qualified GLL.Parser as GLL
 
@@ -27,64 +29,63 @@ import P4Parsing.ForestParser.Grammar
 
 -- interface
 
-newtype Node = Node Int deriving (Eq, Hashable)
+newtype Node = Node Int deriving (Eq, Hashable, Show)
 
 -- | Parse a sequence given a grammar. The underlying parser doesn't give an easily inspectable error,
 -- hence we just pass that on, for the moment. In the success case you get a tuple containing the nodes
 -- in the parse forest and a sequence of root nodes.
 parse :: forall t nodeF. (Show t, Ord t, Hashable t)
-      => (forall r. Grammar r t nodeF r)
+      => (forall r. Grammar r t nodeF (Prod r t nodeF r))
       -> (forall f. Foldable f => f t -> Either Text (HashMap Node (nodeF (HashSet Node)), HashSet Node))  -- TODO: might want to use a 'ghosts of departed proofs' approach to the map and the nodes
 parse unfixedGrammar = go
   where
     go :: Foldable f => f t -> Either Text (HashMap Node (nodeF (HashSet Node)), HashSet Node)
-    go foldable = input <&> Concrete & gll <&> repack input <&> buildDAG
+    go foldable = toList input <&> Concrete & gll <&> repack input <&> buildDAG
       where
         input = listArray (0, length foldable - 1) (toList foldable)
 
-    gll :: Array Int (Token t) -> Either Text (GLL.PackMap (Token t))
-    gll = GLL.parseWithOptionsArray [GLL.packedNodesOnly] grammar >>> \case
+    gll :: [Token t] -> Either Text (GLL.PackMap (Token t))
+    gll = toList >>> GLL.parseWithOptions [GLL.packedNodesOnly] (trace (ppShow $ second sort grammar) $ grammar) >>> \case  -- NOTE: gll has a parseArray variant, but it requires you to have already added an Eof element, so it's easier to make it into a list temporarily here
       ParseResult{res_success = False, error_message} -> Left $ toS error_message
       ParseResult{res_success = True, sppf_result = (_, _, pm, _)} -> Right pm
 
     (semantics, grammar) = runST $ do
       initialState@State{prods} <- State <$> newSTRef 0 <*> newSTRef M.empty <*> newSTRef S.empty
-      WrappedNt startNt <- runReaderT (runGrammar mkRule unfixedGrammar >>= buildWrappedProd >>= mkStart) initialState
+      WrappedNt startNt <- runReaderT (runGrammar mkRule mkAmbig unfixedGrammar >>= buildProd >>= mkStart) initialState
       prodMap <- readSTRef prods
       return (prodMap, (startNt, M.keys prodMap <&> toGLLProd))
-    mkStart nt = do
+    mkStart (syms, sem) = do
       startNt <- freshNonMerge
-      addProd startNt [mkNtTok nt] (toAny identity)
-      return startNt
+      addProd startNt syms sem
+      return $ traceShowId startNt
 
     repack :: Array Int t -> GLL.PackMap (Token t) -> PackedForest t
-    repack input pm = PackedForest{input, semantics, uncompleted, completed}
+    repack input pm = trace (showP pm) $ PackedForest{input, semantics, uncompleted, completed}
       where
-        uncompleted = [IM.singleton l $ IM.singleton r $ IM.singleton d $ M.singleton arrProd v
+        uncompleted = [traceShow (l, r, d, p, v) $ IM.singleton l $ IM.singleton r $ IM.singleton d $ M.singleton arrProd v
                       | (l, rdpv) <- IM.toList pm
                       , (r, dpv) <- IM.toList rdpv
                       , (d, pv) <- IM.toList dpv
                       , (p, v) <- OM.toList pv
                       , let arrProd = fromGLLProd p
-                      , isComplete d arrProd]
+                      , not $ isComplete d arrProd]
           & IM.unionsWith (IM.unionWith $ IM.unionWith $ M.unionWith IS.union)
-        completed = [IM.singleton l $ IM.singleton r $ M.singleton nt $ Seq.singleton (arrProd, v)
+        completed = [traceShow (l, r, nt, p, v) $ IM.singleton l $ IM.singleton r $ M.singleton nt $ Seq.singleton (arrProd, v)
                       | (l, rdpv) <- IM.toList pm
                       , (r, dpv) <- IM.toList rdpv
                       , (d, pv) <- IM.toList dpv
                       , (p, v) <- OM.toList pv
                       , let arrProd@(ArrProd nt _) = fromGLLProd p
-                      , not $ isComplete d arrProd]
+                      , isComplete d arrProd]
           & IM.unionsWith (IM.unionWith $ M.unionWith mappend)
         isComplete idx (ArrProd _ arr) = arrLen arr == idx
 
     buildDAG :: PackedForest t -> (HashMap Node (nodeF (HashSet Node)), HashSet Node)
-    buildDAG pf@PackedForest{input} = fst $ runST $ mfix $ \ ~(_result, compTrans) -> do
-      initialState@DagState{nodeMap, translation} <- DagState pf compTrans <$> newSTRef M.empty <*> newSTRef M.empty <*> newSTRef S.empty
-      topNodes <- runReaderT (dagNt (fst grammar & WrappedNt, 0, arrLen input)) initialState <&> foldMap anyToNode
+    buildDAG pf@PackedForest{input} = runST $ do
+      initialState@DagState{nodeMap} <- DagState pf <$> newSTRef M.empty <*> newSTRef 0 <*> newSTRef M.empty
+      topNodes <- runReaderT (dagNt (fst grammar & WrappedNt, 0, arrLen input)) initialState <&> foldMap anyToNodeSet
       finalNodeMap <- readSTRef nodeMap
-      finalTranslation <- readSTRef translation
-      return ((finalNodeMap, topNodes), finalTranslation)
+      return (finalNodeMap, topNodes)
 
 -- internal stuff
 
@@ -97,42 +98,48 @@ data PackedForest t = PackedForest
 
 data DagState s t nodeF = DagState
   { packedForest :: !(PackedForest t)
-  , completedTranslation :: HashMap (Nt, Int, Int) (Seq Any)  -- ^ This will be supplied by fix, so don't force it
   , nodeMap :: !(STRef s (HashMap Node (nodeF (HashSet Node))))
+  , nextNodeId :: !(STRef s Int)
   , translation :: !(STRef s (HashMap (Nt, Int, Int) (Seq Any)))
-  , alreadyStartedDag :: !(STRef s (HashSet (Nt, Int, Int)))
   }
 
 type DagM s t nodeF a = ReaderT (DagState s t nodeF) (ST s) a
 
 dagNt :: (Eq t, Hashable t, Show t) => (Nt, Int, Int) -> DagM s t nodeF (Seq Any)
-dagNt pos@(nt, l, r) = do
-  DagState{alreadyStartedDag, translation, completedTranslation, packedForest = PackedForest{completed}} <- ask
-  started <- lift $ readSTRef alreadyStartedDag
-  if S.member pos started then return $ completedTranslation & M.lookup pos & fromJust else do
-    lift $ modifySTRef' alreadyStartedDag $ S.insert pos
-    prods <- IM.lookup l completed >>= IM.lookup r >>= M.lookup nt & fold & mapM (dagProd l r)
-    let result = maybeMerge $ join prods
-    lift $ modifySTRef' translation $ M.insert pos result
-    return result
+dagNt pos@(nt, l, r) = traceWrap "dagNt" pos $ do
+  DagState{translation, packedForest = PackedForest{completed}} <- ask
+  lift (readSTRef translation <&> M.lookup pos) >>= \case
+    Just res -> return res
+    Nothing -> do
+      prods <- IM.lookup l completed >>= IM.lookup r >>= M.lookup nt & fold & mapM (dagProd l r)
+      let result = maybeMerge $ join prods
+      lift $ modifySTRef' translation $ M.insert pos result
+      return result
   where
-    fromJust = compFromJust "P4Parsing.ForestParser.GLL.buildNt" $ "Somehow did not enter anything for " <> show pos
     maybeMerge
-      | Text.head (coerce nt) == mergeChar = toList >>> fmap anyToNode >>> S.unions >>> Seq.singleton >>> fmap toAny
+      | Text.head (coerce nt) == mergeChar = toList >>> fmap anyToNodeSet >>> S.unions >>> Seq.singleton >>> fmap toAny
       | otherwise = identity
 
-dagProd :: (Eq t, Hashable t, Show t) => Int -> Int -> (ArrProd (Token t), IntSet) -> DagM s t nodeF (Seq Any)
-dagProd l r (prod@(ArrProd _ syms), pivots)
+dagProd :: forall s t nodeF. (Eq t, Hashable t, Show t)
+        => Int -> Int -> (ArrProd (Token t), IntSet)
+        -> DagM s t nodeF (Seq Any)
+dagProd l r (prod@(ArrProd nt syms), pivots)
   | arrLen syms == 0 = getSem <&> Seq.singleton
-  | otherwise = do
+  | otherwise = traceWrap "dagProd" (l, r, (prod, pivots)) $ do
       sem <- getSem <&> anyToFunc
-      fmap join $ forM (IS.toList pivots & Seq.fromList) $ \pivot -> do
+      results <- fmap join $ forM (IS.toList pivots & Seq.fromList) $ \pivot -> do
         rightMosts <- dagSym pivot r $ syms Array.! (dotIdx - 1)
         dagIProd l pivot (prod, dotIdx - 1) $ sem <$> rightMosts
+      if not isNode then return results else do
+        nodes <- forM results $ anyToNode >>> mkNode
+        return $ Seq.singleton $ toAny $ foldMap S.singleton nodes
   where
     dotIdx = arrLen syms
     getSem = asks $ packedForest >>> semantics >>> M.lookup prod >>> fromJust
     fromJust = compFromJust "P4Parsing.ForestParser.GLL.dagProd" $ "Somehow did not enter semantics for " <> show prod
+    isNode = coerce nt & Text.head & (== nodeChar)
+    anyToNode :: Any -> nodeF (HashSet Node)
+    anyToNode = unsafeCoerce
 
 dagSym :: (Eq t, Hashable t, Show t) => Int -> Int -> Symbol (Token t) -> DagM s t nodeF (Seq Any)
 dagSym l _r (Term _) = do
@@ -140,14 +147,25 @@ dagSym l _r (Term _) = do
   return $ Seq.singleton $ toAny $ input Array.! l
 dagSym l r (Nt nt) = dagNt (WrappedNt nt, l, r)
 
-dagIProd :: (Eq t, Hashable t, Show t) => Int -> Int -> (ArrProd (Token t), Int) -> Seq Any -> DagM s t nodeF (Seq Any)
+dagIProd :: (Eq t, Hashable t, Show t)
+         => Int -> Int -> (ArrProd (Token t), Int) -> Seq Any
+         -> DagM s t nodeF (Seq Any)
 dagIProd _ _ (_, 0) sems = return sems
-dagIProd l r (prod@(ArrProd _ syms), dotIdx) sems = do
+dagIProd l r (prod@(ArrProd _ syms), dotIdx) sems = traceWrap "dagIProd" (l, r, (prod, dotIdx)) $ do
   PackedForest{uncompleted} <- asks packedForest
-  let pivots = IM.lookup l uncompleted >>= IM.lookup r >>= IM.lookup dotIdx >>= M.lookup prod & fold
+  let pivots = if dotIdx /= 1
+        then IM.lookup l uncompleted >>= IM.lookup r >>= IM.lookup dotIdx >>= M.lookup prod & fold
+        else IS.singleton l
   fmap join $ forM (IS.toList pivots & Seq.fromList) $ \pivot -> do
     rightMosts <- dagSym pivot r $ syms Array.! (dotIdx - 1)
     dagIProd l pivot (prod, dotIdx - 1) $ anyToFunc <$> sems <*> rightMosts
+
+mkNode :: nodeF (HashSet Node) -> DagM s t nodeF Node
+mkNode node = do
+  DagState{nextNodeId, nodeMap} <- ask
+  id <- lift $ readSTRef nextNodeId <* modifySTRef' nextNodeId (+1)
+  lift $ modifySTRef' nodeMap $ M.insert (Node id) node
+  return $ Node id
 
 buildWrappedProd :: (Eq t, Hashable t) => WrappedProd t nodeF -> GrammarM s t Nt
 buildWrappedProd (WrappedProd nt prod) = do
@@ -158,19 +176,22 @@ buildWrappedProd (WrappedProd nt prod) = do
     (syms, semantic) <- buildProd prod
     addProd nt syms semantic
     return nt
+buildWrappedProd (WrappedProds nt prods) = do
+  State{alreadyStarted} <- ask
+  started <- lift $ readSTRef alreadyStarted <&> S.member nt
+  if started then return nt else do
+    lift $ modifySTRef' alreadyStarted $ S.insert nt
+    forM_ prods $ \prod -> do
+      (syms, semantic) <- buildProd prod
+      addProd nt syms semantic
+    return nt
 
 buildProd :: (Eq t, Hashable t) => Prod (WrappedProd t nodeF) t nodeF a -> GrammarM s t ([Symbol (Token t)], Any)
 buildProd (Pure a) = return ([], toAny a)
-buildProd (Terminal f cont) = buildProd cont <&> first (mkTok f :)
+buildProd (Terminal label f cont) = buildProd cont <&> first (mkTok label f :)
 buildProd (NonTerminal wp cont) = do
   wpnt <- buildWrappedProd wp
   buildProd cont <&> first (mkNtTok wpnt :)
-buildProd (Ambig ps cont) = do
-  nt <- freshMerge
-  forM_ ps $ \p -> do
-    (syms, semantic) <- buildProd p
-    addProd nt syms semantic
-  buildProd cont <&> first (mkNtTok nt :)
 buildProd (Alts ps cont) = do
   nt <- freshNonMerge
   forM_ ps $ \p -> do
@@ -186,12 +207,19 @@ buildProd (Many p cont) = do
   addProd nt2 syms semantic
   buildProd cont <&> first (mkNtTok nt1 :)
 
-data WrappedProd t nodeF = WrappedProd Nt (Prod (WrappedProd t nodeF) t nodeF (nodeF (WrappedProd t nodeF)))
+data WrappedProd t nodeF
+  = WrappedProd Nt (Prod (WrappedProd t nodeF) t nodeF (nodeF (WrappedProd t nodeF)))
+  | WrappedProds Nt [Prod (WrappedProd t nodeF) t nodeF (WrappedProd t nodeF)]
 
-mkRule :: Prod (WrappedProd t nodeF) t nodeF (nodeF (WrappedProd t nodeF)) -> GrammarM s t (WrappedProd t nodeF)
+mkRule :: Prod (WrappedProd t nodeF) t nodeF (nodeF (WrappedProd t nodeF)) -> GrammarM s t (Prod (WrappedProd t nodeF) t nodeF (WrappedProd t nodeF))
 mkRule p = do
-  nt <- freshNonMerge
-  return $ WrappedProd nt p
+  nt <- freshNode
+  return $ NonTerminal (WrappedProd nt p) $ pure identity
+
+mkAmbig :: [Prod (WrappedProd t nodeF) t nodeF (WrappedProd t nodeF)] -> GrammarM s t (Prod (WrappedProd t nodeF) t nodeF (WrappedProd t nodeF))
+mkAmbig ps = do
+  nt <- freshMerge
+  return $ NonTerminal (WrappedProds nt ps) $ pure identity
 
 type GrammarM s t a = ReaderT (State s t) (ST s) a
 data State s t = State
@@ -199,8 +227,8 @@ data State s t = State
   , prods :: !(STRef s (HashMap (ArrProd (Token t)) Any))
   , alreadyStarted :: !(STRef s (HashSet Nt)) }
 
-mergeChar, nonMergeChar :: Char
-(mergeChar, nonMergeChar) = ('M', 'N')
+mergeChar, nonMergeChar, nodeChar :: Char
+(mergeChar, nonMergeChar, nodeChar) = ('M', 'n', 'N')
 
 -- | The type of non-terminals. Note that there are two kinds of nts: those that assume their
 -- alternative productions produce 'HashSet Node' and union them, and those that make no assumption
@@ -219,6 +247,12 @@ freshMerge = do
   State{nextNt} <- ask
   id <- lift $ readSTRef nextNt <* modifySTRef' nextNt (+1)
   return $ WrappedNt $ Text.singleton mergeChar <> show id
+
+freshNode :: GrammarM s t Nt
+freshNode = do
+  State{nextNt} <- ask
+  id <- lift $ readSTRef nextNt <* modifySTRef' nextNt (+1)
+  return $ WrappedNt $ Text.singleton nodeChar <> show id
 
 -- | Add a production. The 'Any' argument should be a function that takes the values produced by
 -- each 'Symbol', one at a time, in reverse order. Note that this interface is massively unsafe,
@@ -240,11 +274,11 @@ toAny = unsafeCoerce
 anyToFunc :: Any -> (Any -> Any)
 anyToFunc = unsafeCoerce
 
-anyToNode :: Any -> HashSet Node
-anyToNode = unsafeCoerce
+anyToNodeSet :: Any -> HashSet Node
+anyToNodeSet = unsafeCoerce
 
-mkTok :: (t -> Bool) -> Symbol (Token t)
-mkTok = Conditional >>> Term
+mkTok :: Text -> (t -> Bool) -> Symbol (Token t)
+mkTok label = Conditional label >>> Term
 
 mkNtTok :: Nt -> Symbol t
 mkNtTok (WrappedNt nt) = Nt nt
@@ -273,8 +307,8 @@ instance Hashable t => Hashable (Symbol t)
 data Token t = Concrete t
              | Eof
              | Eps
-             | Conditional (t -> Bool)
-data TokenBland t = ConcreteBland t | EofBland | EpsBland | ConditionalBland deriving Generic
+             | Conditional Text (t -> Bool)
+data TokenBland t = ConcreteBland t | EofBland | EpsBland | ConditionalBland Text deriving Generic
 instance Hashable t => Hashable (TokenBland t)
 
 instance Hashable t => Hashable (Token t) where
@@ -282,19 +316,19 @@ instance Hashable t => Hashable (Token t) where
     (Concrete t) -> ConcreteBland t
     Eof -> EofBland
     Eps -> EpsBland
-    Conditional{} -> ConditionalBland
+    (Conditional label _) -> ConditionalBland label
 
 instance Show t => Show (Token t) where
   show (Concrete t) = "(Concrete " <> show t <> ")"
   show Eof = "Eof"
   show Eps = "Eps"
-  show Conditional{} = "Conditional"
+  show (Conditional label _) = "(Conditional " <> show label <> " <func>)"
 
 instance Eq t => Eq (Token t) where
   Concrete a == Concrete b = a == b
   Eof == Eof = True
   Eps == Eps = True
-  Conditional _ == Conditional _ = True
+  Conditional l1 _ == Conditional l2 _ = l1 == l2
   _ == _ = False
 
 -- TODO: confirm that this is actually consistent, I wrote it kinda quickly
@@ -313,10 +347,10 @@ instance Ord t => Ord (Token t) where
 instance (Show t, Ord t, Eq t) => Parseable (Token t) where
   eos = Eof
   eps = Eps  -- NOTE: as far as I can tell this isn't actually used by the library, but it requires its existence...
-  matches (Concrete t) (Conditional f) = f t
-  matches (Conditional f) (Concrete t) = f t
+  matches (Concrete t) (Conditional _ f) = f t
+  matches (Conditional _ f) (Concrete t) = f t
   matches a b = a == b
   unlex (Concrete t) = show t  -- TODO: something better than show
   unlex Eof = "<end-of-file>"
   unlex Eps = "<empty-string>"
-  unlex Conditional{} = "<func>"
+  unlex (Conditional label _) = toS label

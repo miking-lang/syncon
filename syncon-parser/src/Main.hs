@@ -41,8 +41,6 @@ import qualified P2LanguageDefinition.Elaborator as LD
 import qualified P4Parsing.Types as Parser
 import qualified P4Parsing.Parser as Parser
 import qualified P4Parsing.ForestParser as Forest
-import qualified P4Parsing.ForestParser.GLL as Forest
-import qualified P4Parsing.GLL as GLL
 
 import qualified P5DynamicAmbiguity.Types as DynAmb
 import qualified P5DynamicAmbiguity.AmbiguityReporter as DynAmb
@@ -97,7 +95,8 @@ test :: IO ()
 -- test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--two-level"] main
 -- test = withArgs ["examples/bootstrap.syncon", "--source=examples/bootstrap.syncon", "--json=out.json"] main
 -- test = withArgs ["--help"] main
-test = GLL.test
+-- test = GLL.test
+test = Forest.test
 
 getArgsSeq :: IO (Seq [Char])
 getArgsSeq = getArgs <&> Seq.fromList
