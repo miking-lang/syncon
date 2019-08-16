@@ -8,7 +8,9 @@ import qualified Prelude as Prelude
 import Unsafe.Coerce (unsafeCoerce)
 import GHC.Exts (Any)
 
+import Control.Monad.Fix (mfix)
 import Data.Array (Array, listArray, bounds)
+import qualified Data.Array as Array
 import Data.STRef (STRef, newSTRef, readSTRef, modifySTRef')
 import qualified Data.Text as Text
 import qualified Data.HashMap.Lazy as M
@@ -16,6 +18,7 @@ import qualified Data.HashSet as S
 import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as IS
 import qualified Data.Map.Strict as OM
+import qualified Data.Sequence as Seq
 
 import GLL.Parser (Parseable(..), Symbol(..), ParseResult(ParseResult, res_success, error_message, sppf_result))
 import qualified GLL.Parser as GLL
@@ -29,7 +32,7 @@ newtype Node = Node Int deriving (Eq, Hashable)
 -- | Parse a sequence given a grammar. The underlying parser doesn't give an easily inspectable error,
 -- hence we just pass that on, for the moment. In the success case you get a tuple containing the nodes
 -- in the parse forest and a sequence of root nodes.
-parse :: forall t nodeF. (Show t, Ord t, Eq t, Hashable t)
+parse :: forall t nodeF. (Show t, Ord t, Hashable t)
       => (forall r. Grammar r t nodeF r)
       -> (forall f. Foldable f => f t -> Either Text (HashMap Node (nodeF (HashSet Node)), HashSet Node))  -- TODO: might want to use a 'ghosts of departed proofs' approach to the map and the nodes
 parse unfixedGrammar = go
@@ -46,9 +49,13 @@ parse unfixedGrammar = go
 
     (semantics, grammar) = runST $ do
       initialState@State{prods} <- State <$> newSTRef 0 <*> newSTRef M.empty <*> newSTRef S.empty
-      WrappedNt startNt <- runReaderT (runGrammar mkRule unfixedGrammar >>= buildWrappedProd) initialState
+      WrappedNt startNt <- runReaderT (runGrammar mkRule unfixedGrammar >>= buildWrappedProd >>= mkStart) initialState
       prodMap <- readSTRef prods
       return (prodMap, (startNt, M.keys prodMap <&> toGLLProd))
+    mkStart nt = do
+      startNt <- freshNonMerge
+      addProd startNt [mkNtTok nt] (toAny identity)
+      return startNt
 
     repack :: Array Int t -> GLL.PackMap (Token t) -> PackedForest t
     repack input pm = PackedForest{input, semantics, uncompleted, completed}
@@ -61,27 +68,86 @@ parse unfixedGrammar = go
                       , let arrProd = fromGLLProd p
                       , isComplete d arrProd]
           & IM.unionsWith (IM.unionWith $ IM.unionWith $ M.unionWith IS.union)
-        completed = [IM.singleton l $ IM.singleton r $ M.singleton arrProd v
+        completed = [IM.singleton l $ IM.singleton r $ M.singleton nt $ Seq.singleton (arrProd, v)
                       | (l, rdpv) <- IM.toList pm
                       , (r, dpv) <- IM.toList rdpv
                       , (d, pv) <- IM.toList dpv
                       , (p, v) <- OM.toList pv
-                      , let arrProd = fromGLLProd p
+                      , let arrProd@(ArrProd nt _) = fromGLLProd p
                       , not $ isComplete d arrProd]
-          & IM.unionsWith (IM.unionWith $ M.unionWith IS.union)
-        isComplete idx (ArrProd _ arr) = (bounds arr & (\(l, r) -> r - l + 1)) == idx
+          & IM.unionsWith (IM.unionWith $ M.unionWith mappend)
+        isComplete idx (ArrProd _ arr) = arrLen arr == idx
 
     buildDAG :: PackedForest t -> (HashMap Node (nodeF (HashSet Node)), HashSet Node)
-    buildDAG = undefined  -- TODO
+    buildDAG pf@PackedForest{input} = fst $ runST $ mfix $ \ ~(_result, compTrans) -> do
+      initialState@DagState{nodeMap, translation} <- DagState pf compTrans <$> newSTRef M.empty <*> newSTRef M.empty <*> newSTRef S.empty
+      topNodes <- runReaderT (dagNt (fst grammar & WrappedNt, 0, arrLen input)) initialState <&> foldMap anyToNode
+      finalNodeMap <- readSTRef nodeMap
+      finalTranslation <- readSTRef translation
+      return ((finalNodeMap, topNodes), finalTranslation)
 
 -- internal stuff
 
 data PackedForest t = PackedForest
   { input :: !(Array Int t)
-  , completed :: !(IntMap (IntMap (HashMap (ArrProd (Token t)) IntSet))) -- ^ left extent -> right extent -> prod -> pivots
+  , completed :: !(IntMap (IntMap (HashMap Nt (Seq ((ArrProd (Token t)), IntSet))))) -- ^ left extent -> right extent -> prod -> pivots
   , uncompleted :: !(IntMap (IntMap (IntMap (HashMap (ArrProd (Token t)) IntSet)))) -- ^ left extent -> right extent -> dot_idx -> prod -> pivots
   , semantics :: !(HashMap (ArrProd (Token t)) Any)
   }
+
+data DagState s t nodeF = DagState
+  { packedForest :: !(PackedForest t)
+  , completedTranslation :: HashMap (Nt, Int, Int) (Seq Any)  -- ^ This will be supplied by fix, so don't force it
+  , nodeMap :: !(STRef s (HashMap Node (nodeF (HashSet Node))))
+  , translation :: !(STRef s (HashMap (Nt, Int, Int) (Seq Any)))
+  , alreadyStartedDag :: !(STRef s (HashSet (Nt, Int, Int)))
+  }
+
+type DagM s t nodeF a = ReaderT (DagState s t nodeF) (ST s) a
+
+dagNt :: (Eq t, Hashable t, Show t) => (Nt, Int, Int) -> DagM s t nodeF (Seq Any)
+dagNt pos@(nt, l, r) = do
+  DagState{alreadyStartedDag, translation, completedTranslation, packedForest = PackedForest{completed}} <- ask
+  started <- lift $ readSTRef alreadyStartedDag
+  if S.member pos started then return $ completedTranslation & M.lookup pos & fromJust else do
+    lift $ modifySTRef' alreadyStartedDag $ S.insert pos
+    prods <- IM.lookup l completed >>= IM.lookup r >>= M.lookup nt & fold & mapM (dagProd l r)
+    let result = maybeMerge $ join prods
+    lift $ modifySTRef' translation $ M.insert pos result
+    return result
+  where
+    fromJust = compFromJust "P4Parsing.ForestParser.GLL.buildNt" $ "Somehow did not enter anything for " <> show pos
+    maybeMerge
+      | Text.head (coerce nt) == mergeChar = toList >>> fmap anyToNode >>> S.unions >>> Seq.singleton >>> fmap toAny
+      | otherwise = identity
+
+dagProd :: (Eq t, Hashable t, Show t) => Int -> Int -> (ArrProd (Token t), IntSet) -> DagM s t nodeF (Seq Any)
+dagProd l r (prod@(ArrProd _ syms), pivots)
+  | arrLen syms == 0 = getSem <&> Seq.singleton
+  | otherwise = do
+      sem <- getSem <&> anyToFunc
+      fmap join $ forM (IS.toList pivots & Seq.fromList) $ \pivot -> do
+        rightMosts <- dagSym pivot r $ syms Array.! (dotIdx - 1)
+        dagIProd l pivot (prod, dotIdx - 1) $ sem <$> rightMosts
+  where
+    dotIdx = arrLen syms
+    getSem = asks $ packedForest >>> semantics >>> M.lookup prod >>> fromJust
+    fromJust = compFromJust "P4Parsing.ForestParser.GLL.dagProd" $ "Somehow did not enter semantics for " <> show prod
+
+dagSym :: (Eq t, Hashable t, Show t) => Int -> Int -> Symbol (Token t) -> DagM s t nodeF (Seq Any)
+dagSym l _r (Term _) = do
+  PackedForest{input} <- asks packedForest
+  return $ Seq.singleton $ toAny $ input Array.! l
+dagSym l r (Nt nt) = dagNt (WrappedNt nt, l, r)
+
+dagIProd :: (Eq t, Hashable t, Show t) => Int -> Int -> (ArrProd (Token t), Int) -> Seq Any -> DagM s t nodeF (Seq Any)
+dagIProd _ _ (_, 0) sems = return sems
+dagIProd l r (prod@(ArrProd _ syms), dotIdx) sems = do
+  PackedForest{uncompleted} <- asks packedForest
+  let pivots = IM.lookup l uncompleted >>= IM.lookup r >>= IM.lookup dotIdx >>= M.lookup prod & fold
+  fmap join $ forM (IS.toList pivots & Seq.fromList) $ \pivot -> do
+    rightMosts <- dagSym pivot r $ syms Array.! (dotIdx - 1)
+    dagIProd l pivot (prod, dotIdx - 1) $ anyToFunc <$> sems <*> rightMosts
 
 buildWrappedProd :: (Eq t, Hashable t) => WrappedProd t nodeF -> GrammarM s t Nt
 buildWrappedProd (WrappedProd nt prod) = do
@@ -140,7 +206,7 @@ mergeChar, nonMergeChar :: Char
 -- alternative productions produce 'HashSet Node' and union them, and those that make no assumption
 -- about the produced type and combine results as in the list monad. (The latter multiplies the number
 -- of things produced, the former leaves it unchanged)
-newtype Nt = WrappedNt Text deriving (Eq, Hashable)  -- Following non-terminals in gll
+newtype Nt = WrappedNt Text deriving (Eq, Show, Hashable)  -- Following non-terminals in gll
 
 freshNonMerge :: GrammarM s t Nt
 freshNonMerge = do
@@ -183,7 +249,7 @@ mkTok = Conditional >>> Term
 mkNtTok :: Nt -> Symbol t
 mkNtTok (WrappedNt nt) = Nt nt
 
-data ArrProd t = ArrProd Nt (Array Int (Symbol t)) deriving (Generic, Eq)
+data ArrProd t = ArrProd Nt (Array Int (Symbol t)) deriving (Generic, Eq, Show)
 instance Hashable t => Hashable (ArrProd t) where
   hashWithSalt = hashUsing $ \(ArrProd nt arr) -> (nt, toList arr)
 
@@ -195,6 +261,9 @@ toGLLProd (ArrProd (WrappedNt nt) syms) = GLL.Prod nt $ toList syms
 
 fromGLLProd :: GLL.Prod t -> ArrProd t
 fromGLLProd (GLL.Prod nt syms) = mkArrProd (WrappedNt nt) syms
+
+arrLen :: Array Int a -> Int
+arrLen = bounds >>> \(l, r) -> r - l + 1
 
 -- NOTE: these are orphan instances, since writing a wrapper and manually writing hashable instances for
 -- those are very annoying.
