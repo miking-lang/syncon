@@ -55,6 +55,8 @@ executable syncon-parser
                , P4Parsing.Types
                , P4Parsing.Parser
                , P4Parsing.ForestParser
+               , P4Parsing.ForestParser.Grammar
+               , P4Parsing.ForestParser.GLL
                , P5DynamicAmbiguity.Types
                , P5DynamicAmbiguity.AmbiguityReporter
                , P5DynamicAmbiguity.TreeLanguage

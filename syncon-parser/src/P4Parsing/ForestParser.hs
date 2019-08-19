@@ -41,7 +41,7 @@ test =
       putStrLn $ forestToDot show a
   where
     -- input = ["[", "a", "+", "b", "+", "c", "]"]
-    input = "[(a+b+c)+d+e,fg]" <&> Text.singleton
+    input = "[(a+b+c)+d+e,f,g]" <&> Text.singleton
 
 exprGrammar :: forall r. Grammar r Text ExprF (Prod r Text ExprF r)
 exprGrammar = mdo
@@ -77,21 +77,24 @@ forestToDot showNode (nodeMap, roots) = "digraph {\n"
     nodeDesc (key, node) = "  " <> show (keyToI key) <> " [label = \"" <> escape (showNode $ void node) <> "\"];\n"
     firstAmbigNode = maximum keyToIMap + 1
 
-    newAlt :: State Int (Int, Text)
-    newAlt = do
-      id <- get <* modify (+1)
-      return (id, "  " <> show id <> " [shape=point, label=\"\"];\n")
+    genAlt :: HashSet n -> State (HashMap (HashSet n) Int, Int) (Int, Text)
+    genAlt alt = do
+      (prevs, id) <- get
+      case M.lookup alt prevs of
+        Just prevId -> return (prevId, "")
+        Nothing -> do
+          let altDesc = "  " <> show id <> " [shape=point, label=\"\"];\n"
+              edges = "  " <> show id <> " -> {" <> (toList alt <&> keyToI <&> show & intersperse ", " & Text.concat) <> "};\n"
+          modify $ M.insert alt id *** (+1)
+          return (id, altDesc <> edges)
 
-    nodeEdgeDescs = evalState (foldMapM nodeEdges $ M.toList nodeMap) firstAmbigNode
+    nodeEdgeDescs = evalState (foldMapM nodeEdges $ M.toList nodeMap) (M.empty, firstAmbigNode)
 
-    nodeEdges :: (n, nodeF (HashSet n)) -> State Int Text
+    nodeEdges :: (n, nodeF (HashSet n)) -> State (HashMap (HashSet n) Int, Int) Text
     nodeEdges (keyToI -> from, node) = flip foldMapM node $ \alternatives -> do
-      (altId, altDesc) <- newAlt
-      let dests = toList alternatives <&> keyToI
-      return
-        $ altDesc
+      (altId, altDesc) <- genAlt alternatives
+      return $ altDesc
         <> "  " <> show from <> " -> " <> show altId <> ";\n"
-        <> "  " <> show altId <> " -> {" <> (dests <&> show & intersperse ", " & Text.concat) <> "};\n"
 
 escape :: Text -> Text
 escape = Text.concatMap f
