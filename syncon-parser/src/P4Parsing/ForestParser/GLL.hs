@@ -112,13 +112,23 @@ dagNt pos@(nt, l, r) = traceWrap "dagNt" pos $ do
     Just res -> return res
     Nothing -> do
       prods <- IM.lookup l completed >>= IM.lookup r >>= M.lookup nt & fold & mapM (dagProd l r)
-      let result = maybeMerge $ join prods
+      result <- maybeRanged $ maybeMerge $ join prods
       lift $ modifySTRef' translation $ M.insert pos result
       return result
   where
     maybeMerge
       | Text.head (coerce nt) == mergeChar = toList >>> fmap anyToNodeSet >>> S.unions >>> Seq.singleton >>> fmap toAny
       | otherwise = identity
+    maybeRanged res
+      | Text.head (coerce nt) == rangeChar = do
+          range <- if l == r then return Nothing
+            else asks (packedForest >>> input)
+                 <&> ((Array.! l) &&& (Array.! (r-1)))
+                 <&> Just
+          res <&> anyToRangeFunc <&> ($ range) & return
+      | otherwise = return res
+    anyToRangeFunc :: Any -> (Maybe (t, t) -> Any)
+    anyToRangeFunc = unsafeCoerce
 
 dagProd :: forall s t nodeF. (Eq t, Hashable t, Show t)
         => Int -> Int -> (ArrProd (Token t), IntSet)
@@ -186,15 +196,22 @@ buildWrappedProd (WrappedProds nt prods) = do
       addProd nt syms semantic
     return nt
 
+-- TODO: do something about empty Alts, the underlying parser can't handle it. Maybe pre-optimize them away?
 buildProd :: (Eq t, Hashable t) => Prod (WrappedProd t nodeF) t nodeF a -> GrammarM s t ([Symbol (Token t)], Any)
 buildProd (Pure a) = return ([], toAny a)
 buildProd (Terminal label f cont) = buildProd cont <&> first (mkTok label f :)
 buildProd (NonTerminal wp cont) = do
   wpnt <- buildWrappedProd wp
   buildProd cont <&> first (mkNtTok wpnt :)
+buildProd (Ranged cont) = do
+  nt <- freshRange
+  (syms, semantic) <- buildProd cont
+  addProd nt syms semantic
+  return ([mkNtTok nt], toAny identity)
+buildProd (Alts [] _) = return $ ([mkTok "<never>" (const False)], toAny identity)
 buildProd (Alts ps cont) = do
   nt <- freshNonMerge
-  forM_ ps $ \p -> do
+  forM_ (trace @Text (show (length ps) <> " " <> show nt) $ ps) $ \p -> do
     (syms, semantic) <- buildProd p
     addProd nt syms semantic
   buildProd cont <&> first (mkNtTok nt :)
@@ -227,8 +244,8 @@ data State s t = State
   , prods :: !(STRef s (HashMap (ArrProd (Token t)) Any))
   , alreadyStarted :: !(STRef s (HashSet Nt)) }
 
-mergeChar, nonMergeChar, nodeChar :: Char
-(mergeChar, nonMergeChar, nodeChar) = ('M', 'n', 'N')
+mergeChar, nonMergeChar, nodeChar, rangeChar :: Char
+(mergeChar, nonMergeChar, nodeChar, rangeChar) = ('M', 'n', 'N', 'r')
 
 -- | The type of non-terminals. Note that there are two kinds of nts: those that assume their
 -- alternative productions produce 'HashSet Node' and union them, and those that make no assumption
@@ -253,6 +270,12 @@ freshNode = do
   State{nextNt} <- ask
   id <- lift $ readSTRef nextNt <* modifySTRef' nextNt (+1)
   return $ WrappedNt $ Text.singleton nodeChar <> show id
+
+freshRange :: GrammarM s t Nt
+freshRange = do
+  State{nextNt} <- ask
+  id <- lift $ readSTRef nextNt <* modifySTRef' nextNt (+1)
+  return $ WrappedNt $ Text.singleton rangeChar <> show id
 
 -- | Add a production. The 'Any' argument should be a function that takes the values produced by
 -- each 'Symbol', one at a time, in reverse order. Note that this interface is massively unsafe,

@@ -3,15 +3,16 @@
 
 module Main where
 
-import Pre
+import Pre hiding ((<.>))
 import Result (Result(..))
 
 import FileAnnotation (annotate, putInTextTemplate)
 import ErrorMessage (FormatError, formatErrors, formatError, ErrorOpts)
 
 import System.Environment (withArgs)
-import System.FilePath ((</>))
+import System.FilePath ((</>), (<.>), takeDirectory)
 import System.Timeout (timeout)
+import System.Directory (createDirectoryIfMissing)
 
 import Data.Data (Data)
 import Data.IORef (newIORef, modifyIORef', readIORef)
@@ -41,6 +42,7 @@ import qualified P2LanguageDefinition.Elaborator as LD
 import qualified P4Parsing.Types as Parser
 import qualified P4Parsing.Parser as Parser
 import qualified P4Parsing.ForestParser as Forest
+import qualified P4Parsing.Parser2 as Forest  -- TODO: maybe make this the default and remove the other?
 
 import qualified P5DynamicAmbiguity.Types as DynAmb
 import qualified P5DynamicAmbiguity.AmbiguityReporter as DynAmb
@@ -92,11 +94,11 @@ testReduce = do
 
 test :: IO ()
 -- test = withArgs ["case-studies/ocaml.syncon", "case-studies/ocaml/inside_out.ml", "--html=out.html", "--two-level"] main
+test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--dot=out"] main
 -- test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--two-level"] main
 -- test = withArgs ["examples/bootstrap.syncon", "--source=examples/bootstrap.syncon", "--json=out.json"] main
 -- test = withArgs ["--help"] main
 -- test = GLL.test
-test = Forest.test
 
 getArgsSeq :: IO (Seq [Char])
 getArgsSeq = getArgs <&> Seq.fromList
@@ -110,25 +112,29 @@ die' t = do
 
 common :: Opt.Parser (IO ())
 common = do
-  html <- optional $ Opt.strOption
-    $ Opt.long "html"
-    <> Opt.metavar "FILE"
-    <> Opt.help "Output the result of parsing as a debug HTML file."
-  json <- optional $ Opt.strOption
-    $ Opt.long "json"
-    <> Opt.metavar "FILE"
-    <> Opt.help "Output the ASTs as machine-readable JSON."
-  outdir <- optional $ Opt.strOption
-    $ Opt.long "out"
+  -- html <- optional $ Opt.strOption
+  --   $ Opt.long "html"
+  --   <> Opt.metavar "FILE"
+  --   <> Opt.help "Output the result of parsing as a debug HTML file."
+  -- json <- optional $ Opt.strOption
+  --   $ Opt.long "json"
+  --   <> Opt.metavar "FILE"
+  --   <> Opt.help "Output the ASTs as machine-readable JSON."
+  -- outdir <- optional $ Opt.strOption
+  --   $ Opt.long "out"
+  --   <> Opt.metavar "DIR"
+  --   <> Opt.help "\"Pretty\" print all src files to paths relative to DIR. Only works if all files were given as relative paths. Use '.' to overwrite the originals."
+  dot <- optional $ Opt.strOption
+    $ Opt.long "dot"
     <> Opt.metavar "DIR"
-    <> Opt.help "\"Pretty\" print all src files to paths relative to DIR. Only works if all files where given as relative paths. Use '.' to overwrite the originals."
+    <> Opt.help "Output the parse forests as graphviz dot files relative to DIR. Only works if all files were given as relative paths."
   extraSrcFiles <- many $ Opt.strOption
     $ Opt.long "source"
     <> Opt.metavar "FILE"
     <> Opt.help "Parse this file as a source file, even if its extension is syncon. Can be supplied multiple times."
-  showTwoLevel <- Opt.switch
-    $ Opt.long "two-level"
-    <> Opt.help "Always show the two level representation, even if some alternatives are resolvable."
+  -- showTwoLevel <- Opt.switch
+  --   $ Opt.long "two-level"
+  --   <> Opt.help "Always show the two level representation, even if some alternatives are resolvable."
   sourceTimeout <- fmap (*1_000_000) $ Opt.option Opt.auto
     $ Opt.long "timeout"
     <> Opt.metavar "S"
@@ -149,8 +155,8 @@ common = do
     tops <- M.traverseWithKey (\defFile _ -> LD.parseFile $ toS defFile) defSources
       >>= (fold >>> dataOrError defSources ())
     df <- LD.mkDefinitionFile tops & dataOrError defSources ()
-    parseFile <- Parser.parseSingleLanguage df & dataOrError defSources ()
-    let pl = DynAmb.precompute df
+    parseFile <- Forest.parseSingleLanguage df & dataOrError defSources ()
+    -- let pl = DynAmb.precompute df
 
     srcSources <- extraSrcFiles <> srcFiles & S.fromList & S.toMap
       & M.traverseWithKey (\path _ -> readFile $ toS path)
@@ -159,17 +165,23 @@ common = do
     let sourceFailureHandler
           | continueAfterError = \t -> putStrLn t >> return undefined
           | otherwise = die
-    srcNodes <- flip M.traverseWithKey srcSources $ \path _ -> do
+    _ <- flip M.traverseWithKey srcSources $ \path _ -> do
       putStrLn @Text $ "Parsing \"" <> path <> "\""
       handle (\(SourceFileException t) -> modifyIORef' failureFiles (+1) >> sourceFailureHandler t) $ do
         mNode <- timeout sourceTimeout $ do
-          setOfNodes <- parseFile (toS path) >>= dataOrError' srcSources ()
-          case DynAmb.report pl setOfNodes of
-            Data node -> modifyIORef' successfulFiles (+1) >> return node
-            Error errs -> do
-              formatError (DynAmb.EO{DynAmb.showTwoLevel}) <$> errs
-                & formatErrors srcSources
-                & die'
+          forest <- parseFile (toS path) >>= dataOrError' srcSources ()
+          forM_ dot $ \outPath -> do
+            let fullPath = outPath </> toS path <.> "dot"
+            putStrLn @Text $"Writing to \"" <> toS fullPath <> "\""
+            createDirectoryIfMissing True $ takeDirectory fullPath
+            Forest.forestToDot (Parser.n_nameF >>> coerce) forest
+              & writeFile fullPath
+          -- case DynAmb.report pl setOfNodes of
+          --   Data node -> modifyIORef' successfulFiles (+1) >> return node
+          --   Error errs -> do
+          --     formatError (DynAmb.EO{DynAmb.showTwoLevel}) <$> errs
+          --       & formatErrors srcSources
+          --       & die'
         maybe (die' "        timeout when parsing file") return mNode
 
     numSuccesses <- readIORef successfulFiles
@@ -178,26 +190,27 @@ common = do
 
     when (numFailures /= 0) exitFailure
 
-    forM_ html $ \htmlPath -> do
-      putStrLn @Text $ "Writing HTML to \"" <> toS htmlPath <> "\""
-      toList srcNodes >>= universe >>= nodeAnnotation
-        & annotate srcSources
-        & putInTextTemplate (toS $(embedFile "resources/htmlTemplate.html"))
-        & writeFile htmlPath
+    -- forM_ html $ \htmlPath -> do
+    --   putStrLn @Text $ "Writing HTML to \"" <> toS htmlPath <> "\""
+    --   toList srcNodes >>= universe >>= nodeAnnotation
+    --     & annotate srcSources
+    --     & putInTextTemplate (toS $(embedFile "resources/htmlTemplate.html"))
+    --     & writeFile htmlPath
 
-    forM_ json $ \jsonPath -> do
-      putStrLn @Text $ "Writing JSON to \"" <> toS jsonPath <> "\""
-      LByteString.writeFile jsonPath $ Output.encode srcNodes
+    -- forM_ json $ \jsonPath -> do
+    --   putStrLn @Text $ "Writing JSON to \"" <> toS jsonPath <> "\""
+    --   LByteString.writeFile jsonPath $ Output.encode srcNodes
 
-    forM_ outdir $ \outPath ->
-      forM_ (M.toList srcNodes) $ \(path, node) -> do
-        let fullPath = outPath </> toS path
-        putStrLn @Text $ "Writing to \"" <> toS fullPath <> "\""
-        DynAmb.fastShortest pl node
-          <&> DynAmb.textualToken
-          & Seq.intersperse " "
-          & fold
-          & writeFile fullPath
+    -- forM_ outdir $ \outPath ->
+    --   forM_ (M.toList srcNodes) $ \(path, node) -> do
+    --     let fullPath = outPath </> toS path
+    --     putStrLn @Text $ "Writing to \"" <> toS fullPath <> "\""
+    --     createDirectoryIfMissing True $ takeDirectory fullPath
+    --     DynAmb.fastShortest pl node
+    --       <&> DynAmb.textualToken
+    --       & Seq.intersperse " "
+    --       & fold
+    --       & writeFile fullPath
 
     putStrLn @Text "All done"
 

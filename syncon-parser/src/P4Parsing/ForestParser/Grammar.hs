@@ -3,6 +3,7 @@ module P4Parsing.ForestParser.Grammar
 , Grammar(..)
 , rule
 , terminal
+, ranged
 , ambig
 , alts
 , runGrammar
@@ -16,6 +17,7 @@ import Control.Monad.Fix (MonadFix(..))
 data Prod r t nodeF a where
   Terminal :: !Text -> !(t -> Bool) -> !(Prod r t nodeF (t -> b)) -> Prod r t nodeF b
   NonTerminal :: !r -> !(Prod r t nodeF (r -> a)) -> Prod r t nodeF a
+  Ranged :: !(Prod r t nodeF (Maybe (t, t) -> a)) -> Prod r t nodeF a
   Pure :: a -> Prod r t nodeF a
   Alts :: ![Prod r t nodeF a] -> !(Prod r t nodeF (a -> b)) -> Prod r t nodeF b
   Many :: !(Prod r t nodeF a) -> !(Prod r t nodeF ([a] -> b)) -> Prod r t nodeF b
@@ -29,6 +31,7 @@ instance Functor (Prod r t nodeF) where
   {-# INLINE fmap #-}
   fmap f (Terminal label t build) = Terminal label t $ (>>> f) <$> build
   fmap f (NonTerminal r build) = NonTerminal r $ (>>> f) <$> build
+  fmap f (Ranged build) = Ranged $ (>>> f) <$> build
   fmap f (Pure a) = Pure $ f a
   fmap f (Alts ps build) = Alts ps $ (>>> f) <$> build
   fmap f (Many p build) = Many p $ (>>> f) <$> build
@@ -43,11 +46,15 @@ alts as build = case as >>= go of
     go (Alts as' (Pure f)) = fmap f <$> as'
     go a = [a]
 
+ranged :: Prod r t nodeF (Maybe (t, t) -> a) -> Prod r t nodeF a
+ranged = Ranged
+
 instance Applicative (Prod r t nodeF) where
   pure = Pure
   {-# INLINE (<*>) #-}
   Terminal label t build <*> q = Terminal label t $ flip <$> build <*> q
   NonTerminal r build <*> q = NonTerminal r $ flip <$> build <*> q
+  Ranged build <*> q = Ranged $ flip <$> build <*> q
   Pure f <*> q = f <$> q
   Alts ps build <*> q = alts ps $ flip <$> build <*> q
   Many p build <*> q = Many p $ flip <$> build <*> q
@@ -90,7 +97,10 @@ rule p = RuleBind p return
 
 -- | Merge these alteratives into a single ambiguous node.
 ambig :: [Prod r t nodeF r] -> Grammar r t nodeF (Prod r t nodeF r)
-ambig ps = AmbigBind ps return
+ambig ps = ps <&> go & mconcat & fold & flip AmbigBind return
+  where
+    go (Alts [] _) = Nothing
+    go a = Just [a]
 
 runGrammar :: MonadFix m
            => (Prod r t nodeF (nodeF r) -> m (Prod r t nodeF r))
