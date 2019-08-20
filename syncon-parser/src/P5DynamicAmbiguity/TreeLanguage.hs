@@ -1,9 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module P5DynamicAmbiguity.TreeLanguage (precompute, PreLanguage, treeLanguage, fastShortest) where
+
+module P5DynamicAmbiguity.TreeLanguage (precompute, PreLanguage, treeLanguage) where
 
 import Pre hiding (reduce)
+
+import qualified Unsafe.Coerce
 
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Strict as M
@@ -18,24 +21,26 @@ import Data.Automaton.NVA (fromEpsNVA, NVA, reduce, renumber)
 import Data.Automaton.Regex (Regex(..))
 import qualified Data.Automaton.Regex as Regex
 
-import P1Lexing.Types (range)
 import qualified P1Lexing.Types as P1
 import P2LanguageDefinition.Elaborator (elaborate)
 import P2LanguageDefinition.Types (Name(..), SDName(..), TypeName(..), Syncon(..), SyntaxDescription(..), BracketKind(..), DefinitionFile, Repetition(..))
 import qualified P2LanguageDefinition.Types as P2
 import P4Parsing.Parser (SingleLanguage(..))
-import P4Parsing.Types (pattern Node, n_name, n_contents, NodeInternals(..))
+import P4Parsing.Types (pattern NodeF, n_nameF, n_contentsF, NodeInternals(..))
 import qualified P4Parsing.Types as P4
-import P5DynamicAmbiguity.Types hiding (NodeOrElide(..))
+import P5DynamicAmbiguity.Types
 
-type Node = P4.Node SingleLanguage TypeName
+-- type Node = P4.Node SingleLanguage TypeName
+type NodeF = P4.NodeF SingleLanguage TypeName
 
 -- | Take a 'PreLanguage' and a 'Node' computed/parsed using the same language definition, then
 -- produce a reduced NVA recognizing the language of words that can be parsed as that
 -- node.
 --
 -- Note that the 'Node' doesn't have to be of syntax type Top, it can be any syntax type.
-treeLanguage :: PreLanguage -> Node -> NVA Int Int Token Token Token
+treeLanguage :: (Eq elidable, Hashable elidable, Show elidable)
+             => PreLanguage -> NodeOrElide elidable
+             -> NVA Int Int (Token elidable) (Token elidable) (Token elidable)
 treeLanguage pl =
   mkLanguage pl
   >>> fromEpsNVA
@@ -44,11 +49,12 @@ treeLanguage pl =
 
 data PreLanguage = PreLanguage
   { isForbidden :: Name -> SDName -> Name -> Bool
-  , bracketKind :: Either Text TypeName -> BracketKind
+  , bracketKind :: forall elidable. Either Text (Either TypeName elidable) -> BracketKind
   , getSyTy :: Name -> TypeName
-  , getGroupings :: TypeName -> Seq (Token, Token)
-  , syncons :: HashMap Name ( SyntaxDescription
-                            , HashMap (SavedPoint ()) Path
+  , getGroupings :: forall elidable. TypeName -> Seq (Token elidable, Token elidable)
+  , syncons :: forall elidable.
+               HashMap Name ( SyntaxDescription
+                            , HashMap (SavedPoint elidable ()) Path
                             , HashSet Path )
   }
 
@@ -73,7 +79,10 @@ precompute df = PreLanguage{..}
               pure ((n, sdname), M.lookupDefault S.empty (n, Left sdrec) elaboration)
             _ -> []
 
-    bracketKind = P2.bracketKind df
+    bracketKind :: Either Text (Either TypeName elidable) -> BracketKind
+    bracketKind (Right Right{}) = NonBracket
+    bracketKind (Right (Left a)) = P2.bracketKind df $ Right a
+    bracketKind (Left a) = P2.bracketKind df $ Left a
 
     isForbidden :: Name -> SDName -> Name -> Bool
     isForbidden n1 sdname n2 = M.lookup (n1, sdname) elaborationWithRecs
@@ -86,83 +95,87 @@ precompute df = PreLanguage{..}
       & s_syntaxType
       & snd
 
-    tokGroupings :: HashMap TypeName (Seq (Token, Token))
+    tokGroupings :: HashMap TypeName (Seq (Token elidable, Token elidable))
     tokGroupings = P2.groupings df <&> fmap (mkTok *** mkTok)
-    getGroupings :: TypeName -> Seq (Token, Token)
+    getGroupings :: TypeName -> Seq (Token elidable, Token elidable)
     getGroupings tyn = M.lookup tyn tokGroupings & fold
 
-    syncons :: HashMap Name (SyntaxDescription, HashMap (SavedPoint ()) Path, HashSet Path)
+    syncons :: HashMap Name (SyntaxDescription, HashMap (SavedPoint elidable ()) Path, HashSet Path)
     syncons = P2.syncons df <&> \Syncon{..} ->
       let sd = s_syntaxDescription
-          sps = discoverSavePoints isSyTy (snd s_syntaxType) sd
+          toElidable :: HashMap (SavedPoint Void ()) Path
+                     -> HashMap (SavedPoint elidable ()) Path
+          toElidable = Unsafe.Coerce.unsafeCoerce  -- NOTE: this is ok since SavedPoint is strict in its children, i.e., a constructor containing Void cannot exist, thus we can freely change the first type parameter
+          sps = toElidable $ discoverSavePoints isSyTy (snd s_syntaxType) sd
           paths = S.fromList $ toList sps
       in (sd, sps, paths)
 
     isSyTy :: TypeName -> Bool
     isSyTy tyn = M.lookup tyn (P2.syntaxTypes df) & maybe False isLeft
 
--- | Produce the shortest sequence of 'Token's that could be parsed as the given
--- node. Note that there is no guarantee at all that the produced sequence is
--- unambiguous, merely that it is valid.
-fastShortest :: PreLanguage -> Node -> Seq Token
-fastShortest pl@PreLanguage{..} n@Node{n_name} =
-  zipWith genSegment (toList points) (tail $ fst <$> toList points)
-  & mconcat
-  where
-    (sd, _, paths) = M.lookup n_name syncons
-      & compFromJust "P4Parsing.AmbiguityReporter.mkLanguage" "Missing syncon"
-    groupings = getGroupings $ getSyTy n_name
+-- -- | Produce the shortest sequence of 'Token's that could be parsed as the given
+-- -- node. Note that there is no guarantee at all that the produced sequence is
+-- -- unambiguous, merely that it is valid.
+-- fastShortest :: PreLanguage -> Node -> Seq Token
+-- fastShortest pl@PreLanguage{..} n@Node{n_name} =
+--   zipWith genSegment (toList points) (tail $ fst <$> toList points)
+--   & mconcat
+--   where
+--     (sd, _, paths) = M.lookup n_name syncons
+--       & compFromJust "P4Parsing.AmbiguityReporter.mkLanguage" "Missing syncon"
+--     groupings = getGroupings $ getSyTy n_name
 
-    points = pathPoints pl n
+--     points = pathPoints pl n
 
-    genSegment :: (Path, Maybe (SavedPoint Node))
-               -> Path
-               -> Seq Token
-    genSegment (start, point) end =
-      foldMap genPoint point <> Regex.shortestWord (regexIntermission sd start end paths)
+--     genSegment :: (Path, Maybe (SavedPoint Node))
+--                -> Path
+--                -> Seq Token
+--     genSegment (start, point) end =
+--       foldMap genPoint point <> Regex.shortestWord (regexIntermission sd start end paths)
 
-    genPoint :: SavedPoint Node -> Seq Token
-    genPoint (TokPoint _ tok) = Seq.singleton tok
-    genPoint (NodePoint sdname _ node@Node{n_name=innerName})
-      | isForbidden n_name sdname innerName = groupings
-        & head
-        & compFromJust "P5DynamicAmbiguity.TreeLanguage.fastShortest.genPoint"
-          ("No grouping available for syncon " <> coerce innerName <> ", but it's required since it's forbidden inside " <> coerce n_name)
-        & \(pre, post) -> pre Seq.:<| (result Seq.:|> post)
-      | otherwise = result
-      where
-        result = fastShortest pl node
+--     genPoint :: SavedPoint Node -> Seq Token
+--     genPoint (TokPoint _ tok) = Seq.singleton tok
+--     genPoint (NodePoint sdname _ node@Node{n_name=innerName})
+--       | isForbidden n_name sdname innerName = groupings
+--         & head
+--         & compFromJust "P5DynamicAmbiguity.TreeLanguage.fastShortest.genPoint"
+--           ("No grouping available for syncon " <> coerce innerName <> ", but it's required since it's forbidden inside " <> coerce n_name)
+--         & \(pre, post) -> pre Seq.:<| (result Seq.:|> post)
+--       | otherwise = result
+--       where
+--         result = fastShortest pl node
 
-    tail :: [a] -> [a]
-    tail [] = []
-    tail (_:as) = as
+--     tail :: [a] -> [a]
+--     tail [] = []
+--     tail (_:as) = as
 
 -- | Generate a 'NVA' that recognizes the words that can parse as a given AST.
 -- The NVA will push and pop 'Nothing' for opening and closing brackets internal
 -- to a syncon, and Just n for the nth paren location, to ensure that grouping
 -- parens are paired appropriately. (TODO: update documentation comment)
-mkLanguage :: PreLanguage
-           -> Node
-           -> EpsNVA Int (Either () Int) Token Token Token
-mkLanguage pl@PreLanguage{..} n@Node{n_name} =
+mkLanguage :: forall elidable. (Eq elidable, Hashable elidable, Show elidable)
+           => PreLanguage
+           -> NodeOrElide elidable
+           -> EpsNVA Int (Either () Int) (Token elidable) (Token elidable) (Token elidable)
+mkLanguage pl@PreLanguage{..} (Node n@NodeF{n_nameF}) =
   zipWith genSegment (toList points) (tail $ fst <$> toList points)
   & mconcat
   where
-    (sd, _, paths) = M.lookup n_name syncons
+    (sd, _, paths) = M.lookup n_nameF syncons
       & compFromJust "P4Parsing.AmbiguityReporter.mkLanguage" "Missing syncon"
 
     points = pathPoints pl n
 
-    genSegment :: (Path, Maybe (SavedPoint Node))
+    genSegment :: (Path, Maybe (SavedPoint elidable (NodeOrElide elidable)))
                -> Path
-               -> EpsNVA Int (Either () Int) Token Token Token
+               -> EpsNVA Int (Either () Int) (Token elidable) (Token elidable) (Token elidable)
     genSegment (start, point) end =
       foldMap genPoint point <> regexToEpsNVA (regexIntermission sd start end paths)
 
-    genPoint :: SavedPoint Node -> EpsNVA Int (Either () Int) Token Token Token
+    genPoint :: SavedPoint elidable (NodeOrElide elidable) -> EpsNVA Int (Either () Int) (Token elidable) (Token elidable) (Token elidable)
     genPoint (TokPoint _ tok) = regexToEpsNVA $ Terminal tok
-    genPoint (NodePoint sdname _ node@Node{n_name=innerName})
-      | isForbidden n_name sdname innerName = withOpt
+    genPoint (NodePoint sdname _ node@(Node NodeF{n_nameF=innerName}))
+      | isForbidden n_nameF sdname innerName = withOpt
         { EpsNVA.initial = S.singleton (-1)
         , EpsNVA.final = S.singleton (-2)
         , EpsNVA.openTransitions = mkMandEdge (-1) <$> toList (EpsNVA.initial withOpt) <*> (second fst <$> toList groupings)
@@ -191,10 +204,10 @@ mkLanguage pl@PreLanguage{..} n@Node{n_name} =
         addTransitions = M.unionWith $ M.unionWith S.union
         innerLang = mkLanguage pl node
 
-    regexToEpsNVA :: Regex Token -> EpsNVA Int (Either () Int) Token Token Token
+    regexToEpsNVA :: Regex (Token elidable) -> EpsNVA Int (Either () Int) (Token elidable) (Token elidable) (Token elidable)
     regexToEpsNVA = Regex.toAutomaton >>> fromNFA tag >>> EpsNVA.mapSta Left
 
-    tag :: Token -> TaggedTerminal Token Token Token
+    tag :: Token elidable -> TaggedTerminal (Token elidable) (Token elidable) (Token elidable)
     tag tok = case bracketKind $ eitherRepr tok of
       OpenBracket -> Open tok
       NonBracket -> Inner tok
@@ -208,13 +221,13 @@ mkLanguage pl@PreLanguage{..} n@Node{n_name} =
 -- even in the presence of name:(a | b | c).
 -- TODO: make sure the BasicChecker enforces this (i.e., alt of non-seqs have distinct alts)
 -- TODO: make SDAlt parse as either an alt of seqs, or an alt of non-seqs, never a mix
-data SavedPoint node
-  = TokPoint SDName Token
+data SavedPoint elidable node
+  = TokPoint SDName (Token elidable)
   | NodePoint SDName TypeName node
   deriving (Functor, Eq, Generic, Show)
-instance Hashable node => Hashable (SavedPoint node)
+instance (Hashable node, Hashable elidable) => Hashable (SavedPoint elidable node)
 
-asLookupPoint :: SavedPoint node -> SavedPoint ()
+asLookupPoint :: SavedPoint elidable node -> SavedPoint elidable ()
 asLookupPoint (TokPoint sdname (OtherTokInstance tyn _)) = TokPoint sdname (OtherTok tyn)
 asLookupPoint (TokPoint sdname tok) = TokPoint sdname tok
 asLookupPoint (NodePoint sdname tyn _) = NodePoint sdname tyn ()
@@ -223,24 +236,27 @@ asLookupPoint (NodePoint sdname tyn _) = NodePoint sdname tyn ()
 -- 'nodePoints', but converted to 'Path's, plus a 'Start' and 'End'. The original
 -- node points remain as the second component of the tuple, i.e., the second component
 -- is 'Nothing' iff the first component is 'Start' or 'End'.
-pathPoints :: PreLanguage -> Node -> Seq (Path, Maybe (SavedPoint Node))
-pathPoints PreLanguage{syncons,getSyTy} n@Node{n_name} = (Start, Nothing) Seq.:<|
+pathPoints :: (Eq elidable, Hashable elidable, Show elidable)
+           => PreLanguage -> NodeF (NodeOrElide elidable)
+           -> Seq (Path, Maybe (SavedPoint elidable (NodeOrElide elidable)))
+pathPoints PreLanguage{syncons,getSyTy} n@NodeF{n_nameF} = (Start, Nothing) Seq.:<|
   (((pointToPath &&& Just) <$> nodePoints getSyTy n)
    Seq.:|> (End, Nothing))
   where
-    (_, pointToPathMap, _) = M.lookup n_name syncons
+    (_, pointToPathMap, _) = M.lookup n_nameF syncons
       & compFromJust "P4Parsing.AmbiguityReporter.findPoints" "Missing syncon"
     pointToPath point = M.lookup (asLookupPoint point) pointToPathMap
       & compFromJust "P4Parsing.AmbiguityReporter.findPoints" ("Missing path for point " <> show point <> " in " <> show pointToPathMap)
 
 -- | Produce a list of the saved points of a single node, in the order they appeared in
 -- the original source.
-nodePoints :: (Name -> TypeName) -> Node -> Seq (SavedPoint Node)
-nodePoints getSyTy = n_contents >>> mapRecur >>> Seq.sortBy (comparing fst) >>> fmap snd
+nodePoints :: (Name -> TypeName) -> NodeF (NodeOrElide elidable)
+           -> Seq (SavedPoint elidable (NodeOrElide elidable))
+nodePoints getSyTy = n_contentsF >>> mapRecur >>> Seq.sortBy (comparing fst) >>> fmap snd
   where
     mapRecur = M.toList >>> foldMap (\(name, children) -> children >>= recur name)
-    recur name (NodeLeaf n@Node{n_name}) = Seq.singleton
-      (range n, NodePoint name (getSyTy n_name) n)
+    recur name (NodeLeaf n@(Node NodeF{n_nameF, n_rangeF})) = Seq.singleton  -- TODO: consider how to integrate elided nodes here
+      (range n, NodePoint name (getSyTy n_nameF) n)
     recur name (TokenLeaf (P1.LitTok r _ t)) = Seq.singleton $
       (r, TokPoint name (LitTok t))
     recur name (TokenLeaf (P1.OtherTok r _ n t)) = Seq.singleton $
@@ -261,10 +277,11 @@ instance Hashable Path where
   hashWithSalt s (Path path) = s `hashWithSalt` (1::Int) `hashWithSalt` toList path
   hashWithSalt s End = s `hashWithSalt` (2::Int)
 
-discoverSavePoints :: (TypeName -> Bool) -> TypeName -> SyntaxDescription -> HashMap (SavedPoint ()) Path
+discoverSavePoints :: (TypeName -> Bool) -> TypeName -> SyntaxDescription
+                   -> HashMap (SavedPoint Void ()) Path
 discoverSavePoints isSyTy selftyn = recur Nothing Empty
   where
-    recur :: Maybe SDName -> Seq Int -> SyntaxDescription -> HashMap (SavedPoint ()) Path
+    recur :: Maybe SDName -> Seq Int -> SyntaxDescription -> HashMap (SavedPoint Void ()) Path
     recur _ path (SDSeq _ sds) =  [0..] `zip` toList sds
       & foldMap (\(idx, sd) -> recur Nothing (path :|> idx) sd)
     recur name path (SDAlt _ sds) = [0..] `zip` toList sds
@@ -278,23 +295,25 @@ discoverSavePoints isSyTy selftyn = recur Nothing Empty
     recur (Just name) path (SDToken _ t) = M.singleton (TokPoint name (LitTok t)) (Path path)
     recur _ _ _ = M.empty
 
-data IntermissionResult
-  = Done (Regex Token)
-  | Partial (Regex Token)
+data IntermissionResult elidable
+  = Done (Regex (Token elidable))
+  | Partial (Regex (Token elidable))
   | Fail
 
-instance Semigroup IntermissionResult where
+instance Semigroup (IntermissionResult elidable) where
   a@Done{} <> _ = a
   a@Fail <> _ = a
   _ <> b@Fail = b
   Partial a <> Partial b = Partial $ a <> b
   Partial a <> Done b = Done $ a <> b
-instance Monoid IntermissionResult where
+instance Monoid (IntermissionResult elidable) where
   mappend = (<>)
   mempty = Partial Eps
 
 -- | Extract the part between two 'SavedPoint's, creating a regex for what should be there
-regexIntermission :: SyntaxDescription -> Path -> Path -> HashSet Path -> Regex Token
+regexIntermission :: forall elidable. Show elidable
+                  => SyntaxDescription -> Path -> Path -> HashSet Path
+                  -> Regex (Token elidable)
 regexIntermission fullSd start end (S.delete end -> others) = case (recur fullSd Empty start, end) of
   (Done reg, _) -> reg
   (Partial reg, End) -> reg
@@ -305,7 +324,7 @@ regexIntermission fullSd start end (S.delete end -> others) = case (recur fullSd
     "Could not construct a regex intermission between " <> show start <> " and " <> show end
   where
     -- | sd -> current (i.e., current prefix, the path taken to get to here) -> target (without prefix) -> result
-    recur :: SyntaxDescription -> Seq Int -> Path -> IntermissionResult
+    recur :: SyntaxDescription -> Seq Int -> Path -> IntermissionResult elidable
 
     -- Leaves
     recur (SDToken _ _) _ (Path Empty) = Partial Eps

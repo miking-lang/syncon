@@ -2,6 +2,9 @@ module Result where
 
 import Pre
 
+import Data.Bitraversable (Bitraversable)
+import Data.Bifoldable (Bifoldable(..))
+
 -- | An 'Applicative' representing either a value or an accumulated collection of errors
 data Result e a
   = Data a
@@ -26,7 +29,7 @@ instance Semigroup e => Applicative (Result e) where
 -- The law that is broken is the following:
 -- > (<*>) = ap
 -- This is not true since the former will collect errors from both the left and right computation,
--- while the latter only sees error in the first computation.
+-- while the latter only sees errors in the first computation.
 instance Semigroup e => Monad (Result e) where
   return = pure
   (>>) = (*>)
@@ -36,6 +39,12 @@ instance Semigroup e => Monad (Result e) where
 instance Bifunctor Result where
   bimap f _ (Error e) = Error $ f e
   bimap _ f (Data a) = Data $ f a
+
+instance Bifoldable Result where
+  bifoldMap f _ (Error e) = f e
+  bifoldMap _ f (Data a) = f a
+
+instance Bitraversable Result
 
 instance (Semigroup e, Semigroup a) => Semigroup (Result e a) where
   (<>) = liftA2 (<>)

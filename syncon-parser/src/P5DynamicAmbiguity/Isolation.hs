@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}  -- TODO: remove this
 
-module P5DynamicAmbiguity.AmbiguityReporter2 (isolate) where
+module P5DynamicAmbiguity.Isolation (isolate) where
 
 import Pre hiding (reduce, State, state, orElse)
 import Result (Result(..))
@@ -53,7 +53,7 @@ amb nodes
   | [node] <- toList nodes = do
       fetchNode node >>= traverse amb <&> sequence <&> fmap embed
   | otherwise = do
-      elidables <- validElidables $ Right nodes
+      elidables <- validElidables (Right nodes) <&> S.delete (Right nodes)
       mkAmb elidables nodes <&> Error
 
 -- | Construct the ambiguity rooted at the second argument, using the first argument as the

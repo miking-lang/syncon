@@ -37,6 +37,8 @@ type SL = SingleLanguage
 
 instance Ranged (Node l n) where
   range = n_range
+instance Ranged (NodeF l n x) where
+  range = n_rangeF
 
 instance (Hashable l, Hashable n) => Hashable (Node l n) where
   hashWithSalt = hashUsing $ \(Node n c r) ->

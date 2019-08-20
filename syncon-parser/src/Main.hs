@@ -45,9 +45,8 @@ import qualified P4Parsing.ForestParser as Forest
 import qualified P4Parsing.Parser2 as Forest  -- TODO: maybe make this the default and remove the other?
 
 import qualified P5DynamicAmbiguity.Types as DynAmb
-import qualified P5DynamicAmbiguity.AmbiguityReporter as DynAmb
 import qualified P5DynamicAmbiguity.TreeLanguage as DynAmb
-import qualified P5DynamicAmbiguity.AmbiguityReporter2 as DynAmb
+import qualified P5DynamicAmbiguity.Isolation as DynAmb
 
 import qualified P6Output.JsonV1 as Output
 
@@ -164,7 +163,7 @@ common = do
     successfulFiles <- newIORef @Int 0
     failureFiles <- newIORef @Int 0
     let sourceFailureHandler
-          | continueAfterError = \t -> putStrLn t >> return undefined
+          | continueAfterError = \t -> putStrLn t >> return undefined  -- NOTE: this undefined is ok, since this case will only happen after we have recorded a failure, which means that we stop processing immediately after finishing constructing this map, i.e., its values will never be used
           | otherwise = die
     _ <- flip M.traverseWithKey srcSources $ \path _ -> do
       putStrLn @Text $ "Parsing \"" <> path <> "\""
@@ -177,7 +176,9 @@ common = do
             createDirectoryIfMissing True $ takeDirectory fullPath
             Forest.forestToDot (Parser.n_nameF >>> coerce) forest
               & writeFile fullPath
-            return $ DynAmb.isolate forest
+          case DynAmb.isolate forest of
+            Data a -> return a
+            Error es -> es <&> Seq.length & show & panic
           -- case DynAmb.report pl setOfNodes of
           --   Data node -> modifyIORef' successfulFiles (+1) >> return node
           --   Error errs -> do
