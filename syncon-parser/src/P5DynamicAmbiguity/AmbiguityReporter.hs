@@ -30,7 +30,7 @@ import P4Parsing.Types (pattern Node, n_name)
 import qualified P4Parsing.Types as P4
 import P4Parsing.Parser (SingleLanguage(..))
 import P5DynamicAmbiguity.TreeLanguage (treeLanguage, PreLanguage)
-import P5DynamicAmbiguity.Types
+import P5DynamicAmbiguity.Types hiding (NodeOrElide(..))
 
 data Error
   = Ambiguity Range [(Node, Text)]

@@ -3,6 +3,11 @@ module P5DynamicAmbiguity.Types where
 import Pre
 
 import qualified P2LanguageDefinition.Types as P2
+import qualified P4Parsing.Types as P4
+
+data NodeOrElide elidable
+  = Node (P4.NodeF P4.SingleLanguage P2.TypeName (NodeOrElide elidable))
+  | Elide elidable
 
 data Token
   = LitTok Text

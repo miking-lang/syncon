@@ -47,6 +47,7 @@ import qualified P4Parsing.Parser2 as Forest  -- TODO: maybe make this the defau
 import qualified P5DynamicAmbiguity.Types as DynAmb
 import qualified P5DynamicAmbiguity.AmbiguityReporter as DynAmb
 import qualified P5DynamicAmbiguity.TreeLanguage as DynAmb
+import qualified P5DynamicAmbiguity.AmbiguityReporter2 as DynAmb
 
 import qualified P6Output.JsonV1 as Output
 
@@ -176,6 +177,7 @@ common = do
             createDirectoryIfMissing True $ takeDirectory fullPath
             Forest.forestToDot (Parser.n_nameF >>> coerce) forest
               & writeFile fullPath
+            return $ DynAmb.isolate forest
           -- case DynAmb.report pl setOfNodes of
           --   Data node -> modifyIORef' successfulFiles (+1) >> return node
           --   Error errs -> do

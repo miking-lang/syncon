@@ -26,7 +26,7 @@ import qualified P2LanguageDefinition.Types as P2
 import P4Parsing.Parser (SingleLanguage(..))
 import P4Parsing.Types (pattern Node, n_name, n_contents, NodeInternals(..))
 import qualified P4Parsing.Types as P4
-import P5DynamicAmbiguity.Types
+import P5DynamicAmbiguity.Types hiding (NodeOrElide(..))
 
 type Node = P4.Node SingleLanguage TypeName
 
