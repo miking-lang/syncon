@@ -2,7 +2,7 @@
 {-# LANGUAGE ViewPatterns #-}
 
 
-module P5DynamicAmbiguity.TreeLanguage (precompute, PreLanguage, treeLanguage) where
+module P5DynamicAmbiguity.TreeLanguage (precompute, PreLanguage(PreLanguage, getSyTy), treeLanguage) where
 
 import Pre hiding (reduce)
 
@@ -21,6 +21,7 @@ import Data.Automaton.NVA (fromEpsNVA, NVA, reduce, renumber)
 import Data.Automaton.Regex (Regex(..))
 import qualified Data.Automaton.Regex as Regex
 
+import P1Lexing.Types (Range)
 import qualified P1Lexing.Types as P1
 import P2LanguageDefinition.Elaborator (elaborate)
 import P2LanguageDefinition.Types (Name(..), SDName(..), TypeName(..), Syncon(..), SyntaxDescription(..), BracketKind(..), DefinitionFile, Repetition(..))
@@ -39,10 +40,10 @@ type NodeF = P4.NodeF SingleLanguage TypeName
 --
 -- Note that the 'Node' doesn't have to be of syntax type Top, it can be any syntax type.
 treeLanguage :: (Eq elidable, Hashable elidable, Show elidable)
-             => PreLanguage -> NodeOrElide elidable
+             => PreLanguage -> (elidable -> (Range, TypeName)) -> NodeOrElide elidable
              -> NVA Int Int (Token elidable) (Token elidable) (Token elidable)
-treeLanguage pl =
-  mkLanguage pl
+treeLanguage pl getElidable =
+  mkLanguage pl getElidable
   >>> fromEpsNVA
   >>> reduce
   >>> renumber
@@ -155,16 +156,27 @@ precompute df = PreLanguage{..}
 -- parens are paired appropriately. (TODO: update documentation comment)
 mkLanguage :: forall elidable. (Eq elidable, Hashable elidable, Show elidable)
            => PreLanguage
+           -> (elidable -> (Range, TypeName))
            -> NodeOrElide elidable
            -> EpsNVA Int (Either () Int) (Token elidable) (Token elidable) (Token elidable)
-mkLanguage pl@PreLanguage{..} (Node n@NodeF{n_nameF}) =
+mkLanguage PreLanguage{bracketKind} _ (Elide elidable) = ElidedTok elidable
+  & Terminal
+  & Regex.toAutomaton
+  & fromNFA tag
+  & EpsNVA.mapSta Left
+  where
+    tag tok = case eitherRepr tok & bracketKind of
+      OpenBracket -> Open tok
+      NonBracket -> Inner tok
+      CloseBracket -> Close tok
+mkLanguage pl@PreLanguage{..} getElidable (Node n@NodeF{n_nameF}) =
   zipWith genSegment (toList points) (tail $ fst <$> toList points)
   & mconcat
   where
     (sd, _, paths) = M.lookup n_nameF syncons
       & compFromJust "P4Parsing.AmbiguityReporter.mkLanguage" "Missing syncon"
 
-    points = pathPoints pl n
+    points = pathPoints pl getElidable n
 
     genSegment :: (Path, Maybe (SavedPoint elidable (NodeOrElide elidable)))
                -> Path
@@ -174,19 +186,22 @@ mkLanguage pl@PreLanguage{..} (Node n@NodeF{n_nameF}) =
 
     genPoint :: SavedPoint elidable (NodeOrElide elidable) -> EpsNVA Int (Either () Int) (Token elidable) (Token elidable) (Token elidable)
     genPoint (TokPoint _ tok) = regexToEpsNVA $ Terminal tok
-    genPoint (NodePoint sdname _ node@(Node NodeF{n_nameF=innerName}))
-      | isForbidden n_nameF sdname innerName = withOpt
-        { EpsNVA.initial = S.singleton (-1)
-        , EpsNVA.final = S.singleton (-2)
-        , EpsNVA.openTransitions = mkMandEdge (-1) <$> toList (EpsNVA.initial withOpt) <*> (second fst <$> toList groupings)
-          & EpsNVA.fromTriples
-          & addTransitions (EpsNVA.openTransitions withOpt)
-        , EpsNVA.closeTransitions = mkMandEdge <$> toList (EpsNVA.final withOpt) <*> pure (-2) <*> (second snd <$> toList groupings)
-          & EpsNVA.fromTriples
-          & addTransitions (EpsNVA.closeTransitions withOpt) }
-      | otherwise = withOpt
+    genPoint (NodePoint sdname _ node) = case node of
+      Node NodeF{n_nameF=innerName}
+        | isForbidden n_nameF sdname innerName -> withOpt
+          { EpsNVA.initial = S.singleton (-1)
+          , EpsNVA.final = S.singleton (-2)
+          , EpsNVA.openTransitions = mkMandEdge (-1) <$> toList (EpsNVA.initial withOpt) <*> (second fst <$> toList groupings)
+            & EpsNVA.fromTriples
+            & addTransitions (EpsNVA.openTransitions withOpt)
+          , EpsNVA.closeTransitions = mkMandEdge <$> toList (EpsNVA.final withOpt) <*> pure (-2) <*> (second snd <$> toList groupings)
+            & EpsNVA.fromTriples
+            & addTransitions (EpsNVA.closeTransitions withOpt) }
+      _ -> withOpt
       where
-        syTy = getSyTy innerName
+        syTy = case node of
+          Node NodeF{n_nameF=innerName} -> getSyTy innerName
+          Elide elidable -> getElidable elidable & snd
         groupings = getGroupings syTy
           & toList
           & zip [-1,-2..]
@@ -202,7 +217,7 @@ mkLanguage pl@PreLanguage{..} (Node n@NodeF{n_nameF}) =
         mkOptEdge s (sta, o) = (s, o, (sta, s))
         mkMandEdge s1 s2 (sta, o) = (s1, o, (sta, s2))
         addTransitions = M.unionWith $ M.unionWith S.union
-        innerLang = mkLanguage pl node
+        innerLang = mkLanguage pl getElidable node
 
     regexToEpsNVA :: Regex (Token elidable) -> EpsNVA Int (Either () Int) (Token elidable) (Token elidable) (Token elidable)
     regexToEpsNVA = Regex.toAutomaton >>> fromNFA tag >>> EpsNVA.mapSta Left
@@ -237,10 +252,10 @@ asLookupPoint (NodePoint sdname tyn _) = NodePoint sdname tyn ()
 -- node points remain as the second component of the tuple, i.e., the second component
 -- is 'Nothing' iff the first component is 'Start' or 'End'.
 pathPoints :: (Eq elidable, Hashable elidable, Show elidable)
-           => PreLanguage -> NodeF (NodeOrElide elidable)
+           => PreLanguage -> (elidable -> (Range, TypeName)) -> NodeF (NodeOrElide elidable)
            -> Seq (Path, Maybe (SavedPoint elidable (NodeOrElide elidable)))
-pathPoints PreLanguage{syncons,getSyTy} n@NodeF{n_nameF} = (Start, Nothing) Seq.:<|
-  (((pointToPath &&& Just) <$> nodePoints getSyTy n)
+pathPoints PreLanguage{syncons,getSyTy} getElidable n@NodeF{n_nameF} = (Start, Nothing) Seq.:<|
+  (((pointToPath &&& Just) <$> nodePoints getElidable getSyTy n)
    Seq.:|> (End, Nothing))
   where
     (_, pointToPathMap, _) = M.lookup n_nameF syncons
@@ -250,13 +265,15 @@ pathPoints PreLanguage{syncons,getSyTy} n@NodeF{n_nameF} = (Start, Nothing) Seq.
 
 -- | Produce a list of the saved points of a single node, in the order they appeared in
 -- the original source.
-nodePoints :: (Name -> TypeName) -> NodeF (NodeOrElide elidable)
+nodePoints :: (elidable -> (Range, TypeName)) -> (Name -> TypeName) -> NodeF (NodeOrElide elidable)
            -> Seq (SavedPoint elidable (NodeOrElide elidable))
-nodePoints getSyTy = n_contentsF >>> mapRecur >>> Seq.sortBy (comparing fst) >>> fmap snd
+nodePoints getElidable getSyTy = n_contentsF >>> mapRecur >>> Seq.sortBy (comparing fst) >>> fmap snd
   where
     mapRecur = M.toList >>> foldMap (\(name, children) -> children >>= recur name)
-    recur name (NodeLeaf n@(Node NodeF{n_nameF, n_rangeF})) = Seq.singleton  -- TODO: consider how to integrate elided nodes here
-      (range n, NodePoint name (getSyTy n_nameF) n)
+    recur name (NodeLeaf n@(Node NodeF{n_nameF, n_rangeF})) = Seq.singleton
+      (n_rangeF, NodePoint name (getSyTy n_nameF) n)
+    recur name (NodeLeaf n@(Elide elidable)) = Seq.singleton $
+      second (\tyn -> NodePoint name tyn n) $ getElidable elidable
     recur name (TokenLeaf (P1.LitTok r _ t)) = Seq.singleton $
       (r, TokPoint name (LitTok t))
     recur name (TokenLeaf (P1.OtherTok r _ n t)) = Seq.singleton $

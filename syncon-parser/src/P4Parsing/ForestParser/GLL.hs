@@ -8,8 +8,6 @@ import qualified Prelude as Prelude
 import Unsafe.Coerce (unsafeCoerce)
 import GHC.Exts (Any)
 
-import Text.Show.Pretty (ppShow)
-
 import Data.Array (Array, listArray, bounds)
 import qualified Data.Array as Array
 import Data.STRef (STRef, newSTRef, readSTRef, modifySTRef')
@@ -21,7 +19,6 @@ import qualified Data.IntSet as IS
 import qualified Data.Map.Strict as OM
 import qualified Data.Sequence as Seq
 
-import GLL.Types.Derivations (showP)
 import GLL.Parser (Parseable(..), Symbol(..), ParseResult(ParseResult, res_success, error_message, sppf_result))
 import qualified GLL.Parser as GLL
 
@@ -45,7 +42,7 @@ parse unfixedGrammar = go
         input = listArray (0, length foldable - 1) (toList foldable)
 
     gll :: [Token t] -> Either Text (GLL.PackMap (Token t))
-    gll = toList >>> GLL.parseWithOptions [GLL.packedNodesOnly] (trace (ppShow $ second sort grammar) $ grammar) >>> \case  -- NOTE: gll has a parseArray variant, but it requires you to have already added an Eof element, so it's easier to make it into a list temporarily here
+    gll = toList >>> GLL.parseWithOptions [GLL.packedNodesOnly] grammar >>> \case  -- NOTE: gll has a parseArray variant, but it requires you to have already added an Eof element, so it's easier to make it into a list temporarily here
       ParseResult{res_success = False, error_message} -> Left $ toS error_message
       ParseResult{res_success = True, sppf_result = (_, _, pm, _)} -> Right pm
 
@@ -57,12 +54,12 @@ parse unfixedGrammar = go
     mkStart (syms, sem) = do
       startNt <- freshNonMerge
       addProd startNt syms sem
-      return $ traceShowId startNt
+      return startNt
 
     repack :: Array Int t -> GLL.PackMap (Token t) -> PackedForest t
-    repack input pm = trace (showP pm) $ PackedForest{input, semantics, uncompleted, completed}
+    repack input pm = PackedForest{input, semantics, uncompleted, completed}
       where
-        uncompleted = [traceShow (l, r, d, p, v) $ IM.singleton l $ IM.singleton r $ IM.singleton d $ M.singleton arrProd v
+        uncompleted = [IM.singleton l $ IM.singleton r $ IM.singleton d $ M.singleton arrProd v
                       | (l, rdpv) <- IM.toList pm
                       , (r, dpv) <- IM.toList rdpv
                       , (d, pv) <- IM.toList dpv
@@ -70,7 +67,7 @@ parse unfixedGrammar = go
                       , let arrProd = fromGLLProd p
                       , not $ isComplete d arrProd]
           & IM.unionsWith (IM.unionWith $ IM.unionWith $ M.unionWith IS.union)
-        completed = [traceShow (l, r, nt, p, v) $ IM.singleton l $ IM.singleton r $ M.singleton nt $ Seq.singleton (arrProd, v)
+        completed = [IM.singleton l $ IM.singleton r $ M.singleton nt $ Seq.singleton (arrProd, v)
                       | (l, rdpv) <- IM.toList pm
                       , (r, dpv) <- IM.toList rdpv
                       , (d, pv) <- IM.toList dpv
@@ -106,7 +103,7 @@ data DagState s t nodeF = DagState
 type DagM s t nodeF a = ReaderT (DagState s t nodeF) (ST s) a
 
 dagNt :: (Eq t, Hashable t, Show t) => (Nt, Int, Int) -> DagM s t nodeF (Seq Any)
-dagNt pos@(nt, l, r) = traceWrap "dagNt" pos $ do
+dagNt pos@(nt, l, r) = do
   DagState{translation, packedForest = PackedForest{completed}} <- ask
   lift (readSTRef translation <&> M.lookup pos) >>= \case
     Just res -> return res
@@ -135,7 +132,7 @@ dagProd :: forall s t nodeF. (Eq t, Hashable t, Show t)
         -> DagM s t nodeF (Seq Any)
 dagProd l r (prod@(ArrProd nt syms), pivots)
   | arrLen syms == 0 = getSem <&> Seq.singleton
-  | otherwise = traceWrap "dagProd" (l, r, (prod, pivots)) $ do
+  | otherwise = do
       sem <- getSem <&> anyToFunc
       results <- fmap join $ forM (IS.toList pivots & Seq.fromList) $ \pivot -> do
         rightMosts <- dagSym pivot r $ syms Array.! (dotIdx - 1)
@@ -161,7 +158,7 @@ dagIProd :: (Eq t, Hashable t, Show t)
          => Int -> Int -> (ArrProd (Token t), Int) -> Seq Any
          -> DagM s t nodeF (Seq Any)
 dagIProd _ _ (_, 0) sems = return sems
-dagIProd l r (prod@(ArrProd _ syms), dotIdx) sems = traceWrap "dagIProd" (l, r, (prod, dotIdx)) $ do
+dagIProd l r (prod@(ArrProd _ syms), dotIdx) sems = do
   PackedForest{uncompleted} <- asks packedForest
   let pivots = if dotIdx /= 1
         then IM.lookup l uncompleted >>= IM.lookup r >>= IM.lookup dotIdx >>= M.lookup prod & fold
@@ -211,7 +208,7 @@ buildProd (Ranged cont) = do
 buildProd (Alts [] _) = return $ ([mkTok "<never>" (const False)], toAny identity)
 buildProd (Alts ps cont) = do
   nt <- freshNonMerge
-  forM_ (trace @Text (show (length ps) <> " " <> show nt) $ ps) $ \p -> do
+  forM_ ps $ \p -> do
     (syms, semantic) <- buildProd p
     addProd nt syms semantic
   buildProd cont <&> first (mkNtTok nt :)

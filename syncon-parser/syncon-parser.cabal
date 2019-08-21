@@ -59,8 +59,9 @@ executable syncon-parser
                , P4Parsing.ForestParser.Grammar
                , P4Parsing.ForestParser.GLL
                , P5DynamicAmbiguity.Types
-               , P5DynamicAmbiguity.AmbiguityReporter
                , P5DynamicAmbiguity.TreeLanguage
+               , P5DynamicAmbiguity.Analysis
+               , P5DynamicAmbiguity.Isolation
                , P6Output.JsonV1
   default-language: Haskell2010
   default-extensions: NoImplicitPrelude

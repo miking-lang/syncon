@@ -47,6 +47,7 @@ import qualified P4Parsing.Parser2 as Forest  -- TODO: maybe make this the defau
 import qualified P5DynamicAmbiguity.Types as DynAmb
 import qualified P5DynamicAmbiguity.TreeLanguage as DynAmb
 import qualified P5DynamicAmbiguity.Isolation as DynAmb
+import qualified P5DynamicAmbiguity.Analysis as DynAmb
 
 import qualified P6Output.JsonV1 as Output
 
@@ -112,14 +113,14 @@ die' t = do
 
 common :: Opt.Parser (IO ())
 common = do
-  -- html <- optional $ Opt.strOption
-  --   $ Opt.long "html"
-  --   <> Opt.metavar "FILE"
-  --   <> Opt.help "Output the result of parsing as a debug HTML file."
-  -- json <- optional $ Opt.strOption
-  --   $ Opt.long "json"
-  --   <> Opt.metavar "FILE"
-  --   <> Opt.help "Output the ASTs as machine-readable JSON."
+  html <- optional $ Opt.strOption
+    $ Opt.long "html"
+    <> Opt.metavar "FILE"
+    <> Opt.help "Output the result of parsing as a debug HTML file."
+  json <- optional $ Opt.strOption
+    $ Opt.long "json"
+    <> Opt.metavar "FILE"
+    <> Opt.help "Output the ASTs as machine-readable JSON."
   -- outdir <- optional $ Opt.strOption
   --   $ Opt.long "out"
   --   <> Opt.metavar "DIR"
@@ -132,14 +133,19 @@ common = do
     $ Opt.long "source"
     <> Opt.metavar "FILE"
     <> Opt.help "Parse this file as a source file, even if its extension is syncon. Can be supplied multiple times."
-  -- showTwoLevel <- Opt.switch
-  --   $ Opt.long "two-level"
-  --   <> Opt.help "Always show the two level representation, even if some alternatives are resolvable."
+  showTwoLevel <- Opt.switch
+    $ Opt.long "two-level"
+    <> Opt.help "Always show the two level representation, even if some alternatives are resolvable."
   sourceTimeout <- fmap (*1_000_000) $ Opt.option Opt.auto
     $ Opt.long "timeout"
     <> Opt.metavar "S"
     <> Opt.help "Timeout for attempting to parse a single source file, in seconds. A negative value means 'wait forever'."
     <> Opt.value (-1)
+  dynAmbTimeout <- fmap (*1_000) $ Opt.option Opt.auto
+    $ Opt.long "dynamic-resolvability-timeout"
+    <> Opt.metavar "MS"
+    <> Opt.help "Timeout for determining if a single ambiguity is resolvable, in milliseconds. A negative value means 'wait forever'."
+    <> Opt.value 1_000
   continueAfterError <- Opt.switch
     $ Opt.long "continue-after-error"
     <> Opt.help "Don't abort after the first source file that gives errors."
@@ -156,7 +162,7 @@ common = do
       >>= (fold >>> dataOrError defSources ())
     df <- LD.mkDefinitionFile tops & dataOrError defSources ()
     parseFile <- Forest.parseSingleLanguage df & dataOrError defSources ()
-    -- let pl = DynAmb.precompute df
+    let pl = DynAmb.precompute df
 
     srcSources <- extraSrcFiles <> srcFiles & S.fromList & S.toMap
       & M.traverseWithKey (\path _ -> readFile $ toS path)
@@ -165,26 +171,25 @@ common = do
     let sourceFailureHandler
           | continueAfterError = \t -> putStrLn t >> return undefined  -- NOTE: this undefined is ok, since this case will only happen after we have recorded a failure, which means that we stop processing immediately after finishing constructing this map, i.e., its values will never be used
           | otherwise = die
-    _ <- flip M.traverseWithKey srcSources $ \path _ -> do
+    srcNodes <- flip M.traverseWithKey srcSources $ \path _ -> do
       putStrLn @Text $ "Parsing \"" <> path <> "\""
       handle (\(SourceFileException t) -> modifyIORef' failureFiles (+1) >> sourceFailureHandler t) $ do
         mNode <- timeout sourceTimeout $ do
-          forest <- parseFile (toS path) >>= dataOrError' srcSources ()
+          forest@(nodeMap, _) <- parseFile (toS path) >>= dataOrError' srcSources ()
+          let showElided _ = "..."  -- TODO: nicer formatting of this
           forM_ dot $ \outPath -> do
             let fullPath = outPath </> toS path <.> "dot"
             putStrLn @Text $"Writing to \"" <> toS fullPath <> "\""
             createDirectoryIfMissing True $ takeDirectory fullPath
             Forest.forestToDot (Parser.n_nameF >>> coerce) forest
               & writeFile fullPath
-          case DynAmb.isolate forest of
-            Data a -> return a
-            Error es -> es <&> Seq.length & show & panic
-          -- case DynAmb.report pl setOfNodes of
-          --   Data node -> modifyIORef' successfulFiles (+1) >> return node
-          --   Error errs -> do
-          --     formatError (DynAmb.EO{DynAmb.showTwoLevel}) <$> errs
-          --       & formatErrors srcSources
-          --       & die'
+          DynAmb.isolate forest & \case
+            Data node -> modifyIORef' successfulFiles (+1) >> return node
+            Error ambs -> ambs
+              & mapM (foldMap S.singleton >>> DynAmb.analyze dynAmbTimeout pl (DynAmb.getElidable pl nodeMap) showElided)
+              <&> fmap (formatError DynAmb.EO{DynAmb.showTwoLevel, DynAmb.showElided, DynAmb.elidedRange = DynAmb.getElidable pl nodeMap >>> fst})
+              <&> formatErrors srcSources
+              & (>>= die')
         maybe (die' "        timeout when parsing file") return mNode
 
     numSuccesses <- readIORef successfulFiles
@@ -193,16 +198,16 @@ common = do
 
     when (numFailures /= 0) exitFailure
 
-    -- forM_ html $ \htmlPath -> do
-    --   putStrLn @Text $ "Writing HTML to \"" <> toS htmlPath <> "\""
-    --   toList srcNodes >>= universe >>= nodeAnnotation
-    --     & annotate srcSources
-    --     & putInTextTemplate (toS $(embedFile "resources/htmlTemplate.html"))
-    --     & writeFile htmlPath
+    forM_ html $ \htmlPath -> do
+      putStrLn @Text $ "Writing HTML to \"" <> toS htmlPath <> "\""
+      toList srcNodes >>= universe >>= nodeAnnotation
+        & annotate srcSources
+        & putInTextTemplate (toS $(embedFile "resources/htmlTemplate.html"))
+        & writeFile htmlPath
 
-    -- forM_ json $ \jsonPath -> do
-    --   putStrLn @Text $ "Writing JSON to \"" <> toS jsonPath <> "\""
-    --   LByteString.writeFile jsonPath $ Output.encode srcNodes
+    forM_ json $ \jsonPath -> do
+      putStrLn @Text $ "Writing JSON to \"" <> toS jsonPath <> "\""
+      LByteString.writeFile jsonPath $ Output.encode srcNodes
 
     -- forM_ outdir $ \outPath ->
     --   forM_ (M.toList srcNodes) $ \(path, node) -> do

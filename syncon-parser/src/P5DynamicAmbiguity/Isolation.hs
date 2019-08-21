@@ -1,25 +1,22 @@
-{-# OPTIONS_GHC -fno-warn-unused-imports #-}  -- TODO: remove this
-
-module P5DynamicAmbiguity.Isolation (isolate) where
+module P5DynamicAmbiguity.Isolation (isolate, getElidable) where
 
 import Pre hiding (reduce, State, state, orElse)
 import Result (Result(..))
 
-import Text.Printf (printf)
-import qualified Data.Text as Text
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
 import qualified Data.Sequence as Seq
-import Data.Semigroup (Max(..))
 import Data.STRef (STRef, newSTRef, readSTRef, modifySTRef')
 
 import Data.Functor.Foldable (embed)
 
+import P1Lexing.Types (Range)
 import P2LanguageDefinition.Types (TypeName(..))
 import P4Parsing.ForestParser (Node)
-import P4Parsing.Types (SingleLanguage)
+import P4Parsing.Types (SingleLanguage, pattern NodeF, n_nameF, n_rangeF)
 import qualified P4Parsing.Types as P4
 import P5DynamicAmbiguity.Types hiding (NodeOrElide)
+import P5DynamicAmbiguity.TreeLanguage (PreLanguage(..))
 import qualified P5DynamicAmbiguity.Types as P5
 
 -- TODO: I suspect that only (HashSet Node) will be chosen for elison, check this
@@ -45,6 +42,15 @@ isolate :: (Dag, HashSet Node)
 isolate (dag, roots) = runST $ do
   state <- State dag <$> newSTRef M.empty
   runReaderT (amb roots) state <&> first (toList >>> Seq.fromList)
+
+getElidable :: PreLanguage -> Dag -> Elidable -> (Range, TypeName)
+getElidable PreLanguage{getSyTy} dag = fmap toList >>> \case
+  Left n -> getNode n & \NodeF{n_nameF, n_rangeF} -> (n_rangeF, getSyTy n_nameF)
+  Right (n : _) -> getNode n & \NodeF{n_nameF, n_rangeF} -> (n_rangeF, getSyTy n_nameF)
+  Right [] -> compErr "P5DynamicAmbiguity.Analysis.getElidable" "Elided an empty ambiguity node"
+  where
+    getNode n = M.lookup n dag
+      & compFromJust "P5DynamicAmbiguity.Analysis.getElidable.getNode" ("Missing node " <> show n)
 
 -- | Given a potential ambiguity, construct either a complete subtree, or a disjoint set of
 -- minimal ambiguities

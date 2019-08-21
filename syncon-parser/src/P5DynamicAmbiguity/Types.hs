@@ -9,7 +9,7 @@ import qualified P4Parsing.Types as P4
 data NodeOrElide elidable
   = Node !(P4.NodeF P4.SingleLanguage P2.TypeName (NodeOrElide elidable))
   | Elide !elidable
-  deriving (Show)
+  deriving (Show, Generic, Eq)
 
 data Token elidable
   = LitTok !Text
@@ -42,3 +42,4 @@ instance Hashable elidable => Hashable (Token elidable) where
 instance Ranged elidable => Ranged (NodeOrElide elidable) where
   range (Node n) = range n
   range (Elide e) = range e
+instance Hashable elidable => Hashable (NodeOrElide elidable)

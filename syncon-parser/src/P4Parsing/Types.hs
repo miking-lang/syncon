@@ -43,6 +43,9 @@ instance Ranged (NodeF l n x) where
 instance (Hashable l, Hashable n) => Hashable (Node l n) where
   hashWithSalt = hashUsing $ \(Node n c r) ->
     (n, toList <$> c, r)
+instance (Hashable l, Hashable n, Hashable node) => Hashable (NodeF l n node) where
+  hashWithSalt = hashUsing $ \(NodeF n c r) ->
+    (n, toList <$> c, r)
 
 instance (Hashable l, Hashable n, Hashable node) => Hashable (NodeInternals l n node) where
   hashWithSalt s (NodeLeaf n) = s `hashWithSalt` (0::Int) `hashWithSalt` n
