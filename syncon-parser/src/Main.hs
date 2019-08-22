@@ -41,8 +41,7 @@ import qualified P2LanguageDefinition.Elaborator as LD
 
 import qualified P4Parsing.Types as Parser
 import qualified P4Parsing.Parser as Parser
-import qualified P4Parsing.ForestParser as Forest
-import qualified P4Parsing.Parser2 as Forest  -- TODO: maybe make this the default and remove the other?
+import qualified P4Parsing.ForestParser as Parser hiding (Node)
 
 import qualified P5DynamicAmbiguity.Types as DynAmb
 import qualified P5DynamicAmbiguity.TreeLanguage as DynAmb
@@ -132,7 +131,7 @@ common = do
   extraSrcFiles <- many $ Opt.strOption
     $ Opt.long "source"
     <> Opt.metavar "FILE"
-    <> Opt.help "Parse this file as a source file, even if its extension is syncon. Can be supplied multiple times."
+    <> Opt.help "Parse this file as a source file, even if its extension is '.syncon'. Can be supplied multiple times."
   showTwoLevel <- Opt.switch
     $ Opt.long "two-level"
     <> Opt.help "Always show the two level representation, even if some alternatives are resolvable."
@@ -161,7 +160,7 @@ common = do
     tops <- M.traverseWithKey (\defFile _ -> LD.parseFile $ toS defFile) defSources
       >>= (fold >>> dataOrError defSources ())
     df <- LD.mkDefinitionFile tops & dataOrError defSources ()
-    parseFile <- Forest.parseSingleLanguage df & dataOrError defSources ()
+    parseFile <- Parser.parseSingleLanguage df & dataOrError defSources ()
     let pl = DynAmb.precompute df
 
     srcSources <- extraSrcFiles <> srcFiles & S.fromList & S.toMap
@@ -176,18 +175,17 @@ common = do
       handle (\(SourceFileException t) -> modifyIORef' failureFiles (+1) >> sourceFailureHandler t) $ do
         mNode <- timeout sourceTimeout $ do
           forest@(nodeMap, _) <- parseFile (toS path) >>= dataOrError' srcSources ()
-          let showElided _ = "..."  -- TODO: nicer formatting of this
           forM_ dot $ \outPath -> do
             let fullPath = outPath </> toS path <.> "dot"
             putStrLn @Text $"Writing to \"" <> toS fullPath <> "\""
             createDirectoryIfMissing True $ takeDirectory fullPath
-            Forest.forestToDot (Parser.n_nameF >>> coerce) forest
+            Parser.forestToDot (Parser.n_nameF >>> coerce) forest
               & writeFile fullPath
           DynAmb.isolate forest & \case
             Data node -> modifyIORef' successfulFiles (+1) >> return node
             Error ambs -> ambs
-              & mapM (foldMap S.singleton >>> DynAmb.analyze dynAmbTimeout pl (DynAmb.getElidable pl nodeMap) showElided)
-              <&> fmap (formatError DynAmb.EO{DynAmb.showTwoLevel, DynAmb.showElided, DynAmb.elidedRange = DynAmb.getElidable pl nodeMap >>> fst})
+              & mapM (foldMap S.singleton >>> DynAmb.analyze dynAmbTimeout pl (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
+              <&> fmap (formatError DynAmb.EO{DynAmb.showTwoLevel, DynAmb.showElided = DynAmb.showElidable nodeMap, DynAmb.elidedRange = DynAmb.getElidable pl nodeMap >>> fst})
               <&> formatErrors srcSources
               & (>>= die')
         maybe (die' "        timeout when parsing file") return mNode

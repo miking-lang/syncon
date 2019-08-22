@@ -26,8 +26,7 @@ import qualified P1Lexing.Types as P1
 import P2LanguageDefinition.Elaborator (elaborate)
 import P2LanguageDefinition.Types (Name(..), SDName(..), TypeName(..), Syncon(..), SyntaxDescription(..), BracketKind(..), DefinitionFile, Repetition(..))
 import qualified P2LanguageDefinition.Types as P2
-import P4Parsing.Parser (SingleLanguage(..))
-import P4Parsing.Types (pattern NodeF, n_nameF, n_contentsF, NodeInternals(..))
+import P4Parsing.Types (pattern NodeF, n_nameF, n_contentsF, NodeInternals(..), SingleLanguage(..))
 import qualified P4Parsing.Types as P4
 import P5DynamicAmbiguity.Types
 

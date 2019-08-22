@@ -43,6 +43,10 @@ textualToken :: Show n => Token l n -> Text
 textualToken (LitTok _ _ t) = show t
 textualToken (OtherTok _ _ n t) = "(" <> show n <> ") " <> t  -- TODO: better printing of this
 
+unlex :: Token l n -> Text
+unlex (LitTok _ _ t) = t
+unlex (OtherTok _ _ _ t) = t
+
 class Ranged a where
   range :: a -> Range
 

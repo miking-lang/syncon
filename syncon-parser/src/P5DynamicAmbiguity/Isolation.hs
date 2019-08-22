@@ -1,4 +1,4 @@
-module P5DynamicAmbiguity.Isolation (isolate, getElidable) where
+module P5DynamicAmbiguity.Isolation (isolate, getElidable, showElidable) where
 
 import Pre hiding (reduce, State, state, orElse)
 import Result (Result(..))
@@ -10,10 +10,11 @@ import Data.STRef (STRef, newSTRef, readSTRef, modifySTRef')
 
 import Data.Functor.Foldable (embed)
 
+import qualified P1Lexing.Types as P1
 import P1Lexing.Types (Range)
 import P2LanguageDefinition.Types (TypeName(..))
 import P4Parsing.ForestParser (Node)
-import P4Parsing.Types (SingleLanguage, pattern NodeF, n_nameF, n_rangeF)
+import P4Parsing.Types (SingleLanguage, pattern NodeF, n_nameF, n_rangeF, n_beginEndF)
 import qualified P4Parsing.Types as P4
 import P5DynamicAmbiguity.Types hiding (NodeOrElide)
 import P5DynamicAmbiguity.TreeLanguage (PreLanguage(..))
@@ -51,6 +52,20 @@ getElidable PreLanguage{getSyTy} dag = fmap toList >>> \case
   where
     getNode n = M.lookup n dag
       & compFromJust "P5DynamicAmbiguity.Analysis.getElidable.getNode" ("Missing node " <> show n)
+
+showElidable :: Dag -> Elidable -> Text
+showElidable dag = fmap toList >>> \case
+  Left n -> formatNode n
+  Right (n : _) -> formatNode n
+  Right [] -> compErr "P5DynamicAmbiguity.Analysis.showElidable" "Elided an empty ambiguity node"
+  where
+    formatNode :: Node -> Text
+    formatNode = getNode >>> n_beginEndF >>> \case
+      Nothing -> ""
+      Just (b, e) | b == e -> P1.unlex b
+      Just _ -> "..."
+    getNode n = M.lookup n dag
+      & compFromJust "P5DynamicAmbiguity.Analysis.showElidable.getNode" ("Missing node " <> show n)
 
 -- | Given a potential ambiguity, construct either a complete subtree, or a disjoint set of
 -- minimal ambiguities

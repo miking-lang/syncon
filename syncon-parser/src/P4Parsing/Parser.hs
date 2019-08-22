@@ -1,12 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
-module P4Parsing.Parser
-( Error(..)
-, SingleLanguage(..)
-, parseSingleLanguage
-, mkParser
-) where
+module P4Parsing.Parser where
 
 import Pre
 import Result (Result(..))
@@ -16,68 +10,55 @@ import qualified Data.Sequence as Seq
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
 
-import Text.Earley (Grammar, (<?>), satisfy, rule, Report(..))
-import qualified Text.Earley as Earley
 import Data.Generics.Uniplate.Data (universe)
 import Data.Functor.Foldable (para)
 
 import ErrorMessage (FormatError(..), simpleErrorMessage)
+import qualified P4Parsing.ForestParser as Forest
+import P4Parsing.ForestParser (Node, terminal, ambig, rule, parse)
 
-import P1Lexing.Types (Token(..), textualToken, Range, range)
+import P1Lexing.Types (Token(..), Range(Nowhere), range)
 import P1Lexing.Lexer (LanguageTokens(..))
 import qualified P1Lexing.Lexer as Lexer
 import P2LanguageDefinition.Types (DefinitionFile(..), TypeName(..), Name(..), Syncon(..), Comment(..), Elaboration, SyntaxDescription(..), SyntaxDescriptionF(..), TokenType(..), SDName, SyntaxType, Repetition(..), Rec(..))
 import P2LanguageDefinition.Elaborator (elaborate)
-import P4Parsing.Types
+import P4Parsing.Types (pattern NodeF, SL, NodeInternals(..), SingleLanguage(..))
+import qualified P4Parsing.Types as P4
 
 data Error l
   = LexingError (Lexer.Error l TypeName)
-  | UnexpectedToken (HashSet Text) (Tok l)
-  | UnexpectedEOF (HashSet Text)
+  | ParseError Text
   | MissingTop
   deriving (Show)
 
 instance Show l => FormatError (Error l) where
   formatError _ (LexingError e) = formatError () e
-  formatError _ (UnexpectedToken expected tok) = simpleErrorMessage (range tok) $
-    "Unexpected token " <> textualToken tok <> ", expected " <> if S.null expected
-    then "end of file.\n"
-    else "one of:\n" <> (toList expected & sort & foldMap (<> "\n"))
-  formatError _ (UnexpectedEOF expected) = simpleErrorMessage mempty $
-    "Unexpected end of file, expected one of:\n"
-    <> (toList expected & sort & foldMap (<> "\n"))
+  formatError _ (ParseError t) = simpleErrorMessage mempty $
+    "Parse error, and the current parser gives the error as a string, thus the\n"
+    <> "below error is taken verbatim, and is likely hard to understand, for now. :(\n\n"
+    <> t
   formatError _ MissingTop = simpleErrorMessage mempty
     "You must define a syntax type named 'Top'."
 
 type Res l = Result [Error l]
 
-type Prod r l a = Earley.Prod r Text (Tok l) a
+type NodeF l = P4.NodeF l TypeName
+
+type Prod r l a = Forest.Prod r (Tok l) (NodeF l) a
+type Grammar r l a = Forest.Grammar r (Tok l) (NodeF l) a
 type Tok l = Token l TypeName
 
--- | Given a 'DefinitionFile', produce a parser function. This way the work to construct the
--- lexer and parser doesn't need to be repeated when a new file is to be parsed.
-parseSingleLanguage :: DefinitionFile -> Res SL (FilePath -> IO (Res SL (HashSet (Node SL TypeName))))
+parseSingleLanguage :: DefinitionFile -> Res SL (FilePath -> IO (Res SL (HashMap Node (NodeF SL (HashSet Node)), HashSet Node)))
 parseSingleLanguage df = do
   lexFile <- lexer
-  parser <- generateGrammar df
+  grammar <- generateGrammar df
   pure $ \path -> do
-    resTokens <- lexFile path & fmap (first $ fmap LexingError)
-    return $ resTokens >>= \resTokens' -> case Earley.fullParses (Earley.parser $ unquant parser) resTokens' of
-      ([], Report{expected, unconsumed = next : _}) -> Error [UnexpectedToken (S.fromList expected) next]
-      ([], Report{expected, unconsumed = []}) -> Error [UnexpectedEOF $ S.fromList expected]
-      (res, _) -> return $ S.fromList res
+    resTokens <- lexFile path <&> first (fmap LexingError)
+    return $ resTokens >>= \resTokens' -> case parse (unquant grammar) resTokens' of
+      Left err -> Error [ParseError err]
+      Right forest -> return forest
   where
     lexer = Lexer.allOneLanguage SingleLanguage (dfToLanguageTokens df) & first (fmap LexingError)
-
--- | Given a 'DefinitionFile', produce a parser function for a single language. This function does
--- is to be applied directly to a list of tokens, as opposed to a file.
-mkParser :: DefinitionFile -> Res SL ([Tok SL] -> Res SL (HashSet (Node SL TypeName)))
-mkParser df = do
-  parser <- generateGrammar df
-  pure $ Earley.fullParses (Earley.parser $ unquant parser) >>> \case
-    ([], Report{expected, unconsumed = next : _}) -> Error [UnexpectedToken (S.fromList expected) next]
-    ([], Report{expected, unconsumed = []}) -> Error [UnexpectedEOF $ S.fromList expected]
-    (res, _) -> return $ S.fromList res
 
 -- | Look up keywords, comment syntax, etc., to produce the parameters for the lexer.
 dfToLanguageTokens :: DefinitionFile -> LanguageTokens TypeName
@@ -137,39 +118,34 @@ computeSynconsBySyntaxType syncons = M.fromListWith S.union $ do
   pure (snd s_syntaxType, S.singleton s_name)
 
 -- | Dummy wrapper to allow a forall quantified type inside 'Result'.
-newtype GrammarQuant l = GrammarQuant {unquant :: forall r. Grammar r (Prod r l (Node l TypeName))}
+newtype GrammarQuant l = GrammarQuant {unquant :: forall r. Grammar r l (Prod r l r)}
 
 -- | The top level generation function.
 generateGrammar :: forall l. DefinitionFile -> Res l (GrammarQuant l)
 generateGrammar DefinitionFile{..}
   | not $ (TypeName "Top", S.empty) `S.member` nts = Error [MissingTop]
   | otherwise = Data $ GrammarQuant $ do
-      -- The 'mfix' section takes a HashMap (TypeName, HashSet Name) (Prod r l (Node l TypeName)),
-      -- i.e., a mapping from high-level non-terminals to their productions, and then produces
-      -- that map.
-      nts' <- mfix $ \nts' -> do
-        parens <- M.traverseWithKey (mkGroupingRule nts') syTyToSyncon
+      -- The 'mfix' section takes a mapping from high-level non-terminals to their
+      -- productions, and then produces that map.
+      nts' <- mfix $ \(nts' :: HashMap (TypeName, HashSet Name) (Prod r l r)) -> do
+        let parens = M.mapWithKey (mkGrouping nts') syTyToSyncon
         syncons' <- mapM (generateSyncon markings isSyTy nts' >>> rule) syncons
-        return $ forWithKey (S.toMap nts) $ \(tyn, excludes) _ ->
+        sequence $ forWithKey (S.toMap nts) $ \(tyn, excludes) _ ->
           syncons'
           & (`M.intersection` (S.toMap $ M.lookupDefault S.empty tyn syTyToSyncon))
           & (`M.difference` S.toMap excludes)
-          & toList & (lookupEmpty tyn parens : ) & asum
+          & toList & (lookupEmpty tyn parens : ) & ambig
       M.lookup (TypeName "Top", S.empty) nts'
         & compFromJust "P4Parsing.Parser.generateGrammar" "Top somehow vanished during generation"
-        & fmap fst
         & return
   where
     elaboration = elaborate syncons forbids precedences
     markings = mkMarkings syncons isSyTy elaboration
     nts = computeNonTerminals syntaxTypes markings
     syTyToSyncon = computeSynconsBySyntaxType syncons
-    mkGroupingRule :: HashMap (TypeName, HashSet Name) (Prod r l (a, Range)) -> TypeName -> b -> Grammar r (Prod r l (a, Range))
-    mkGroupingRule nts' tyn _ = rule $ asum $ foreach (M.lookup tyn groupings & fold) $ \(open, close) -> do
-      start <- either lit othertok open
-      ~(val, _) <- lookupEmpty (tyn, S.empty) nts'
-      end <- either lit othertok close
-      pure $ (val, range start <> range end)
+    mkGrouping :: HashMap (TypeName, HashSet Name) (Prod r l r) -> TypeName -> b -> Prod r l r
+    mkGrouping nts' tyn _ = asum $ foreach (M.lookup tyn groupings & fold) $ \(open, close) ->
+      either lit othertok open *> lookupEmpty (tyn, S.empty) nts' <* either lit othertok close
     isSyTy :: TypeName -> Bool
     isSyTy tyn = M.lookup tyn syntaxTypes <&> isLeft & fromMaybe False
     forWithKey = flip M.mapWithKey
@@ -178,28 +154,30 @@ generateGrammar DefinitionFile{..}
 -- | Generate a production for a single 'Syncon'
 generateSyncon :: HashMap (Name, Either Rec SDName) (TypeName, HashSet Name)
                -> (TypeName -> Bool)
-               -> HashMap (TypeName, HashSet Name) (Prod r l (Node l TypeName, Range))
-               -> Syncon -> Prod r l (Node l TypeName, Range)
+               -> HashMap (TypeName, HashSet Name) (Prod r l r)
+               -> Syncon -> Prod r l (NodeF l r)
 generateSyncon markings isSyTy nts Syncon{s_name = n, s_syntaxDescription, s_syntaxType = (_, syty)} =
   para alg s_syntaxDescription
-  & fmap (\(internals, r) -> (Node n (asStruct internals) r, r))
+  <&> asStruct
+  <&> NodeF n
+  & ranged
   where
     alg (SDNamedF _ sdname (SDSyTy _ tyn, _))
       | isSyTy tyn = M.lookupDefault (tyn, S.empty) (n, Right sdname) markings
         & flip lookupEmpty nts
-        & fmap (first $ NodeLeaf >>> Seq.singleton >>> M.singleton sdname >>> Struct)
+        <&> (NodeLeaf >>> Seq.singleton >>> M.singleton sdname >>> Struct)
     alg (SDNamedF _ sdname (SDRec{}, _)) = M.lookupDefault (syty, S.empty) (n, Right sdname) markings
       & flip lookupEmpty nts
-      & fmap (first $ NodeLeaf >>> Seq.singleton >>> M.singleton sdname >>> Struct)
+      <&> (NodeLeaf >>> Seq.singleton >>> M.singleton sdname >>> Struct)
     alg sdf = snd <$> sdf & \case
-      SDTokenF _ t -> lit t <&> (TokenLeaf &&& range)
+      SDTokenF _ t -> lit t <&> TokenLeaf
       SDSyTyF _ tyn -> if isSyTy tyn
-        then lookupEmpty (tyn, S.empty) nts <&> first NodeLeaf
-        else othertok tyn <&> (TokenLeaf &&& range)
-      SDRecF _ _ -> lookupEmpty (syty, S.empty) nts <&> first NodeLeaf
-      SDNamedF _ sdname sd -> sd <&> first (Seq.singleton >>> M.singleton sdname >>> Struct)
-      SDRepF _ rep sd -> repF rep sd <&> (unzip >>> (combineMany *** mconcat))
-      SDSeqF _ sds -> toList sds & sequenceA & fmap (unzip >>> (combineMany *** mconcat))
+        then lookupEmpty (tyn, S.empty) nts <&> NodeLeaf
+        else othertok tyn <&> TokenLeaf
+      SDRecF _ _ -> lookupEmpty (syty, S.empty) nts <&> NodeLeaf
+      SDNamedF _ sdname sd -> sd <&> (Seq.singleton >>> M.singleton sdname >>> Struct)
+      SDRepF _ rep sd -> repF rep sd <&> combineMany
+      SDSeqF _ sds -> toList sds & sequenceA <&> combineMany
       SDAltF _ sds -> toList sds & asum
     repF RepStar = many
     repF RepPlus = some
@@ -208,15 +186,22 @@ generateSyncon markings isSyTy nts Syncon{s_name = n, s_syntaxDescription, s_syn
     asStruct (Struct s) = s
     asStruct _ = M.empty
 
+ranged :: Prod r l (Maybe (Tok l, Tok l) -> Range -> a) -> Prod r l a
+ranged p = Forest.ranged $ do
+  constr <- p
+  return $ \case
+    res@Nothing -> constr res Nowhere
+    res@(Just (a, b)) -> constr res $ range a <> range b
+
 -- | Parse a literal.
 lit :: Text -> Prod r l (Tok l)
-lit t = (<?> ("literal " <> t)) . satisfy $ \case
+lit t = terminal ("literal " <> t) $ \case
   LitTok _ _ t' | t == t' -> True
   _ -> False
 
 -- | Parse a specific kind of token.
 othertok :: TypeName -> Prod r l (Tok l)
-othertok tyn = (<?> ("token " <> coerce tyn)) . satisfy $ \case
+othertok tyn = terminal ("token " <> coerce tyn) $ \case
   OtherTok _ _ tyn' _ | tyn == tyn' -> True
   _ -> False
 
