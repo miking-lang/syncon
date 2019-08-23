@@ -19,6 +19,7 @@ data Flags   = Flags    { symbol_nodes          :: Bool
 -- * Flexible binarisation.
 -- * The three furthest discoveries of a token mismatch are reported.
 -- * Select tests are performed.
+defaultFlags :: Flags
 defaultFlags = Flags False False False True 3 True
 
 -- | Execute the given 'Options' in left-to-right order on 'defaultFlags'.

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 module GLL.Types.Derivations where
@@ -65,7 +66,7 @@ type PNode t    = (Prod t, [Int])
 type SEdge t    = M.Map (SNode t)(S.Set (PNode t))
 type PEdge t    = M.Map (PNode t) (S.Set (SNode t))
 
-emptySPPF :: (Ord t) => SPPF t
+emptySPPF :: SPPF t
 emptySPPF = (IM.empty, IM.empty, IM.empty, M.empty)
 
 pNodeLookup :: (Ord t) => SPPF t -> ((Prod t, Int), Int, Int) -> Maybe [Int]
@@ -75,7 +76,7 @@ pNodeLookup (_,_,pMap,_) ((alt,j),l,r) = maybe Nothing inner $ IM.lookup l pMap
             inner3  = maybe Nothing (Just . IS.toList) . M.lookup alt
 
 pMapInsert :: (Ord t) => SPPFNode t -> SPPFNode t -> SPPF t -> SPPF t
-pMapInsert f t (sMap,iMap,pMap,eMap) =
+pMapInsert f _ (sMap,iMap,pMap,eMap) =
     let pMap' = case f of
                     PNode ((Slot x alpha beta), l, k, r) ->
                         add (Prod x (alpha++beta)) (length alpha) l r k
@@ -152,9 +153,11 @@ eMapInsert f t (sMap,iMap,pMap,eMap) =
     (sMap,iMap,pMap,M.insertWith (S.union) f (S.singleton t) eMap)
 
 -- helpers for Ucal
+inU :: Ord a => (a, IS.Key, IS.Key) -> IM.IntMap (IM.IntMap (S.Set a)) -> Bool
 inU (slot,l,i) u = maybe False inner $ IM.lookup l u
          where inner = maybe False (S.member slot) . IM.lookup i
 
+toU :: Ord a => (a, IS.Key, IS.Key) -> IM.IntMap (IM.IntMap (S.Set a)) -> IM.IntMap (IM.IntMap (S.Set a))
 toU (slot,l,i) u = IM.alter inner l u
  where inner mm = case mm of
                 Nothing -> Just $ singleIS
@@ -163,11 +166,15 @@ toU (slot,l,i) u = IM.alter inner l u
        singleS  = S.singleton slot
 
 
+showD :: (Show a1, Show a2) => M.Map a1 [a2] -> String
 showD dv = unlines [ show f ++ " --> " ++ show t | (f,ts) <- M.toList dv, t <- ts ]
+showG :: (Show a1, Show a2) => M.Map a1 [a2] -> String
 showG dv = unlines [ show f ++ " --> " ++ show t | (f,ts) <- M.toList dv, t <- ts ]
+showP :: (Show a1, Show a2) => IM.IntMap (IM.IntMap (IM.IntMap (M.Map a1 a2))) -> String
 showP pMap = unlines [ show ((a,j),l,r) ++ " --> " ++ show kset
                             | (l,r2j) <- IM.assocs pMap, (r,j2a) <- IM.assocs r2j
                             , (j,a2k) <- IM.assocs j2a, (a,kset) <- M.assocs a2k ]
+showS :: Show a => IM.IntMap (IM.IntMap a) -> String
 showS sMap = unlines [ show (l,r) ++ " --> " ++ show (sset)
                             | (l,r2s) <- IM.assocs sMap, (r,sset) <- IM.assocs r2s]
 
@@ -180,7 +187,7 @@ type SelectMap t = M.Map (Nt, [Symbol t]) (S.Set t)
 type FirstMap  t = M.Map Nt (S.Set t)
 type FollowMap t = M.Map Nt (S.Set t)
 
-fixedMaps :: (Eq t, Ord t, Parseable t) => Nt -> [Prod t] ->
+fixedMaps :: (Ord t, Parseable t) => Nt -> [Prod t] ->
                 (ProdMap t, PrefixMap t, FirstMap t, FollowMap t, SelectMap t)
 fixedMaps s prs = (prodMap, prefixMap, firstMap, followMap, selectMap)
  where
@@ -190,12 +197,14 @@ fixedMaps s prs = (prodMap, prefixMap, firstMap, followMap, selectMap)
         [ ((pr,j), (tokens,msymb)) | pr@(Prod x alpha) <- prs
                                    , (j,tokens,msymb) <- prefix x alpha ]
      where
-        prefix x alpha = map rangePrefix ranges
+        prefix _ alpha = map rangePrefix ranges
          where  js          = (map ((+) 1) (findIndices isNt alpha))
                 ranges      = zip (0:js) (js ++ [length alpha])
                 rangePrefix (a,z) | a >= z = (a,[],Nothing)
                 rangePrefix (a,z) =
-                    let init = map ((\(Term t) -> t) . (alpha !!)) [a .. (z-2)]
+                    let init = map (fromTerm . (alpha !!)) [a .. (z-2)]
+                        fromTerm (Term t) = t
+                        fromTerm _ = error "Not actually a term"
                         last = alpha !! (z-1)
                      in case last of
                            Nt nt     -> (a,init, Just nt)
@@ -220,7 +229,7 @@ fixedMaps s prs = (prodMap, prefixMap, firstMap, followMap, selectMap)
 
     -- list of symbols to get firsts from + non-terminal to ignore
     -- TODO store in map
-    first_alpha ys []      = S.singleton eps
+    first_alpha _ []      = S.singleton eps
     first_alpha ys (x:xs)  =
         case x of
           Term tau        -> if tau == eps then first_alpha ys xs
@@ -260,13 +269,13 @@ fixedMaps s prs = (prodMap, prefixMap, firstMap, followMap, selectMap)
 
     -- TODO store in map
     nullable_alpha :: [Nt] -> [Symbol t] -> Bool
-    nullable_alpha ys [] = True
+    nullable_alpha _ [] = True
     nullable_alpha ys (s:ss) =
         case s of
             Nt nt      -> if nt `elem` ys
                             then False --nullable only if some other alternative is nullable
                             else nullable_x ys nt && nullable_alpha (nt:ys) ss
-            otherwise  -> False
+            _  -> False
 
 {-
 instance Show Symbol where

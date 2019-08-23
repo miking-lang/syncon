@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 
@@ -163,9 +164,11 @@ unlexToken t = case t of
 
 -- some helpers
 
+isNt :: Symbol t -> Bool
 isNt (Nt _) = True
 isNt _      = False
 
+isTerm :: Symbol t -> Bool
 isTerm (Term _) = True
 isTerm _        = False
 
