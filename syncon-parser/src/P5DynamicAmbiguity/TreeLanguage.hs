@@ -196,7 +196,8 @@ mkLanguage pl@PreLanguage{..} getElidable (Node n@NodeF{n_nameF}) =
           , EpsNVA.closeTransitions = mkMandEdge <$> toList (EpsNVA.final withOpt) <*> pure (-2) <*> (second snd <$> toList groupings)
             & EpsNVA.fromTriples
             & addTransitions (EpsNVA.closeTransitions withOpt) }
-      _ -> withOpt
+        | otherwise -> withOpt
+      Elide _ -> innerLang
       where
         syTy = case node of
           Node NodeF{n_nameF=innerName} -> getSyTy innerName
