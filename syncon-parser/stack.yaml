@@ -35,12 +35,12 @@ resolver: lts-13.16
 #  - wai
 packages:
 - .
+- ./gll
 # Dependency packages to be pulled from upstream that are not in the resolver
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - pretty-terminal-0.1.0.0
-- gll-0.4.0.12
 - TypeCompose-0.9.14
 - random-strings-0.1.1.0
 

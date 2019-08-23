@@ -1,0 +1,70 @@
+0.3.0.7 -> 0.3.0.8
+  + export maximumPivots and maximumPivotAtNt
+0.3.0.8 -> 0.3.0.9
+  + include bit of the input string when showing an error message (without whitespace)
+  + exporting <multiple/some/many>SepBy2
+  + exporting within, parens, braces, brackets, angles, quotes and dquotes
+  + added character literals to Token type
+  + exporting <:=
+  + <<<**> and <**>>> for shortest and longest match, respectively
+    defined some/many and variants using <**>>> and <<<**>
+    disambiguation remains very experimental 
+0.3.0.9 -> 0.3.0.10
+  + exporting chooses
+0.3.0.10 -> 0.3.0.11
+  + parse option for disabling select test (lookahead)
+
+0.3.0.11 -> 0.4.0.1
+  + replaced parser by reduced descriptor GLL (RGLL)
+  + renamed GLL.Types.Grammar to GLL.Types.Derivations
+  + renamed GLL.Types.Abstract to GLL.Types.Grammar
+  + exporting GLL.Types.Grammar, GLL.Types.Derivations, GLL.Combinators.Options, GLL.Combinators.Memoisation, GLL.Flags
+
+0.4.0.1 -> 0.4.0.2
+  + generalised `within`
+  + different whitespace and comment handling in predefined lexer
+  + predefined lexer handles (nested) comment-blocks
+
+0.4.0.2 -> 0.4.0.3
+  M added hex, octal and binary representation to integer literals
+  + added float literals
+  + exporting `preferably` and `reluctantly`
+  M renamed `rassoc` to shortest_match
+  M renamed `lassoc` to longest_match
+  - removed `assoc`
+  + version of `chooses` that is left-biased (w.r.t. alternatives)
+  + generalised arguments of longest_match and shortest_match to IsAltExpr 
+  + exporting `optionalWithDef`
+
+0.4.0.3 -> 0.4.0.4
+  + `chooses` cannot be given an empty list (runtime error)
+  + updated `base` dependency
+
+0.4.0.4 -> 0.4.0.5
+  + relaxed cabal version constraint
+
+0.4.0.5 -> 0.4.0.6
+  + generalised the definition of `within` combinator with respect to token type
+
+0.4.0.6 -> 0.4.0.7
+  + simplified Ridge's "parsing context" in the semantic phase
+
+0.4.0.7 -> 0.4.0.8
+  + unified usage of input in both parser and combinators, speeding up initialisation of large files
+  + fixed 'noSelectTest' 'ParseOption'
+
+0.4.0.8 -> 0.4.0.9
+  + reinstated a "binarised version" of the interface 
+  + count number of successes in ParseResult, not just True/False
+
+0.4.0.9 -> 0.4.0.10
+  + build expression grammars from operator tables
+
+0.4.0.10 -> 0.4.0.11
+  + integer literals are now by default considered as natural numbers only, the 'signed_int_lits' flag of 'LexerSettings' can be used to turn on signed integers, restoring the behaviour of previous versions
+
+0.4.0.11 -> 0.4.0.12
+  + export 'grammarOf'
+  + let 'parse' throw errors by default
+  + changed priorities of operator tables to doubles 
+  + removed need to specify associativity of prefix operators in operator table
