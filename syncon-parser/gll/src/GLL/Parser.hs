@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-dodgy-exports -fno-warn-unused-top-binds -fno-warn-missing-signatures -fno-warn-unused-matches -fno-warn-orphans -fno-warn-name-shadowing -fno-warn-unused-local-binds -fno-warn-incomplete-uni-patterns #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-|
 Implementation of the GLL parsing algorithm [Scott and Johnstone 2010,2013,2016]
 with the grammar as an explicit parameter.
@@ -184,6 +185,7 @@ import qualified Data.Array as A
 import qualified Data.Set as S
 import qualified Data.IntSet as IS
 import Data.Text (pack)
+import Data.Maybe (fromMaybe)
 import Text.PrettyPrint.HughesPJ as PP
 
 import GLL.Types.Grammar
@@ -350,12 +352,12 @@ parse = parseWithOptions []
 -- where 't' is an arbitrary token-type.
 -- All token-types must be 'Parseable'.
 parseArray :: (Parseable t) => Grammar t -> Input t -> ParseResult t
-parseArray = parseWithOptionsArray []
+parseArray = parseWithOptionsArray [] . precompute
 
 -- |
 -- Variant of 'parseWithOptionsArray' where the input is a list of 'Parseable's rather than an 'Array'
 parseWithOptions :: Parseable t => ParseOptions -> Grammar t -> [t] -> ParseResult t
-parseWithOptions opts gram  = parseWithOptionsArray opts gram . mkInput
+parseWithOptions opts gram = parseWithOptionsArray opts (precompute gram) . mkInput
 
 -- |
 -- Run the GLL parser given some options, a 'Grammar' 't' and a list of 't's.
@@ -364,16 +366,28 @@ parseWithOptions opts gram  = parseWithOptionsArray opts gram . mkInput
 --
 --  * only packed nodes are created
 --  * the resulting 'SPPF' is not strictly binarised
-parseWithOptionsArray :: Parseable t => ParseOptions -> Grammar t -> Input t -> ParseResult t
-parseWithOptionsArray opts grammar@(start,_) input =
+parseWithOptionsArray :: Parseable t => ParseOptions -> PrecomputedGrammar t -> Input t -> ParseResult t
+parseWithOptionsArray opts grammar@PrecomputedGrammar{startNt} input =
     let flags           = runOptions opts
         (mutable,_,_)   = gll flags m False grammar input
         (_, m)          = A.bounds input
-    in resultFromMutable input flags mutable (Nt start, 0, m)
+    in resultFromMutable input flags mutable (Nt startNt, 0, m)
 
-gll :: Parseable t => Flags -> Int -> Bool -> Grammar t -> Input t ->
+precompute :: Parseable t => Grammar t -> PrecomputedGrammar t
+precompute (startNt, prods) = PrecomputedGrammar{startNt, prodMap, follows, selects}
+  where
+    (prodMap, _, _, follows, selects) = fixedMaps startNt prods
+
+data PrecomputedGrammar t = PrecomputedGrammar
+  { startNt :: Nt
+  , prodMap :: ProdMap t
+  , follows :: FollowMap t
+  , selects :: SelectMap t
+  }
+
+gll :: Parseable t => Flags -> Int -> Bool -> PrecomputedGrammar t -> Input t ->
             (Mutable t, SelectMap t, FollowMap t)
-gll flags m debug (start, prods) input =
+gll flags m debug PrecomputedGrammar{startNt = start, prodMap, follows, selects} input =
     (runGLL (pLhs (start, 0)) flags context, selects, follows)
  where
     context = Mutable emptySPPF [] IM.empty IM.empty IM.empty IM.empty counters
@@ -442,14 +456,9 @@ gll flags m debug (start, prods) input =
             addDescr root (gs', i, l')   -- add new descriptors
         dispatch
 
-    (prodMap,_,_,follows,selects)
-        | do_select_test flags = fixedMaps start prods
-        | otherwise = (pmap, undefined, undefined, undefined,
-                         error "select-tests are switched off")
-      where pmap = M.fromListWith (++) [ (x,[pr]) | pr@(Prod x _) <- prods ]
     follow x          = follows M.! x
     do_test = do_select_test flags
-    select rhs x      | do_test   = selects M.! (x,rhs)
+    select rhs x      | do_test   = fromMaybe mempty $ M.lookup (x, rhs) selects
                       | otherwise = S.empty
       where
     select_test t set | do_test   = any (matches t) set

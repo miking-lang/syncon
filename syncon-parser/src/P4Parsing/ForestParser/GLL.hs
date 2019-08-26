@@ -42,8 +42,10 @@ parse unfixedGrammar = go
       where
         input = listArray (0, length foldable - 1) (toList foldable)
 
+    gllParseFunction = GLL.parseWithOptions [GLL.packedNodesOnly] grammar
+
     gll :: [Token t] -> Either Text (GLL.PackMap (Token t))
-    gll = toList >>> GLL.parseWithOptions [GLL.packedNodesOnly] grammar >>> \case  -- NOTE: gll has a parseArray variant, but it requires you to have already added an Eof element, so it's easier to make it into a list temporarily here
+    gll = toList >>> gllParseFunction >>> \case  -- NOTE: gll has a parseArray variant, but it requires you to have already added an Eof element, so it's easier to make it into a list temporarily here
       ParseResult{res_success = False, error_message} -> Left $ toS error_message
       ParseResult{res_success = True, sppf_result = (_, _, pm, _)} -> Right pm
 

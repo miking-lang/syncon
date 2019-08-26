@@ -9,7 +9,11 @@ import qualified    Data.Map as M
 import qualified    Data.IntMap as IM
 import qualified    Data.Set as S
 import qualified    Data.IntSet as IS
-import              Data.List (elemIndices, findIndices)
+import              Data.List (findIndices, partition, tails)
+import Data.Function ((&))
+import Data.Functor ((<&>))
+import Control.Arrow ((>>>), (&&&))
+import Data.Foldable (fold)
 import GLL.Types.Grammar
 
 -- make sure that tokens are equal independent of their character level value
@@ -187,11 +191,14 @@ type SelectMap t = M.Map (Nt, [Symbol t]) (S.Set t)
 type FirstMap  t = M.Map Nt (S.Set t)
 type FollowMap t = M.Map Nt (S.Set t)
 
-fixedMaps :: (Ord t, Parseable t) => Nt -> [Prod t] ->
+fixedMaps :: forall t. (Ord t, Parseable t) => Nt -> [Prod t] ->
                 (ProdMap t, PrefixMap t, FirstMap t, FollowMap t, SelectMap t)
 fixedMaps s prs = (prodMap, prefixMap, firstMap, followMap, selectMap)
  where
     prodMap = M.fromListWith (++) [ (x,[pr]) | pr@(Prod x _) <- prs ]
+
+    ensureComplete :: Monoid m => M.Map Nt m -> M.Map Nt m
+    ensureComplete = M.unionWith (<>) $ prodMap <&> const mempty
 
     prefixMap = M.fromList
         [ ((pr,j), (tokens,msymb)) | pr@(Prod x alpha) <- prs
@@ -210,9 +217,8 @@ fixedMaps s prs = (prodMap, prefixMap, firstMap, followMap, selectMap)
                            Nt nt     -> (a,init, Just nt)
                            Term t    -> (a,init ++ [t], Nothing)
 
-    firstMap = M.fromList [ (x, first_x [] x) | x <- M.keys prodMap ]
-
-    first_x ys x           = S.unions [ first_alpha (x:ys) rhs | Prod _ rhs <- prodMap M.! x ]
+    stepTransitions trans = trans <&> (\dests -> M.restrictKeys trans dests & fold & S.union dests)
+    closure f prev = let next = f prev in if prev == next then prev else closure f next
 
     selectMap = M.fromList [ ((x,alpha), select alpha x) | Prod x rhs <- prs
                            , alpha <- split rhs ]
@@ -223,59 +229,82 @@ fixedMaps s prs = (prodMap, prefixMap, firstMap, followMap, selectMap)
 
         -- TODO store intermediate results
         select alpha x      = res
-                where   firsts  = first_alpha [] alpha
+                where   firsts  = firstRhs alpha
                         res     | eps `S.member` firsts     = S.delete eps firsts `S.union` (followMap M.! x)
                                 | otherwise                 = firsts
 
-    -- list of symbols to get firsts from + non-terminal to ignore
-    -- TODO store in map
-    first_alpha _ []      = S.singleton eps
-    first_alpha ys (x:xs)  =
-        case x of
-          Term tau        -> if tau == eps then first_alpha ys xs
-                                           else S.singleton tau
-          Nt x            ->
-            let fs | x `elem` ys       = S.empty
-                   | otherwise        = first_x (x:ys) x
-              in  if x `S.member` nullableSet
-                        then S.delete eps fs `S.union` first_alpha (x:ys) xs
-                        else fs
+    followMap :: M.Map Nt (S.Set t)
+    followMap = [(nt2, S.singleton nt) | Prod nt syms <- prs, nt2 <- S.toList $ maybeFirstNts $ reverse syms]
+      & M.fromListWith S.union
+      & M.unionWith S.union (M.mapWithKey (\k _ -> S.singleton k) prodMap)
+      & closure stepTransitions
+      <&> M.restrictKeys initial
+      <&> fold
+      where
+        initial = prs >>= (getSyms >>> tails)
+          <&> mkFollows
+          & M.unionsWith S.union
+          & M.unionWith S.union (M.singleton s $ S.singleton eos)
+        getSyms (Prod _ syms) = syms
+        mkFollows [] = M.empty
+        mkFollows (Term _ : _) = M.empty
+        mkFollows (Nt nt : syms) = firstRhs syms & S.delete eps & M.singleton nt
+        maybeFirstNts [] = S.empty
+        maybeFirstNts (Term t : syms)
+          | t == eps = maybeFirstNts syms
+          | otherwise = S.empty
+        maybeFirstNts (Nt nt : syms)
+          | nt `S.member` nullableSet = S.insert nt $ maybeFirstNts syms
+          | otherwise = S.singleton nt
 
-    followMap = M.fromList [ (x, follow [] x) | x <- M.keys prodMap ]
+    firstRhs :: [Symbol t] -> S.Set t
+    firstRhs [] = S.singleton eps
+    firstRhs (Term t : syms)
+      | t == eps = firstRhs syms
+      | otherwise = S.singleton t
+    firstRhs (Nt nt : syms)
+      | nt `S.member` nullableSet = M.lookup nt firstMap & fold & S.delete eps & S.union (firstRhs syms)
+      | otherwise = M.lookup nt firstMap & fold
 
-    follow ys x = S.unions (map fw (maybe [] id $ M.lookup x localMap))
-                            `S.union` (if x == s then S.singleton eos else S.empty)
-             where fw (y,ss) =
-                        let ts  = S.delete eps (first_alpha [] ss)
-                            fs  = follow (x:ys) y
-                         in if nullable_alpha [] ss && not (x `elem` (y:ys))
-                               then ts `S.union` fs
-                               else ts
+    firstMap :: M.Map Nt (S.Set t)
+    firstMap = closure stepTransitions transitions
+      <&> M.restrictKeys initial
+      <&> fold
+      & M.unionWith S.union (M.fromSet (const $ S.singleton eps) nullableSet)
+      & ensureComplete
+      where
+        (transitions, initial) = prodMap <&> foldMap (\(Prod nt syms) -> (S.singleton nt, mempty) <> firstTerm syms) & (fmap fst &&& fmap snd)
+        firstTerm [] = mempty
+        firstTerm (Term t : syms)
+          | t == eps = firstTerm syms
+          | otherwise = (S.empty, S.singleton t)
+        firstTerm (Nt nt : syms)
+          | nt `S.member` nullableSet = (S.singleton nt, S.empty) <> firstTerm syms
+          | otherwise = (S.singleton nt, S.empty)
 
-    localMap = M.fromListWith (++)
-                [ (x,[(y,tail)]) | x <- M.keys prodMap, (Prod y rhs) <- prs
-                                 , tail <- tails x rhs ]
-     where
-        tails x symbs = [ drop (index + 1) symbs | index <- indices ]
-         where indices = elemIndices (Nt x) symbs
+    isNullableRhs :: S.Set Nt -> [Symbol t] -> Bool
+    isNullableRhs nullableNts rhs = all isNullable rhs
+      where
+        isNullable (Term t) = t == eps
+        isNullable (Nt nt) = nt `S.member` nullableNts
 
+    -- NOTE: the original implementation did not compute nullable as normally considered, A -> BB would not be nullable, even if B is nullable
     nullableSet :: S.Set Nt
-    nullableSet  = S.fromList $ [ x | x <- M.keys prodMap, nullable_x [] x ]
+    nullableSet = prs
+      <&> (\(Prod nt syms) -> (nt, syms))
+      & filter (snd >>> all maybeNullable)
+      & findNullables S.empty
+      where
+        maybeNullable (Term t) = t == eps
+        maybeNullable (Nt _) = True
 
-    -- a nonterminal is nullable if any of its alternatives is empty
-    nullable_x :: [Nt] -> Nt -> Bool
-    nullable_x ys x      = or [ nullable_alpha (x:ys) rhs
-                              | (Prod _ rhs) <- prodMap M.! x ]
-
-    -- TODO store in map
-    nullable_alpha :: [Nt] -> [Symbol t] -> Bool
-    nullable_alpha _ [] = True
-    nullable_alpha ys (s:ss) =
-        case s of
-            Nt nt      -> if nt `elem` ys
-                            then False --nullable only if some other alternative is nullable
-                            else nullable_x ys nt && nullable_alpha (nt:ys) ss
-            _  -> False
+    findNullables :: S.Set Nt -> [(Nt, [Symbol t])] -> S.Set Nt
+    findNullables prev prods
+      | prev == next = prev
+      | otherwise = findNullables next nextProds
+      where
+        (nullProds, nextProds) = partition (snd >>> isNullableRhs prev) prods
+        next = nullProds <&> fst & S.fromList & S.union prev
 
 {-
 instance Show Symbol where

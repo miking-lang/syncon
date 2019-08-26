@@ -52,9 +52,10 @@ parseSingleLanguage :: DefinitionFile -> Res SL (FilePath -> IO (Res SL (HashMap
 parseSingleLanguage df = do
   lexFile <- lexer
   grammar <- generateGrammar df
+  let parseFunc = parse (unquant grammar)
   pure $ \path -> do
     resTokens <- lexFile path <&> first (fmap LexingError)
-    return $ resTokens >>= \resTokens' -> case parse (unquant grammar) resTokens' of
+    return $ resTokens >>= \resTokens' -> case parseFunc resTokens' of
       Left err -> Error [ParseError err]
       Right forest -> return forest
   where
