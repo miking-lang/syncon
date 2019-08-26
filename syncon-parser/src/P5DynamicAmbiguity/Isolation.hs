@@ -10,10 +10,9 @@ import Data.STRef (STRef, newSTRef, readSTRef, modifySTRef')
 
 import Data.Functor.Foldable (embed)
 
-import qualified P1Lexing.Types as P1
 import P1Lexing.Types (Range)
 import P2LanguageDefinition.Types (TypeName(..))
-import P4Parsing.ForestParser (Node)
+import P4Parsing.ForestParser (Node, unlex)
 import P4Parsing.Types (SingleLanguage, pattern NodeF, n_nameF, n_rangeF, n_beginEndF)
 import qualified P4Parsing.Types as P4
 import P5DynamicAmbiguity.Types hiding (NodeOrElide)
@@ -62,7 +61,7 @@ showElidable dag = fmap toList >>> \case
     formatNode :: Node -> Text
     formatNode = getNode >>> n_beginEndF >>> \case
       Nothing -> ""
-      Just (b, e) | b == e -> P1.unlex b
+      Just (b, e) | b == e -> unlex b
       Just _ -> "..."
     getNode n = M.lookup n dag
       & compFromJust "P5DynamicAmbiguity.Analysis.showElidable.getNode" ("Missing node " <> show n)

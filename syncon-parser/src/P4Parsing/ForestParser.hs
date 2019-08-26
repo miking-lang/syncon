@@ -12,6 +12,7 @@ module P4Parsing.ForestParser
 , parse
 , Node
 , forestToDot
+, Unlexable(..)
 ) where
 
 import Pre hiding (from)
@@ -19,7 +20,7 @@ import Pre hiding (from)
 import qualified Data.Text as Text
 import qualified Data.HashMap.Lazy as M
 
-import P4Parsing.ForestParser.Grammar (Prod, Grammar, rule, alts, terminal, ambig, ranged)
+import P4Parsing.ForestParser.Grammar (Prod, Grammar, rule, alts, terminal, ambig, ranged, Unlexable(..))
 import P4Parsing.ForestParser.GLL (parse, Node)
 
 forestToDot :: forall nodeF n. (Foldable nodeF, Functor nodeF, Eq n, Hashable n)

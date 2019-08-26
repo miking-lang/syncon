@@ -7,6 +7,7 @@ module P4Parsing.ForestParser.Grammar
 , ambig
 , alts
 , runGrammar
+, Unlexable(..)
 ) where
 
 import Pre
@@ -117,3 +118,6 @@ runGrammar mkRule mkAmbig = \case
   FixBind unfixed build -> do
     a <- mfix $ runGrammar mkRule mkAmbig <$> unfixed
     runGrammar mkRule mkAmbig $ build a
+
+class Unlexable t where
+  unlex :: t -> Text

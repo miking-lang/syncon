@@ -4,6 +4,8 @@ import Pre
 
 import Data.Data (Data)
 
+import P4Parsing.ForestParser (Unlexable(..))
+
 data Range = Nowhere | Range !Text !Position !Position deriving (Show, Eq, Ord, Data, Typeable, Generic)
 data Position = Position { line :: !Int, column :: !Int } deriving (Show, Eq, Ord, Data, Typeable, Generic)
 
@@ -43,10 +45,6 @@ textualToken :: Show n => Token l n -> Text
 textualToken (LitTok _ _ t) = show t
 textualToken (OtherTok _ _ n t) = "(" <> show n <> ") " <> t  -- TODO: better printing of this
 
-unlex :: Token l n -> Text
-unlex (LitTok _ _ t) = t
-unlex (OtherTok _ _ _ t) = t
-
 class Ranged a where
   range :: a -> Range
 
@@ -62,6 +60,10 @@ instance Ranged (a, Range) where
 instance Ranged (Token l n) where
   range (LitTok r _ _) = r
   range (OtherTok r _ _ _) = r
+
+instance Unlexable (Token l n) where
+  unlex (LitTok _ _ t) = t
+  unlex (OtherTok _ _ _ t) = t
 
 instance Hashable Range
 instance Hashable Position

@@ -94,7 +94,8 @@ testReduce = do
 
 test :: IO ()
 -- test = withArgs ["case-studies/ocaml.syncon", "case-studies/ocaml/inside_out.ml", "--html=out.html", "--two-level"] main
-test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--dot=out"] main
+test = withArgs ["case-studies/ocaml.syncon", "case-studies/ocaml/fizzbuzz.ml", "--html=out.html", "--two-level"] main
+-- test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--dot=out"] main
 -- test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--two-level"] main
 -- test = withArgs ["examples/bootstrap.syncon", "--source=examples/bootstrap.syncon", "--json=out.json"] main
 -- test = withArgs ["--help"] main

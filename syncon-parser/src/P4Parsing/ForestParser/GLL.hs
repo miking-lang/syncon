@@ -23,6 +23,7 @@ import GLL.Parser (Parseable(..), Symbol(..), ParseResult(ParseResult, res_succe
 import qualified GLL.Parser as GLL
 
 import P4Parsing.ForestParser.Grammar
+import P4Parsing.ForestParser.Grammar as Grammar
 
 -- interface
 
@@ -31,7 +32,7 @@ newtype Node = Node Int deriving (Eq, Hashable, Show)
 -- | Parse a sequence given a grammar. The underlying parser doesn't give an easily inspectable error,
 -- hence we just pass that on, for the moment. In the success case you get a tuple containing the nodes
 -- in the parse forest and a sequence of root nodes.
-parse :: forall t nodeF. (Show t, Ord t, Hashable t)
+parse :: forall t nodeF. (Show t, Ord t, Hashable t, Unlexable t)
       => (forall r. Grammar r t nodeF (Prod r t nodeF r))
       -> (forall f. Foldable f => f t -> Either Text (HashMap Node (nodeF (HashSet Node)), HashSet Node))  -- TODO: might want to use a 'ghosts of departed proofs' approach to the map and the nodes
 parse unfixedGrammar = go
@@ -364,13 +365,13 @@ instance Ord t => Ord (Token t) where
   compare Conditional{} _ = GT
 
 -- NOTE: I really don't like this library, it requires too many instances that do not feel like they make sense here
-instance (Show t, Ord t, Eq t) => Parseable (Token t) where
+instance (Unlexable t, Show t, Ord t, Eq t) => Parseable (Token t) where
   eos = Eof
   eps = Eps  -- NOTE: as far as I can tell this isn't actually used by the library, but it requires its existence...
   matches (Concrete t) (Conditional _ f) = f t
   matches (Conditional _ f) (Concrete t) = f t
   matches a b = a == b
-  unlex (Concrete t) = show t  -- TODO: something better than show
+  unlex (Concrete t) = toS $ Grammar.unlex t
   unlex Eof = "<end-of-file>"
   unlex Eps = "<empty-string>"
   unlex (Conditional label _) = toS label
