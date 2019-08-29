@@ -13,8 +13,8 @@ import qualified Data.HashMap.Strict as M
 import P1Lexing.Types (Range, Ranged, range)
 
 -- TODO: make this something more fancy once we start namespacing things
-newtype Name = Name Text deriving (Show, Eq, Hashable, Data, Typeable)
-newtype TypeName = TypeName Text deriving (Show, Eq, Ord, Hashable, Data, Typeable)
+newtype Name = Name Text deriving (Show, Eq, Hashable, Data, Typeable, NFData)
+newtype TypeName = TypeName Text deriving (Show, Eq, Ord, Hashable, Data, Typeable, NFData)
 
 -- | Names for subsections of syntax descriptions.
 newtype SDName = SDName Text deriving (Show, Eq, Hashable, Data, Typeable)

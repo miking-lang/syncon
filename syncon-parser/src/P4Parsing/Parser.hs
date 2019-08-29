@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module P4Parsing.Parser where
+module P4Parsing.Parser (Error(..), parseSingleLanguage, parseTokens, dfToLanguageTokens) where
 
 import Pre
 import Result (Result(..))
@@ -60,6 +60,14 @@ parseSingleLanguage df = do
       Right forest -> return forest
   where
     lexer = Lexer.allOneLanguage SingleLanguage (dfToLanguageTokens df) & first (fmap LexingError)
+
+parseTokens :: (Show l, Ord l, Hashable l, Foldable f) => DefinitionFile -> Res l (f (Tok l) -> Res l (HashMap Node (NodeF l (HashSet Node)), HashSet Node))
+parseTokens df = do
+  grammar <- generateGrammar df
+  let parseFunc = parse (unquant grammar)
+  pure $ parseFunc >>> \case
+    Left err -> Error [ParseError err]
+    Right forest -> return forest
 
 -- | Look up keywords, comment syntax, etc., to produce the parameters for the lexer.
 dfToLanguageTokens :: DefinitionFile -> LanguageTokens TypeName

@@ -1,0 +1,108 @@
+// === Duplicate syncon definition ===
+syncon duplicateSyncon: Top =
+  "type" syType:TypeName
+
+syncon duplicateSyncon: Top =
+  "type" syType:TypeName
+
+
+// === Duplicate syntax type definition ===
+type DuplicateType
+type DuplicateType
+token DuplicateType = "blub"
+
+// === Duplicate sdname definition ===
+syncon thing: Top = dupsd:Top dupsd:Top dupsd:Top*
+
+// === Undefined Syntax type ===
+syncon undef: UndefType = "blub"
+
+// === Undefined syncon (should give two errors) ===
+forbid unsyncon1.uncaught = unsyncon2
+
+// === Undefined sdname ===
+forbid undef.undefsdname = undef
+
+// === Incorrect syntax type in forbid ===
+forbid thing.dupsd = op4
+
+// === Forbid non-syntaxtype ===
+syncon thing2: Top = things:(thing:Top ";")*
+forbid thing2.things = thing
+
+// === Undefined name in precedence list ===
+precedence {
+  unsyncon1;
+  unsyncon2 unsyncon2;
+}
+
+// === Inconsistent precedence in one precedence list ===
+prefix op1:Top = "*"
+postfix op2:Top = "+"
+infix op3:Top = "-"
+precedence {
+  op1;
+  op2 op1;
+}
+
+// === Inconsistent precedence in two precedence lists ===
+precedence {
+  op1;
+  op3;
+}
+precedence {
+  op1 op3;
+}
+
+// === Not an operator ===
+precedence {
+  undef;
+}
+
+// === Multiple syntax types ===
+type NewType
+infix op4:NewType = "/"
+precedence {
+  op1 op4;
+}
+
+// === Unnamed syntax type occurrence ===
+
+token TokType = "Tok"
+syncon foo: Top = a:NewType NewType b:(NewType | "blub") TokType
+
+// === Undefined name in grouping ===
+
+// grouping BlubTok UndefType BlobTok
+
+// === Inconsistent groupings ===
+
+// grouping "a" NewType "a"
+// grouping "b" NewType "c"
+// grouping "d" NewType "b"
+
+// === Unbalanced syntax description ===
+
+grouping "(" NewType ")"
+grouping TokType NewType ")"
+
+syncon unbalanced1: NewType = "("
+syncon unbalanced2: NewType = ")" "(" ")" "("
+syncon unbalanced3: NewType = "(" ("(" TokType)* ")"
+syncon balanced1: NewType = ("(" | TokType) ")"
+
+// === Unequal alts ===
+
+syncon unequal1: NewType = ("(" | "blub")
+
+
+// === Cycles ===
+
+type Cycle1
+type Cycle2
+type Cycle3
+
+syncon trivialCycle: Cycle1 = s:Cycle1
+
+syncon cycle1: Cycle2 = s1:Cycle1? s2:Cycle3?
+syncon cycle2: Cycle3 = s:Cycle2

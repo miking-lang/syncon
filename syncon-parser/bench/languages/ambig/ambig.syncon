@@ -1,0 +1,25 @@
+type Decl
+type Expression
+grouping "(" Expression ")"
+
+comment "//[^\\n]*(\\n|$)"
+
+token Int = "\\d+"
+
+syncon decls: Top = d:Decl+
+
+syncon print: Decl = "print" e:Expression
+
+infix plus: Expression = "+"
+infix times: Expression = "*"
+syncon intLit: Expression = num:Int
+
+syncon list: Expression = "[" (e:Expression (";" e2:Expression)*)? "]"
+infix left seqComp: Expression = ";"
+
+precedence {
+  times;
+  plus;
+  seqComp;
+}
+// TODO: test what happens when we have an ambiguity where some parens could be grouping parens or semantic parens

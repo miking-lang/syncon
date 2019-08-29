@@ -40,6 +40,7 @@ data Token l n
   | OtherTok Range l n Text
   deriving (Show, Eq, Ord, Generic, Data, Typeable)
 instance (Hashable l, Hashable n) => Hashable (Token l n)
+instance (NFData l, NFData n) => NFData (Token l n)
 
 textualToken :: Show n => Token l n -> Text
 textualToken (LitTok _ _ t) = show t
@@ -67,3 +68,5 @@ instance Unlexable (Token l n) where
 
 instance Hashable Range
 instance Hashable Position
+instance NFData Position
+instance NFData Range

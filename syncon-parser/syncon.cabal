@@ -154,3 +154,54 @@ library
                     , TypeFamilyDependencies
                     , PatternSynonyms
                     , NumericUnderscores
+
+benchmark syncon-parser-bench
+  hs-source-dirs: bench
+  build-depends: syncon
+               , base
+               , criterion
+               , unordered-containers
+               , filepath
+               , directory
+  main-is: Main.hs
+  type: exitcode-stdio-1.0
+  default-language: Haskell2010
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
+  default-extensions: NoImplicitPrelude
+                    , EmptyCase
+                    , FlexibleContexts
+                    , FlexibleInstances
+                    , InstanceSigs
+                    , MultiParamTypeClasses
+                    , LambdaCase
+                    , MultiWayIf
+                    , NamedFieldPuns
+                    , TupleSections
+                    , DeriveFoldable
+                    , DeriveFunctor
+                    , DeriveGeneric
+                    , DeriveLift
+                    , DeriveTraversable
+                    , DeriveDataTypeable
+                    , GeneralizedNewtypeDeriving
+                    , DerivingVia
+                    , StandaloneDeriving
+                    , BangPatterns
+                    , KindSignatures
+                    , TypeOperators
+                    , OverloadedStrings
+                    , ScopedTypeVariables
+                    , TypeApplications
+                    , ConstraintKinds
+                    , PolyKinds
+                    , RankNTypes
+                    , ApplicativeDo
+                    , DefaultSignatures
+                    , ExistentialQuantification
+                    , FunctionalDependencies
+                    , GADTs
+                    , DataKinds
+                    , TypeFamilies
+                    , TypeFamilyDependencies
+                    , PatternSynonyms
+                    , NumericUnderscores
