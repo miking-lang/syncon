@@ -18,7 +18,7 @@ import Control.Monad.Fix (MonadFix(..))
 data Prod r t nodeF a where
   Terminal :: !Text -> !(t -> Bool) -> !(Prod r t nodeF (t -> b)) -> Prod r t nodeF b
   NonTerminal :: !r -> !(Prod r t nodeF (r -> a)) -> Prod r t nodeF a
-  Ranged :: !(Prod r t nodeF (Maybe (t, t) -> a)) -> Prod r t nodeF a
+  Ranged :: !(Prod r t nodeF (Maybe (t, t) -> a)) -> !(Prod r t nodeF (a -> b)) -> Prod r t nodeF b
   Pure :: a -> Prod r t nodeF a
   Alts :: ![Prod r t nodeF a] -> !(Prod r t nodeF (a -> b)) -> Prod r t nodeF b
   Many :: !(Prod r t nodeF a) -> !(Prod r t nodeF ([a] -> b)) -> Prod r t nodeF b
@@ -32,7 +32,7 @@ instance Functor (Prod r t nodeF) where
   {-# INLINE fmap #-}
   fmap f (Terminal label t build) = Terminal label t $ (>>> f) <$> build
   fmap f (NonTerminal r build) = NonTerminal r $ (>>> f) <$> build
-  fmap f (Ranged build) = Ranged $ (>>> f) <$> build
+  fmap f (Ranged r build) = Ranged r $ (>>> f) <$> build
   fmap f (Pure a) = Pure $ f a
   fmap f (Alts ps build) = Alts ps $ (>>> f) <$> build
   fmap f (Many p build) = Many p $ (>>> f) <$> build
@@ -48,14 +48,14 @@ alts as build = case as >>= go of
     go a = [a]
 
 ranged :: Prod r t nodeF (Maybe (t, t) -> a) -> Prod r t nodeF a
-ranged = Ranged
+ranged p = Ranged p $ pure identity
 
 instance Applicative (Prod r t nodeF) where
   pure = Pure
   {-# INLINE (<*>) #-}
   Terminal label t build <*> q = Terminal label t $ flip <$> build <*> q
   NonTerminal r build <*> q = NonTerminal r $ flip <$> build <*> q
-  Ranged build <*> q = Ranged $ flip <$> build <*> q
+  Ranged r build <*> q = Ranged r $ flip <$> build <*> q
   Pure f <*> q = f <$> q
   Alts ps build <*> q = alts ps $ flip <$> build <*> q
   Many p build <*> q = Many p $ flip <$> build <*> q

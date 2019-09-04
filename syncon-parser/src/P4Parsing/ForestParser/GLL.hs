@@ -196,18 +196,17 @@ buildWrappedProd (WrappedProds nt prods) = do
       addProd nt syms semantic
     return nt
 
--- TODO: do something about empty Alts, the underlying parser can't handle it. Maybe pre-optimize them away?
 buildProd :: (Eq t, Hashable t) => Prod (WrappedProd t nodeF) t nodeF a -> GrammarM s t ([Symbol (Token t)], Any)
 buildProd (Pure a) = return ([], toAny a)
 buildProd (Terminal label f cont) = buildProd cont <&> first (mkTok label f :)
 buildProd (NonTerminal wp cont) = do
   wpnt <- buildWrappedProd wp
   buildProd cont <&> first (mkNtTok wpnt :)
-buildProd (Ranged cont) = do
+buildProd (Ranged r cont) = do
   nt <- freshRange
-  (syms, semantic) <- buildProd cont
+  (syms, semantic) <- buildProd r
   addProd nt syms semantic
-  return ([mkNtTok nt], toAny identity)
+  buildProd cont <&> first (mkNtTok nt :)
 buildProd (Alts [] _) = return $ ([mkTok "<never>" (const False)], toAny identity)
 buildProd (Alts ps cont) = do
   nt <- freshNonMerge
