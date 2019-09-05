@@ -330,15 +330,17 @@ data Token t = Concrete t
              | Eof
              | Eps
              | Conditional Text (t -> Bool)
-data TokenBland t = ConcreteBland t | EofBland | EpsBland | ConditionalBland Text deriving Generic
+data TokenBland t = ConcreteBland t | EofBland | EpsBland | ConditionalBland Text deriving (Eq, Ord, Generic)
 instance Hashable t => Hashable (TokenBland t)
 
+toBland :: Token t -> TokenBland t
+toBland (Concrete t) = ConcreteBland t
+toBland Eof = EofBland
+toBland Eps = EpsBland
+toBland (Conditional label _) = ConditionalBland label
+
 instance Hashable t => Hashable (Token t) where
-  hashWithSalt = hashUsing $ \case
-    (Concrete t) -> ConcreteBland t
-    Eof -> EofBland
-    Eps -> EpsBland
-    (Conditional label _) -> ConditionalBland label
+  hashWithSalt = hashUsing toBland
 
 instance Show t => Show (Token t) where
   show (Concrete t) = "(Concrete " <> show t <> ")"
@@ -347,23 +349,10 @@ instance Show t => Show (Token t) where
   show (Conditional label _) = "(Conditional " <> show label <> " <func>)"
 
 instance Eq t => Eq (Token t) where
-  Concrete a == Concrete b = a == b
-  Eof == Eof = True
-  Eps == Eps = True
-  Conditional l1 _ == Conditional l2 _ = l1 == l2
-  _ == _ = False
+  a == b = toBland a == toBland b
 
--- TODO: confirm that this is actually consistent, I wrote it kinda quickly
 instance Ord t => Ord (Token t) where
-  compare (Concrete a) (Concrete b) = compare a b
-  compare a b | a == b = EQ
-  compare Concrete{} _ = LT
-  compare Eof Concrete{} = GT
-  compare Eof _ = LT
-  compare Eps Concrete{} = GT
-  compare Eps Eof = GT
-  compare Eps _ = LT
-  compare Conditional{} _ = GT
+  compare a b = compare (toBland a) (toBland b)
 
 -- NOTE: I really don't like this library, it requires too many instances that do not feel like they make sense here
 instance (Unlexable t, Show t, Ord t, Eq t) => Parseable (Token t) where

@@ -458,7 +458,7 @@ gll flags m debug PrecomputedGrammar{startNt = start, prodMap, follows, selects}
 
     follow x          = follows M.! x
     do_test = do_select_test flags
-    select rhs x      | do_test   = fromMaybe mempty $ M.lookup (x, rhs) selects
+    select rhs x      | do_test   = selects M.! (x, rhs)
                       | otherwise = S.empty
       where
     select_test t set | do_test   = any (matches t) set

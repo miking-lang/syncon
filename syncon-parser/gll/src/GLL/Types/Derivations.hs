@@ -221,7 +221,7 @@ fixedMaps s prs = (prodMap, prefixMap, firstMap, followMap, selectMap)
     closure f prev = let next = f prev in if prev == next then prev else closure f next
 
     selectMap = M.fromList [ ((x,alpha), select alpha x) | Prod x rhs <- prs
-                           , alpha <- split rhs ]
+                           , alpha <- tails rhs ]
      where
         split rhs = foldr op [] js
          where op j acc     = drop j rhs : acc
