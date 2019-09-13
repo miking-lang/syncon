@@ -9,10 +9,11 @@ import qualified Data.Sequence as Seq
 import Data.STRef (STRef, newSTRef, readSTRef, modifySTRef')
 
 import Data.Functor.Foldable (embed)
+import Text.Earley.Forest.Grammar (unlex)
+import Text.Earley.Forest.Parser (Node)
 
 import P1Lexing.Types (Range)
 import P2LanguageDefinition.Types (TypeName(..))
-import P4Parsing.ForestParser (Node, unlex)
 import P4Parsing.Types (SingleLanguage, pattern NodeF, n_nameF, n_rangeF, n_beginEndF)
 import qualified P4Parsing.Types as P4
 import P5DynamicAmbiguity.Types hiding (NodeOrElide)

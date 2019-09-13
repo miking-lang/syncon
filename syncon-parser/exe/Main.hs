@@ -40,8 +40,6 @@ import qualified P2LanguageDefinition.BasicChecker as LD
 import qualified P2LanguageDefinition.Elaborator as LD
 
 import qualified P4Parsing.Types as Parser
-import qualified P4Parsing.Parser as Parser
-import qualified P4Parsing.ForestParser as Parser hiding (Node)
 import qualified P4Parsing.Parser2 as Parser2
 
 import qualified P5DynamicAmbiguity.Types as DynAmb
@@ -165,9 +163,7 @@ common = do
     tops <- M.traverseWithKey (\defFile _ -> LD.parseFile $ toS defFile) defSources
       >>= (fold >>> dataOrError defSources ())
     df <- LD.mkDefinitionFile tops & dataOrError defSources ()
-    parseFile <- Parser.parseSingleLanguage df & dataOrError defSources ()
-    parseFile2 <- Parser2.parseSingleLanguage df & dataOrError defSources ()
-    Parser2.genEpsDFADot df & dataOrError defSources () >>= putStrLn
+    parseFile <- Parser2.parseSingleLanguage df & dataOrError defSources ()
     let pl = DynAmb.precompute df
 
     srcSources <- extraSrcFiles <> srcFiles & S.fromList & S.toMap
@@ -181,16 +177,12 @@ common = do
       putStrLn @Text $ "Parsing \"" <> path <> "\""
       handle (\(SourceFileException t) -> modifyIORef' failureFiles (+1) >> sourceFailureHandler t) $ do
         mNode <- timeout sourceTimeout $ do
-          parseFile2 (toS path) >>= \case
-            Data forest -> do
-              Parser2.forestToDot (Parser.n_nameF >>> coerce) forest & putStrLn
-            Error _ -> putStrLn @Text "Parser2 failure"
           forest@(nodeMap, _) <- parseFile (toS path) >>= dataOrError' srcSources ()
           forM_ dot $ \outPath -> do
             let fullPath = outPath </> toS path <.> "dot"
             putStrLn @Text $"Writing to \"" <> toS fullPath <> "\""
             createDirectoryIfMissing True $ takeDirectory fullPath
-            Parser.forestToDot (Parser.n_nameF >>> coerce) forest
+            Parser2.forestToDot (Parser.n_nameF >>> coerce) forest
               & writeFile fullPath
           DynAmb.isolate forest & \case
             Data node -> modifyIORef' successfulFiles (+1) >> return node
