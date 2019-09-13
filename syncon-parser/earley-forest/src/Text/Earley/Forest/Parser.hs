@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -fno-warn-unused-imports -fno-warn-type-defaults -fno-warn-unused-local-binds -fno-warn-unused-matches #-} -- TODO: remove
+{-# OPTIONS_GHC -fno-warn-unused-imports -fno-warn-type-defaults #-} -- TODO: remove
 {-# LANGUAGE PartialTypeSignatures #-}  -- TODO: remove
 {-# LANGUAGE NamedFieldPuns, FlexibleContexts, ScopedTypeVariables, DeriveGeneric, RankNTypes, ViewPatterns, LambdaCase, GeneralizedNewtypeDeriving, TypeApplications, TupleSections #-}
 
@@ -10,7 +10,7 @@ import GHC.Generics (Generic)
 import GHC.Exts (Any)
 import Unsafe.Coerce (unsafeCoerce)
 
-import Debug.Trace (traceM, traceShow, traceShowId)
+import Debug.Trace (traceM, traceShow, traceShowId, trace)
 
 import Data.STRef (STRef, newSTRef)
 import qualified Data.Sequence as Seq
@@ -18,14 +18,14 @@ import qualified Data.STRef as STRef
 import Control.Monad (unless, join)
 import Control.Arrow ((>>>), (***), (&&&), first)
 import Data.Semigroup (First(..))
-import Data.Functor ((<&>))
+import Data.Functor ((<&>), void)
 import Data.Sequence (Seq((:|>)), (|>))
 import Data.Function ((&))
 import Data.Traversable (forM)
 import Data.Hashable (Hashable)
 import Data.Vector (Vector)
 import Control.Monad.Trans.Class (lift)
-import Data.Foldable (toList, fold, forM_)
+import Data.Foldable (toList, fold, forM_, foldl')
 import Control.Applicative ((<|>))
 import Data.Maybe (catMaybes, fromMaybe, mapMaybe, isJust)
 import Control.Monad.ST (ST, runST)
@@ -59,11 +59,11 @@ data ActiveSet s = ActiveSet
   , numItemsActive :: !(STRef s Int)
   , currPostDot :: !(STRef s (HashMap NT (HashSet Eim)))
   , currIdx :: !Int
-  , currLinks :: !(STRef s (HashMap Eim (HashSet Link)))
+  , currLinks :: !(STRef s (HashMap Eim Links))
   }
 
 data InactiveSet = InactiveSet
-  { links :: !(HashMap Eim (HashSet Link))
+  { links :: !(HashMap Eim Links)
   , postDot :: !(HashMap NT (Either (Eim, Lim) (HashSet Eim)))
   } deriving (Show)
 
@@ -73,15 +73,40 @@ data ParseState s = ParseState
   , nextSet :: !(STRef s (ActiveSet s))
   }
 
+data Links = Links
+  { scanPreds :: HashSet Int
+  -- ^ The predecessor split-eps-dfa states (origin must be the same as the 'Eim' we're linking from)
+  , reduceLinks :: HashMap (NT, Int) (HashSet Int, HashSet (Either Int (NT, Eim)))
+  -- ^ This is a map from (the 'NT' of the rightmost child, the index where the rightmost child starts)
+  -- to (set of predecessor split-eps-dfa states, Either (direct 'Eim' child with given split-eps-dfa state) ('NT' of indirect lim child, lim child))
+  } deriving (Show)
+instance Semigroup Links where
+  Links sp1 rl1 <> Links sp2 rl2 = Links (sp1 <> sp2) (M.unionWith (<>) rl1 rl2)
+instance Monoid Links where
+  mempty = Links mempty mempty
+  mappend = (<>)
+
+-- | The type of 'reduceLinks' after Lim links have been replaced with chains of normal
+-- reduce links. (rightmost symbol nt, predIdx) -> (pred states, child states)
+type ReduceLinks = HashMap (NT, Int) (HashSet Int, HashSet Int)
+
+scanLink :: Int -> Links
+scanLink predS = Links (S.singleton predS) mempty
+
 data Link = CauseLess { pred :: !(Int, Eim) }
           | WithCause { pred :: !(Int, Eim), causeNt :: !NT, cause :: !Eim }
           | LimCause { pred :: !(Int, Eim), causeNt :: !NT, limCause :: !(NT, Eim) }
-          deriving (Show, Eq, Generic)
-instance Hashable Link
+
+linkToLinks :: Link -> Links
+linkToLinks CauseLess{pred = (_, Eim predS _)} = Links (S.singleton predS) mempty
+linkToLinks WithCause{pred = (predIdx, Eim predS _), causeNt, cause = Eim s _} =
+  Links mempty $ M.singleton (causeNt, predIdx) (S.singleton predS, S.singleton $ Left s)
+linkToLinks LimCause{pred = (predIdx, Eim predS _), causeNt, limCause} =
+  Links mempty $ M.singleton (causeNt, predIdx) (S.singleton predS, S.singleton $ Right limCause)
 
 type ParseM s a = ReaderT (ParseState s) (ST s) a
 
-parse :: forall t nodeF f. (Eq (TokKind t), Hashable (TokKind t), Foldable f, Parseable t) -- TODO: remove the show constraint
+parse :: forall t nodeF f. (Eq (TokKind t), Hashable (TokKind t), Foldable f, Parseable t, Show (TokKind t))  -- TODO: remove the show instance
       => (Maybe EpsNT, Maybe EpsNT, Seq (Rule EpsNT (Sym EpsNT t) nodeF))
       -> f t -> Either () (HashMap Node (nodeF (HashSet Node)), HashSet Node)
 parse nnf@(s1, s2, rules) = case s1 <|> s2 of
@@ -142,7 +167,7 @@ parse nnf@(s1, s2, rules) = case s1 <|> s2 of
               forM_ (M.lookup s scanMap >>= M.lookup nextSymbol) $ \nextS -> do
                 let eim' = Eim nextS origin
                 addEimTo next eim'
-                addLinkTo next eim' $ CauseLess{pred = (currIdx, eim)}
+                addLinkTo next eim' $ scanLink s
             -- Reduce
             let completed = M.lookup s completedMap & fold
                 mkLink nt predEim = WithCause{pred = (origin, predEim), cause = eim, causeNt = nt }
@@ -254,14 +279,14 @@ parse nnf@(s1, s2, rules) = case s1 <|> s2 of
         stepAndAddEim as link = forM_ (M.lookup s postMap >>= M.lookup nt) $ \postS -> do
           let eim = Eim postS origin
           addEimTo as eim
-          addLinkTo as eim link
+          addLinkTo as eim $ linkToLinks link
           where
             Eim s origin = pred link & snd
             nt = causeNt link
 
-        addLinkTo :: ActiveSet s -> Eim -> Link -> ParseM s ()
-        addLinkTo ActiveSet{currLinks} eim link =
-          modifySTRef' currLinks $ M.insertWith S.union eim $ S.singleton link
+        addLinkTo :: ActiveSet s -> Eim -> Links -> ParseM s ()
+        addLinkTo ActiveSet{currLinks} eim links =
+          modifySTRef' currLinks $ M.insertWith (<>) eim links
 
         -- | Perform an action for every 'Eim' in the given 'ActiveSet'. Note that adding new
         -- 'Eim's to the set inside the action is supported (and intended), those items will
@@ -313,7 +338,7 @@ type DerivM s t nodeF a = ReaderT (DerivationState s t nodeF) (ST s) a
 
 type SemanticProd t = (Seq (Sym EpsNT t), Seq Any)
 
-constructDerivations :: forall t nodeF. (Eq (TokKind t), Parseable t) -- TODO: remove the show constraint
+constructDerivations :: forall t nodeF. (Eq (TokKind t), Parseable t, Show (TokKind t)) -- TODO: remove the show constraint
                      => NT
                      -> Seq (Rule EpsNT (Sym EpsNT t) nodeF)
                      -> (HashMap Int (HashSet DotProd), EpsDFA Int (Sym NT t))
@@ -402,7 +427,7 @@ constructDerivations startNt rules (states, _) postMap = doConstruct
     completedMap = states
       <&> toList
       <&> filter (isCompleted rules)
-      <&> fmap (\dp@(DotProd ruleIdx _) -> (ruleIdx, Seq.index rules ruleIdx))
+      <&> fmap (\(DotProd ruleIdx _) -> (ruleIdx, Seq.index rules ruleIdx))
       <&> fmap (\(ruleIdx, Rule (EpsNT nt _) syms semantic) -> (nt, M.singleton ruleIdx (syms, Seq.singleton semantic)))
       <&> M.fromListWith (<>)
 
@@ -430,7 +455,7 @@ constructDerivations startNt rules (states, _) postMap = doConstruct
       topNodes <- (`runReaderT` state) $
         finalEims <&> (\(Eim s _) -> s)
         & S.fromList
-        & derivEims startNt (0, finalIdx)
+        & derivEims mempty startNt (0, finalIdx)
         <&> foldMap anyToNodes
       STRef.readSTRef nodes
         <&> M.union epsNodes
@@ -459,152 +484,137 @@ constructDerivations startNt rules (states, _) postMap = doConstruct
         -- | Produce the semantic result for the given 'NT', covering the given range, knowing
         -- that the 'Eim's from which it is to be derived have exactly the states given in the
         -- third argument
-        derivEims :: NT -> (Int, Int) -> HashSet Int -> DerivM s t nodeF (Seq Any)
-        derivEims nt (originIdx, setIdx) ss = do
+        derivEims :: HashMap Eim ReduceLinks -> NT -> (Int, Int) -> HashSet Int -> DerivM s t nodeF (Seq Any)
+        derivEims extraLinks nt (originIdx, setIdx) ss = traceWrap ("derivEims", nt, originIdx, setIdx, ss) Seq.length $ do
           DerivationState{alreadyDone} <- ask
           readSTRef alreadyDone <&> M.lookup (nt, originIdx, setIdx) >>= \case
             Just res -> return res
             Nothing -> do
               let eims = S.map (\s -> Eim s originIdx) ss
+                  -- | The 'SemanticProd's that are completed in the active states
                   completed = M.intersection completedMap (S.toMap ss)
                     <&> M.lookupDefault mempty nt
                     & fold
                     & toList
                     & Seq.fromList
-                  (scanPredSs, MonoidHashMap reduceCauses) = Seq.index oldSets setIdx
+                  -- | The original links, including Lim links
+                  Links scanPredSs allReduceCauses = Seq.index oldSets setIdx
                     & links
                     & (`M.intersection` S.toMap eims)
                     & fold
-                    & toList
-                    & foldMap processLink
+              extraRef <- lift $ newSTRef extraLinks
+              -- Go through the reduction causes, replace Lim links with normal links, and store the
+              -- intermediate links in 'extraRef'
+              realReduceCauses <- (`M.traverseWithKey` allReduceCauses) $ \(nt', predIdx) (predSs, children) -> do
+                children' <- forM (S.toList children) $ \case
+                  Left s -> return s
+                  Right lim -> do
+                    let (Eim s _, links) = limChain nt' predIdx lim
+                    modifySTRef' extraRef $ M.unionWith (M.unionWith (<>)) links
+                    return s
+                return (predSs, S.fromList children')
+              finalExtras <- readSTRef extraRef
+              -- Combine the different sources of reduction links
+              let reduceCauses = finalExtras `M.intersection` S.toMap eims
+                    & foldl' (M.unionWith (<>)) mempty
+                    & M.unionWith (<>) realReduceCauses
+              -- Compute the results produced by scanning
               scanRes <- if S.null scanPredSs then return mempty else do
                 let tok = input Vector.! (setIdx-1)
                     sym = getKind @t tok & Sym
                 toList completed
-                  & mapMaybe (endsWith sym $ Seq.singleton $ tokToAny tok)
+                  & mapMaybe (traceWrapF "derivEimsMapMaybeScan" fst (fmap fst) $ endsWith sym $ Seq.singleton $ tokToAny tok)
+                  & Seq.fromList
                   & contDeriv (originIdx, setIdx-1) scanPredSs
-              reduceRes <- fmap fold $ forM (M.toList reduceCauses) $ \((nt, predIdx), (predSs, childSs)) ->
-                undefined
-              undefined
-              -- let causes = Seq.index oldSets setIdx
-              --       & links
-              --       & M.lookupDefault S.empty eim
-              --       & toList
-              --       <&> processLink
-              --       & M.fromListWith (<>)
-              --     completed = M.lookup s completedMap
-              --       >>= M.lookup nt
-              --       & fold
-              --       & toList
-              -- intermediate <- forM (M.toList causes) $ \((predIdx, _), (preds, First mFilterF)) -> do
-              --   filterF <- mFilterF
-              --   completed & mapMaybe filterF & mapM (contDeriv predIdx preds) <&> fold
-              -- res <- finishSemantics originIdx setIdx nt $ fold intermediate
-              -- modifySTRef' alreadyDone $ M.insert (nt, originIdx, setIdx) res
-              -- return res
-          where
-            -- processLink CauseLess{pred = (predIdx, pred)} =
-            --   ( (predIdx, sym)
-            --   , ( S.singleton pred
-            --     , First $ return $ endsWith sym $ Seq.singleton $ tokToAny tok )
-            --   )
-            --   where
-            --     tok = input Vector.! predIdx
-            --     sym = getKind @t tok & Sym
-            processLink _ = undefined
-            -- processLink WithCause{pred = (predIdx, pred), causeNt, cause = (causeIdx, causeEim)} = do
-            --   causeSem <- derivEim causeNt causeIdx causeEim
-            --   M.lookup s completedMap
-            --     & (>>= M.lookup nt)
-            --     & fold
-            --     & toList
-            --     & mapMaybe (endsWith (Nt (EpsNT causeNt NonNullable)) causeSem)
-            --     & mapM (contDeriv predIdx pred)
-            --     <&> mconcat
-            -- processLink LimCause{pred = predFull@(predIdx, pred), causeNt, limCause} = do
-            --   causeSem <- limReduce causeNt predFull limCause
-            --   M.lookup s completedMap
-            --     & (>>= M.lookup nt)
-            --     & fold
-            --     & toList
-            --     & mapMaybe (endsWith (Nt (EpsNT causeNt NonNullable)) causeSem)
-            --     & mapM (contDeriv predIdx pred)
-            --     <&> mconcat
+              -- Compute the results produced by stepping over a non-terminal, and inserting the
+              -- result of that non-terminal as a child
+              reduceRes <- forM (M.toList reduceCauses) $ \((nt', predIdx), (predSs, childSs)) -> do
+                children <- derivEims finalExtras nt' (predIdx, setIdx) childSs
+                traceM $ "derivEims reduce " <> show ss <> " " <> show nt' <> " " <> show (Seq.length completed)
+                toList completed
+                  & mapMaybe (traceWrapF "derivEimsMapMaybeReduce" fst (fmap fst) $ endsWith (Nt $ EpsNT nt' NonNullable) children)
+                  & Seq.fromList
+                  & contDeriv (originIdx, predIdx) predSs
+              -- Wrap everything up by performing the final action dictated by the non-terminal
+              res <- scanRes : reduceRes
+                & fold
+                & finishSemantics originIdx setIdx nt
+              modifySTRef' alreadyDone $ M.insert (nt, originIdx, setIdx) res
+              return res
 
-        -- | limReduce toNt (toIdx, toEim) (fromNt, (fromIdx, fromEim))
-        -- fromEim in set with index fromIdx can be completed with nt fromNt. The
-        -- sequence of Eims constructed with this bottom element is deterministic, with
-        -- a top that will attempt to step from toEim at index toIdx using toNt. Don't
-        -- take that step, instead return the top of the path thus far.
-        limReduce :: NT -> (Int, Eim) -> (NT, (Int, Eim)) -> DerivM s t nodeF (Seq Any)
-        limReduce toNt (toIdx, toEim) (fromNt, (fromIdx, fromEim@(Eim _ fromOrigin))) = traceWrap ("limReduce", fromNt, fromOrigin, fromIdx) Seq.length $ do
-          bottomSem <- derivEim fromNt fromIdx fromEim
-          let stepEim = Seq.index oldSets fromOrigin
-                & postDot
-                & M.lookup fromNt
-                & fromJust
-                & either fst mkSingle
-          go bottomSem fromNt fromOrigin (fromOrigin, stepEim)
+        -- | limChain nt originIdx (botNt, botEim)
+        -- Perform the (deterministic) sequence of reductions, starting with the
+        -- completed 'Eim' `botEim` (that completes the non-terminal `botNt`) until
+        -- we produce an 'Eim' of the form `Eim s originIdx` that completes the
+        -- non-terminal `nt`. Return that topmost 'Eim' and the reduction links produced
+        -- along the way.
+        limChain :: NT -> Int -> (NT, Eim) -> (Eim, HashMap Eim ReduceLinks)
+        limChain topNt originIdx = go mempty >>> traceShowId
           where
+            go links (nt, eim@(Eim _ originIdx'))
+              | topNt == nt
+              , originIdx == originIdx' = (eim, links)
+            go links (nt, Eim s origin) =
+              let Eim parentS parentOrigin = Seq.index oldSets origin
+                    & postDot
+                    & M.lookup nt
+                    & fromJust
+                    & either fst mkSingle
+                  nextS = M.lookup parentS postMap >>= M.lookup nt & fromJust
+                  eim = Eim nextS parentOrigin
+                  eimNt = M.lookup nextS completedMap & fold & void & S.fromMap & mkSingle
+                  addNewLink = M.insertWith (M.unionWith (<>)) eim $
+                    M.singleton (nt, origin) (S.singleton parentS, S.singleton s)
+              in go (addNewLink links) (eimNt, eim)
+            fromJust (Just a) = a
+            fromJust _ = error "fromJust failed in limChain"
             mkSingle (S.toList -> [a]) = a
             mkSingle _ = error "Got more than one result when trying to construct a Lim chain"
-            fromJust (Just a) = a
-            fromJust _ = error "From Just in limReduce"
-            go :: Seq Any -> NT -> Int -> (Int, Eim) -> DerivM s t nodeF (Seq Any)
-            go sems nt predIdx (setIdx, pred@(Eim s origin))
-              | nt == toNt
-              , predIdx == toIdx
-              , pred == toEim = return sems
-              | otherwise = traceWrap ("go", nt, origin, setIdx, Seq.length sems) Seq.length $ do
-                  DerivationState{alreadyDone} <- ask
-                  readSTRef alreadyDone <&> M.lookup (nt, origin, setIdx) >>= \case
-                    Just res -> return res
-                    Nothing -> do
-                      let nextS = M.lookup s postMap >>= M.lookup nt & fromJust
-                      semProds <- M.lookup nextS completedMap
-                        & fold
-                        <&> toList
-                        <&> mapMaybe (endsWith (Nt (EpsNT nt NonNullable)) sems)
-                        & mapM (mapM $ contDeriv predIdx pred)
-                        <&> fmap fold
-                        >>= M.traverseWithKey (finishSemantics origin setIdx)
-                      case semProds & M.filter (null >>> not) & M.toList of
-                        [(compNt, sems')] -> do
-                          modifySTRef' alreadyDone $ M.insert (compNt, origin, setIdx) sems'
-                          Seq.index oldSets origin
-                            & postDot
-                            & M.lookup compNt
-                            & fromJust
-                            & either fst mkSingle
-                            & (origin,)
-                            & go sems' compNt origin
-                        _ -> error "Didn't get exactly one completed non-terminal when constructing Lim chain"
 
-        contDeriv :: (Int, Int) -> HashSet Int -> [SemanticProd t] -> DerivM s t nodeF (Seq Any)
-        contDeriv (originIdx, setIdx) _ (_, _, sem)
-          | setIdx == originIdx = return sem
-        contDeriv (originIdx, setIdx) ss semProd@(_, _, prevSems) = traceWrap ("contDeriv", setIdx, eim, Seq.length prevSems) Seq.length $ Seq.index oldSets setIdx
-          & links
-          & M.lookupDefault S.empty eim
-          & toList & Seq.fromList
-          & mapM processLink
-          <&> foldMap fold
-          where
-            processLink CauseLess{pred = (predIdx, pred)} =
-              endsWith (Sym kind) (Seq.singleton $ tokToAny tok) semProd
-              & mapM (contDeriv predIdx pred)
-              where
-                tok = input Vector.! predIdx
-                kind = getKind @t tok
-            processLink WithCause{pred = (predIdx, pred), causeNt, cause = (causeIdx, causeEim)} = do
-              causeSem <- derivEim causeNt causeIdx causeEim
-              endsWith (Nt (EpsNT causeNt NonNullable)) causeSem semProd
-                & mapM (contDeriv predIdx pred)
-            processLink LimCause{pred = predFull@(predIdx, pred), causeNt, limCause} = do
-              causeSem <- limReduce causeNt predFull limCause
-              endsWith (Nt (EpsNT causeNt NonNullable)) causeSem semProd
-                & mapM (contDeriv predIdx pred)
-
+        contDeriv :: (Int, Int) -> HashSet Int -> Seq (SemanticProd t) -> DerivM s t nodeF (Seq Any)
+        contDeriv (originIdx, setIdx) _ semProds
+          | setIdx == originIdx = traceWrap ("contDerivTriv", originIdx, setIdx, length semProds) Seq.length $ foldMap snd semProds & return
+        contDeriv (originIdx, setIdx) ss semProds = traceWrap ("contDeriv", originIdx, setIdx, ss, length semProds) Seq.length $ do
+          let eims = S.map (\s -> Eim s originIdx) ss
+              Links scanPredSs allReduceCauses = Seq.index oldSets setIdx
+                & links
+                & (`M.intersection` S.toMap eims)
+                & fold
+          extraRef <- lift $ newSTRef mempty
+          -- Go through the reduction causes, replace Lim links with normal links, and store the
+          -- intermediate links in 'extraRef'
+          realReduceCauses <- (`M.traverseWithKey` allReduceCauses) $ \(nt', predIdx) (predSs, children) -> do
+            children' <- forM (S.toList children) $ \case
+              Left s -> return s
+              Right lim -> do
+                let (Eim s _, links) = limChain nt' predIdx lim
+                modifySTRef' extraRef $ M.unionWith (M.unionWith (<>)) links
+                return s
+            return (predSs, S.fromList children')
+          finalExtras <- readSTRef extraRef
+          -- Combine the different sources of reduction links
+          let reduceCauses = finalExtras `M.intersection` S.toMap eims
+                & foldl' (M.unionWith (<>)) mempty
+                & M.unionWith (<>) realReduceCauses
+          -- Compute the results produced by scanning
+          scanRes <- if S.null scanPredSs then return mempty else do
+            let tok = input Vector.! (setIdx-1)
+                sym = getKind @t tok & Sym
+            toList semProds
+              & mapMaybe (traceWrapF "contDerivMapMaybeScan" fst (fmap fst) $ endsWith sym $ Seq.singleton $ tokToAny tok)
+              & Seq.fromList
+              & contDeriv (originIdx, setIdx-1) scanPredSs
+          -- Compute the results produced by stepping over a non-terminal, and inserting the
+          -- result of that non-terminal as a child
+          reduceRes <- forM (M.toList reduceCauses) $ \((nt', predIdx), (predSs, childSs)) -> do
+            children <- derivEims finalExtras nt' (predIdx, setIdx) childSs
+            toList semProds
+              & mapMaybe (traceWrapF "contDerivMapMaybeReduce" fst (fmap fst) $ endsWith (Nt $ EpsNT nt' NonNullable) children)
+              & Seq.fromList
+              & contDeriv (originIdx, predIdx) predSs
+          scanRes : reduceRes
+            & fold
+            & return
 
 spanMaybeR :: (a -> Maybe b) -> Seq a -> (Seq b, Seq a)
 spanMaybeR f = Seq.spanr (f >>> isJust) >>> first (fmap $ f >>> fromJust)
@@ -619,6 +629,11 @@ traceWrap label f m = do
   res <- m
   traceM $ "Exiting " <> shownLabel <> " -> " <> show (f res)
   return res
+
+traceWrapF :: (Show label, Show c, Show d) => label -> (a -> c) -> (b -> d) -> (a -> b) -> (a -> b)
+traceWrapF label convA convB f a =
+  let res = f a
+  in trace (show label <> ": " <> show (convA a) <> " -> " <> show (convB res)) $ res
 
 newtype MonoidHashMap k v = MonoidHashMap (HashMap k v)
 

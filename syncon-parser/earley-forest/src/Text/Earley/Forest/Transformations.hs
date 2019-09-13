@@ -43,6 +43,7 @@ instance Hashable NT
 data Sym nt t = Sym !(TokKind t) | Nt !nt
   deriving (Generic)
 deriving instance (Eq nt, Eq (TokKind t)) => Eq (Sym nt t)
+deriving instance (Show nt, Show (TokKind t)) => Show (Sym nt t)
 instance (Hashable nt, Hashable (TokKind t)) => Hashable (Sym nt t)
 
 -- | 'Rule nt syms sem' is a production with lefthand side 'nt', righthand side
