@@ -36,6 +36,7 @@ resolver: lts-13.16
 packages:
 - .
 - ./gll
+- ./earley-forest
 # Dependency packages to be pulled from upstream that are not in the resolver
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)

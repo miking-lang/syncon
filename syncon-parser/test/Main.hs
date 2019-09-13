@@ -2,12 +2,14 @@
 
 module Main where
 
+import Prelude ()
 import Pre
 import Result (Result(..))
 
 import System.FilePath (takeFileName, isExtensionOf, (</>))
 import System.Directory (listDirectory, doesDirectoryExist, doesFileExist)
 
+import Data.IORef (newIORef, readIORef, IORef, writeIORef)
 import qualified Data.HashMap.Strict as M
 import Data.List (partition)
 
@@ -18,25 +20,36 @@ import qualified P4Parsing.Parser as Parser
 import qualified P4Parsing.Parser2 as Parser2
 import P4Parsing.Types (SingleLanguage(..))
 
-import Criterion.Main
-
 main :: IO ()
 main = do
+  failRef <- newIORef False
   langFiles <- getLanguages "languages"
-  defaultMain
-    [ bgroup "parser" $ langToBench <$> langFiles ]
+  mapM_ (langToTest failRef) langFiles
+  failed <- readIORef failRef
+  if failed
+    then exitFailure
+    else exitSuccess
 
-langToBench :: (FilePath, ([FilePath], ([FilePath], [FilePath]))) -> Benchmark
-langToBench (lang, (defFiles, uncurry mappend -> srcFiles)) = env (mkEnv lang defFiles) $ \env ->
-  bgroup lang $ benchSrc env <$> srcFiles
+langToTest :: IORef Bool -> (FilePath, ([FilePath], ([FilePath], [FilePath]))) -> IO ()
+langToTest failRef (lang, (defFiles, (successFiles, failFiles))) = do
+  env <- mkEnv lang defFiles
+  mapM_ (mkTest env True) successFiles
+  mapM_ (mkTest env False) failFiles
   where
-    benchSrc ~(lexFile, parseTokens, parseTokens2) srcFile = env (doLexFile lexFile srcFile) $ \toks ->
-      bgroup (takeFileName srcFile)
-      [ bench "gll" $ whnf parseTokens toks
-      , bench "earley-forest" $ whnf parseTokens2 toks ]
+    mkTest (lexFile, parseTokens, parseTokens2) expected srcFile = do
+      toks <- doLexFile lexFile srcFile
+      let gllResult = parseTokens toks & isData & (== expected)
+          earleyResult = parseTokens2 toks & (== expected)
+          showRes True  = "    "
+          showRes False = "FAIL"
+      putStrLn $ showRes gllResult <> " parser/" <> lang <> "/" <> takeFileName srcFile <> "/gll"
+      putStrLn $ showRes earleyResult <> " parser/" <> lang <> "/" <> takeFileName srcFile <> "/earley-forest"
+      when (not gllResult || not earleyResult) $ writeIORef failRef True
     doLexFile lexFile path = lexFile path >>= \case
       Error _ -> die $ "Could not lex file " <> toS path
       Data toks -> return toks
+    isData Data{} = True
+    isData _ = False
 
 getLanguages :: FilePath -> IO [(FilePath, ([FilePath], ([FilePath], [FilePath])))]
 getLanguages languageDirectory = do
@@ -44,7 +57,7 @@ getLanguages languageDirectory = do
   forM languages $ \langDir -> do
     files <- listDir langDir >>= filterM doesFileExist
     let (defs, sources) = partition ("syncon" `isExtensionOf`) files
-        (fails, successes) = partition ("fail_" `isPrefixOf`) sources
+        (fails, successes) = partition (takeFileName >>> ("fail_" `isPrefixOf`)) sources
     return (takeFileName langDir, (defs, (successes, fails)))
   where
     listDir path = listDirectory path <&> fmap (path </>)

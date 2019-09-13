@@ -223,10 +223,6 @@ fixedMaps s prs = (prodMap, prefixMap, firstMap, followMap, selectMap)
     selectMap = M.fromList [ ((x,alpha), select alpha x) | Prod x rhs <- prs
                            , alpha <- tails rhs ]
      where
-        split rhs = foldr op [] js
-         where op j acc     = drop j rhs : acc
-               js           = 0 : findIndices isNt rhs
-
         -- TODO store intermediate results
         select alpha x      = res
                 where   firsts  = firstRhs alpha

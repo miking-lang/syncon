@@ -4,6 +4,8 @@ import Pre
 
 import Data.Data (Data)
 
+import Text.Earley.Forest.Grammar as Forest
+
 import P4Parsing.ForestParser (Unlexable(..))
 
 data Range = Nowhere | Range !Text !Position !Position deriving (Show, Eq, Ord, Data, Typeable, Generic)
@@ -45,6 +47,19 @@ instance (NFData l, NFData n) => NFData (Token l n)
 textualToken :: Show n => Token l n -> Text
 textualToken (LitTok _ _ t) = show t
 textualToken (OtherTok _ _ n t) = "(" <> show n <> ") " <> t  -- TODO: better printing of this
+
+instance Coercible n Text => Forest.Parseable (Token l n) where  -- TODO: have some better method to print the 'n'
+  type TokKind (Token l n) = TokenKind n
+  kindLabel (LitKind t) = t
+  kindLabel (TypeKind tyn) = coerce tyn
+  getKind (LitTok _ _ t) = LitKind t
+  getKind (OtherTok _ _ tyn _) = TypeKind tyn
+  unlex (LitTok _ _ t) = t
+  unlex (OtherTok _ _ _ t) = t
+
+data TokenKind n = LitKind !Text | TypeKind !n
+  deriving (Show, Eq, Generic)
+instance Hashable n => Hashable (TokenKind n)
 
 class Ranged a where
   range :: a -> Range

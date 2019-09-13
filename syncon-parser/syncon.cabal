@@ -41,7 +41,6 @@ executable syncon-parser
                     , DeriveTraversable
                     , DeriveDataTypeable
                     , GeneralizedNewtypeDeriving
-                    , DerivingVia
                     , StandaloneDeriving
                     , BangPatterns
                     , KindSignatures
@@ -83,6 +82,7 @@ library
                , regex-pcre-builtin
                , pretty-terminal
                , Earley
+               , earley-forest
                , aeson
                , gll
   exposed-modules: Pre
@@ -107,6 +107,7 @@ library
                  , P2LanguageDefinition.Elaborator
                  , P4Parsing.Types
                  , P4Parsing.Parser
+                 , P4Parsing.Parser2
                  , P4Parsing.ForestParser
                  , P4Parsing.ForestParser.Grammar
                  , P4Parsing.ForestParser.GLL
@@ -133,7 +134,6 @@ library
                     , DeriveTraversable
                     , DeriveDataTypeable
                     , GeneralizedNewtypeDeriving
-                    , DerivingVia
                     , StandaloneDeriving
                     , BangPatterns
                     , KindSignatures
@@ -184,7 +184,55 @@ benchmark syncon-parser-bench
                     , DeriveTraversable
                     , DeriveDataTypeable
                     , GeneralizedNewtypeDeriving
-                    , DerivingVia
+                    , StandaloneDeriving
+                    , BangPatterns
+                    , KindSignatures
+                    , TypeOperators
+                    , OverloadedStrings
+                    , ScopedTypeVariables
+                    , TypeApplications
+                    , ConstraintKinds
+                    , PolyKinds
+                    , RankNTypes
+                    , ApplicativeDo
+                    , DefaultSignatures
+                    , ExistentialQuantification
+                    , FunctionalDependencies
+                    , GADTs
+                    , DataKinds
+                    , TypeFamilies
+                    , TypeFamilyDependencies
+                    , PatternSynonyms
+                    , NumericUnderscores
+
+test-suite syncon-parser-test
+  hs-source-dirs: test
+  build-depends: syncon
+               , base
+               , unordered-containers
+               , filepath
+               , directory
+  main-is: Main.hs
+  type: exitcode-stdio-1.0
+  default-language: Haskell2010
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
+  default-extensions: NoImplicitPrelude
+                    , EmptyCase
+                    , FlexibleContexts
+                    , FlexibleInstances
+                    , InstanceSigs
+                    , MultiParamTypeClasses
+                    , LambdaCase
+                    , MultiWayIf
+                    , NamedFieldPuns
+                    , TupleSections
+                    , DeriveFoldable
+                    , DeriveFunctor
+                    , DeriveGeneric
+                    , DeriveLift
+                    , DeriveTraversable
+                    , DeriveDataTypeable
+                    , GeneralizedNewtypeDeriving
                     , StandaloneDeriving
                     , BangPatterns
                     , KindSignatures

@@ -185,7 +185,6 @@ import qualified Data.Array as A
 import qualified Data.Set as S
 import qualified Data.IntSet as IS
 import Data.Text (pack)
-import Data.Maybe (fromMaybe)
 import Text.PrettyPrint.HughesPJ as PP
 
 import GLL.Types.Grammar

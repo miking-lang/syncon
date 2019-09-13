@@ -42,6 +42,7 @@ import qualified P2LanguageDefinition.Elaborator as LD
 import qualified P4Parsing.Types as Parser
 import qualified P4Parsing.Parser as Parser
 import qualified P4Parsing.ForestParser as Parser hiding (Node)
+import qualified P4Parsing.Parser2 as Parser2
 
 import qualified P5DynamicAmbiguity.Types as DynAmb
 import qualified P5DynamicAmbiguity.TreeLanguage as DynAmb
@@ -93,10 +94,13 @@ testReduce = do
     post = NVA.reduce nva
 
 test :: IO ()
+-- test = withArgs ["languages/lispy/lispy.syncon", "languages/lispy/lispy.test", "--two-level"] main
+-- test = withArgs ["languages/simple-right-recursion/def.syncon", "languages/simple-right-recursion/test.test", "--two-level"] main
+-- test = withArgs ["languages/atest/atest.syncon", "languages/atest/atest.test", "--two-level"] main
 -- test = withArgs ["case-studies/ocaml.syncon", "case-studies/ocaml/inside_out.ml", "--html=out.html", "--two-level"] main
-test = withArgs ["case-studies/ocaml.syncon", "case-studies/ocaml/fizzbuzz.ml", "--html=out.html", "--two-level"] main
+-- test = withArgs ["case-studies/ocaml.syncon", "case-studies/ocaml/fizzbuzz.ml", "--html=out.html", "--two-level"] main
 -- test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--dot=out"] main
--- test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--two-level"] main
+test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--two-level"] main
 -- test = withArgs ["examples/bootstrap.syncon", "--source=examples/bootstrap.syncon", "--json=out.json"] main
 -- test = withArgs ["--help"] main
 -- test = GLL.test
@@ -162,6 +166,8 @@ common = do
       >>= (fold >>> dataOrError defSources ())
     df <- LD.mkDefinitionFile tops & dataOrError defSources ()
     parseFile <- Parser.parseSingleLanguage df & dataOrError defSources ()
+    parseFile2 <- Parser2.parseSingleLanguage df & dataOrError defSources ()
+    Parser2.genEpsDFADot df & dataOrError defSources () >>= putStrLn
     let pl = DynAmb.precompute df
 
     srcSources <- extraSrcFiles <> srcFiles & S.fromList & S.toMap
@@ -175,6 +181,10 @@ common = do
       putStrLn @Text $ "Parsing \"" <> path <> "\""
       handle (\(SourceFileException t) -> modifyIORef' failureFiles (+1) >> sourceFailureHandler t) $ do
         mNode <- timeout sourceTimeout $ do
+          parseFile2 (toS path) >>= \case
+            Data forest -> do
+              Parser2.forestToDot (Parser.n_nameF >>> coerce) forest & putStrLn
+            Error _ -> putStrLn @Text "Parser2 failure"
           forest@(nodeMap, _) <- parseFile (toS path) >>= dataOrError' srcSources ()
           forM_ dot $ \outPath -> do
             let fullPath = outPath </> toS path <.> "dot"
