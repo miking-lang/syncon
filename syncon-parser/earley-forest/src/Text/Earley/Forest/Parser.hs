@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-unused-imports -fno-warn-type-defaults #-} -- TODO: remove
-{-# LANGUAGE PartialTypeSignatures #-}  -- TODO: remove
 {-# LANGUAGE NamedFieldPuns, FlexibleContexts, ScopedTypeVariables, DeriveGeneric, RankNTypes, ViewPatterns, LambdaCase, GeneralizedNewtypeDeriving, TypeApplications, TupleSections #-}
 
 module Text.Earley.Forest.Parser (parse, Node) where
@@ -10,14 +8,11 @@ import GHC.Generics (Generic)
 import GHC.Exts (Any)
 import Unsafe.Coerce (unsafeCoerce)
 
-import Debug.Trace (traceM, traceShow, traceShowId, trace)
-
 import Data.STRef (STRef, newSTRef)
 import qualified Data.Sequence as Seq
 import qualified Data.STRef as STRef
 import Control.Monad (unless, join)
-import Control.Arrow ((>>>), (***), (&&&), first)
-import Data.Semigroup (First(..))
+import Control.Arrow ((>>>), first)
 import Data.Functor ((<&>), void)
 import Data.Sequence (Seq((:|>)), (|>))
 import Data.Function ((&))
@@ -27,7 +22,7 @@ import Data.Vector (Vector)
 import Control.Monad.Trans.Class (lift)
 import Data.Foldable (toList, fold, forM_, foldl')
 import Control.Applicative ((<|>))
-import Data.Maybe (catMaybes, fromMaybe, mapMaybe, isJust)
+import Data.Maybe (catMaybes, mapMaybe, isJust)
 import Control.Monad.ST (ST, runST)
 import Control.Monad.Trans.Reader (ReaderT, runReaderT, asks, ask)
 import Data.HashMap.Lazy (HashMap)
@@ -36,7 +31,7 @@ import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
 import qualified Data.Vector as Vector
 
-import Text.Earley.Forest.Grammar (TokKind, kindLabel, Parseable, getKind)
+import Text.Earley.Forest.Grammar (TokKind, Parseable, getKind)
 import Text.Earley.Forest.Transformations (EpsNT(..), NT(..), Rule(..), Sym(..), NullStatus(..), NtKind(..))
 import Text.Earley.Forest.SplitEpsDFA (EpsDFA(..), mkDFA, renumberStates, completedNT, isCompleted, DotProd(..))
 
@@ -106,7 +101,8 @@ linkToLinks LimCause{pred = (predIdx, Eim predS _), causeNt, limCause} =
 
 type ParseM s a = ReaderT (ParseState s) (ST s) a
 
-parse :: forall t nodeF f. (Eq (TokKind t), Hashable (TokKind t), Foldable f, Parseable t, Show (TokKind t))  -- TODO: remove the show instance
+-- TODO: make good error reporting
+parse :: forall t nodeF f. (Eq (TokKind t), Hashable (TokKind t), Foldable f, Parseable t)
       => (Maybe EpsNT, Maybe EpsNT, Seq (Rule EpsNT (Sym EpsNT t) nodeF))
       -> f t -> Either () (HashMap Node (nodeF (HashSet Node)), HashSet Node)
 parse nnf@(s1, s2, rules) = case s1 <|> s2 of
@@ -157,7 +153,7 @@ parse nnf@(s1, s2, rules) = case s1 <|> s2 of
       (`runReaderT` state) $ do
         addInitial
         ActiveSet{currIdx, allItems} <- doWhileM parseNotOver $ do
-          set@ActiveSet{currIdx, currPostDot, numItemsActive, allItems} <- asks currSet >>= readSTRef
+          set@ActiveSet{currIdx, currPostDot} <- asks currSet >>= readSTRef
           next <- asks nextSet >>= readSTRef
           let nextSymbolM = input Vector.!? currIdx <&> getKind
 
@@ -183,22 +179,22 @@ parse nnf@(s1, s2, rules) = case s1 <|> s2 of
             modifySTRef' currPostDot $ M.unionWith S.union $ computePostDot eim
 
           -- No items left in the worklist
-          readSTRef numItemsActive >>= \num -> traceM $ "Items at " <> show currIdx <> ": " <> show num
-          items <- readSTRef allItems
-          forM_ items $ \item@(Eim s _) ->
-            traceM $ "  " <> show item <> " -> " <> foldMap show (M.lookup s completedMap)
+          -- readSTRef numItemsActive >>= \num -> traceM $ "Items at " <> show currIdx <> ": " <> show num
+          -- items <- readSTRef allItems
+          -- forM_ items $ \item@(Eim s _) ->
+          --   traceM $ "  " <> show item <> " -> " <> foldMap show (M.lookup s completedMap)
           stepSets
           return set
 
         -- Parse over
         items <- readSTRef allItems
-        traceM $ "Total tokens: " <> show (Vector.length input)
-        traceM $ "Start symbol: " <> show startNt
-        prevs <- asks prevSets >>= readSTRef
-        _ <- (`Seq.traverseWithIndex` prevs) $ \i InactiveSet{links, postDot} -> do
-          traceM $ show i <> ":"
-          forM_ (M.toList links) $ \(eim, ls) -> traceM $ "  " <> show eim <> " -> " <> show ls
-          forM_ (M.toList postDot) $ \(nt, rhs) -> traceM $ "  " <> show nt <> " -> " <> show rhs
+        -- traceM $ "Total tokens: " <> show (Vector.length input)
+        -- traceM $ "Start symbol: " <> show startNt
+        -- prevs <- asks prevSets >>= readSTRef
+        -- _ <- (`Seq.traverseWithIndex` prevs) $ \i InactiveSet{links, postDot} -> do
+        --   traceM $ show i <> ":"
+        --   forM_ (M.toList links) $ \(eim, ls) -> traceM $ "  " <> show eim <> " -> " <> show ls
+        --   forM_ (M.toList postDot) $ \(nt, rhs) -> traceM $ "  " <> show nt <> " -> " <> show rhs
         let completingEims = filter completesStartNt $ toList items
         if currIdx == Vector.length input && not (null completingEims)
           then asks prevSets >>= readSTRef <&> mkDerivations startNt input completingEims <&> Right
@@ -227,7 +223,7 @@ parse nnf@(s1, s2, rules) = case s1 <|> s2 of
         stepSets :: ParseM s ()
         stepSets = do
           ParseState{prevSets, currSet, nextSet} <- ask
-          readSTRef currSet >>= mkInactiveSet >>= \inactive -> modifySTRef' prevSets (|> traceShowId inactive)
+          readSTRef currSet >>= mkInactiveSet >>= \inactive -> modifySTRef' prevSets (|> inactive)
           next@ActiveSet{currIdx} <- readSTRef nextSet
           writeSTRef currSet next
           lift (newActiveSet $ currIdx+1) >>= writeSTRef nextSet
@@ -338,7 +334,7 @@ type DerivM s t nodeF a = ReaderT (DerivationState s t nodeF) (ST s) a
 
 type SemanticProd t = (Seq (Sym EpsNT t), Seq Any)
 
-constructDerivations :: forall t nodeF. (Eq (TokKind t), Parseable t, Show (TokKind t)) -- TODO: remove the show constraint
+constructDerivations :: forall t nodeF. (Eq (TokKind t), Parseable t)
                      => NT
                      -> Seq (Rule EpsNT (Sym EpsNT t) nodeF)
                      -> (HashMap Int (HashSet DotProd), EpsDFA Int (Sym NT t))
@@ -464,14 +460,13 @@ constructDerivations startNt rules (states, _) postMap = doConstruct
         finalIdx = Seq.length oldSets - 1
 
         finishSemantics :: Int -> Int -> NT -> Seq Any -> DerivM s t nodeF (Seq Any)
-        finishSemantics originIdx setIdx (NT _ ntkind) sems = traceWrap ("finishSemantics", originIdx, setIdx, Seq.length sems) Seq.length $ case ntkind of
+        finishSemantics originIdx setIdx (NT _ ntkind) sems = case ntkind of
           NtNormal -> return sems
           NtMerge -> foldMap anyToNodes sems & nodesToAny & Seq.singleton & return
           NtRanged -> let range = (input Vector.! originIdx, input Vector.! (setIdx - 1))
                       in anyToRangeFunc <$> sems <*> pure (Just range) & return
           NtNode -> do
             nodes <- sems <&> anyToNodeF & mapM mkNode
-            traceM $ show nodes
             foldMap S.singleton nodes & nodesToAny & Seq.singleton & return
 
         mkNode :: nodeF (HashSet Node) -> DerivM s t nodeF Node
@@ -485,7 +480,7 @@ constructDerivations startNt rules (states, _) postMap = doConstruct
         -- that the 'Eim's from which it is to be derived have exactly the states given in the
         -- third argument
         derivEims :: HashMap Eim ReduceLinks -> NT -> (Int, Int) -> HashSet Int -> DerivM s t nodeF (Seq Any)
-        derivEims extraLinks nt (originIdx, setIdx) ss = traceWrap ("derivEims", nt, originIdx, setIdx, ss) Seq.length $ do
+        derivEims extraLinks nt (originIdx, setIdx) ss = do
           DerivationState{alreadyDone} <- ask
           readSTRef alreadyDone <&> M.lookup (nt, originIdx, setIdx) >>= \case
             Just res -> return res
@@ -523,16 +518,15 @@ constructDerivations startNt rules (states, _) postMap = doConstruct
                 let tok = input Vector.! (setIdx-1)
                     sym = getKind @t tok & Sym
                 toList completed
-                  & mapMaybe (traceWrapF "derivEimsMapMaybeScan" fst (fmap fst) $ endsWith sym $ Seq.singleton $ tokToAny tok)
+                  & mapMaybe (endsWith sym $ Seq.singleton $ tokToAny tok)
                   & Seq.fromList
                   & contDeriv (originIdx, setIdx-1) scanPredSs
               -- Compute the results produced by stepping over a non-terminal, and inserting the
               -- result of that non-terminal as a child
               reduceRes <- forM (M.toList reduceCauses) $ \((nt', predIdx), (predSs, childSs)) -> do
                 children <- derivEims finalExtras nt' (predIdx, setIdx) childSs
-                traceM $ "derivEims reduce " <> show ss <> " " <> show nt' <> " " <> show (Seq.length completed)
                 toList completed
-                  & mapMaybe (traceWrapF "derivEimsMapMaybeReduce" fst (fmap fst) $ endsWith (Nt $ EpsNT nt' NonNullable) children)
+                  & mapMaybe (endsWith (Nt $ EpsNT nt' NonNullable) children)
                   & Seq.fromList
                   & contDeriv (originIdx, predIdx) predSs
               -- Wrap everything up by performing the final action dictated by the non-terminal
@@ -549,7 +543,7 @@ constructDerivations startNt rules (states, _) postMap = doConstruct
         -- non-terminal `nt`. Return that topmost 'Eim' and the reduction links produced
         -- along the way.
         limChain :: NT -> Int -> (NT, Eim) -> (Eim, HashMap Eim ReduceLinks)
-        limChain topNt originIdx = go mempty >>> traceShowId
+        limChain topNt originIdx = go mempty
           where
             go links (nt, eim@(Eim _ originIdx'))
               | topNt == nt
@@ -573,8 +567,8 @@ constructDerivations startNt rules (states, _) postMap = doConstruct
 
         contDeriv :: (Int, Int) -> HashSet Int -> Seq (SemanticProd t) -> DerivM s t nodeF (Seq Any)
         contDeriv (originIdx, setIdx) _ semProds
-          | setIdx == originIdx = traceWrap ("contDerivTriv", originIdx, setIdx, length semProds) Seq.length $ foldMap snd semProds & return
-        contDeriv (originIdx, setIdx) ss semProds = traceWrap ("contDeriv", originIdx, setIdx, ss, length semProds) Seq.length $ do
+          | setIdx == originIdx = foldMap snd semProds & return
+        contDeriv (originIdx, setIdx) ss semProds = do
           let eims = S.map (\s -> Eim s originIdx) ss
               Links scanPredSs allReduceCauses = Seq.index oldSets setIdx
                 & links
@@ -601,7 +595,7 @@ constructDerivations startNt rules (states, _) postMap = doConstruct
             let tok = input Vector.! (setIdx-1)
                 sym = getKind @t tok & Sym
             toList semProds
-              & mapMaybe (traceWrapF "contDerivMapMaybeScan" fst (fmap fst) $ endsWith sym $ Seq.singleton $ tokToAny tok)
+              & mapMaybe (endsWith sym $ Seq.singleton $ tokToAny tok)
               & Seq.fromList
               & contDeriv (originIdx, setIdx-1) scanPredSs
           -- Compute the results produced by stepping over a non-terminal, and inserting the
@@ -609,7 +603,7 @@ constructDerivations startNt rules (states, _) postMap = doConstruct
           reduceRes <- forM (M.toList reduceCauses) $ \((nt', predIdx), (predSs, childSs)) -> do
             children <- derivEims finalExtras nt' (predIdx, setIdx) childSs
             toList semProds
-              & mapMaybe (traceWrapF "contDerivMapMaybeReduce" fst (fmap fst) $ endsWith (Nt $ EpsNT nt' NonNullable) children)
+              & mapMaybe (endsWith (Nt $ EpsNT nt' NonNullable) children)
               & Seq.fromList
               & contDeriv (originIdx, predIdx) predSs
           scanRes : reduceRes
@@ -621,19 +615,6 @@ spanMaybeR f = Seq.spanr (f >>> isJust) >>> first (fmap $ f >>> fromJust)
   where
     fromJust (Just a) = a
     fromJust Nothing = error "spanMaybeR somehow got a thing that passed isJust, yet wasn't a Just"
-
-traceWrap :: (Monad m, Show label, Show ret) => label -> (a -> ret) -> m a -> m a
-traceWrap label f m = do
-  let shownLabel = show label
-  traceM $ "Entering " <> shownLabel
-  res <- m
-  traceM $ "Exiting " <> shownLabel <> " -> " <> show (f res)
-  return res
-
-traceWrapF :: (Show label, Show c, Show d) => label -> (a -> c) -> (b -> d) -> (a -> b) -> (a -> b)
-traceWrapF label convA convB f a =
-  let res = f a
-  in trace (show label <> ": " <> show (convA a) <> " -> " <> show (convB res)) $ res
 
 newtype MonoidHashMap k v = MonoidHashMap (HashMap k v)
 
