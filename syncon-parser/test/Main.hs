@@ -39,7 +39,7 @@ langToTest failRef (lang, (defFiles, (successFiles, failFiles))) = do
     mkTest (lexFile, parseTokens, parseTokens2) expected srcFile = do
       toks <- doLexFile lexFile srcFile
       let gllResult = parseTokens toks & isData & (== expected)
-          earleyResult = parseTokens2 toks & (== expected)
+          earleyResult = parseTokens2 toks & isData & (== expected)
           showRes True  = "    "
           showRes False = "FAIL"
       putStrLn $ showRes gllResult <> " parser/" <> lang <> "/" <> takeFileName srcFile <> "/gll"
@@ -48,7 +48,7 @@ langToTest failRef (lang, (defFiles, (successFiles, failFiles))) = do
     doLexFile lexFile path = lexFile path >>= \case
       Error _ -> die $ "Could not lex file " <> toS path
       Data toks -> return toks
-    isData Data{} = True
+    isData (Data (a, b)) = a `deepseq` b `deepseq` True
     isData _ = False
 
 getLanguages :: FilePath -> IO [(FilePath, ([FilePath], ([FilePath], [FilePath])))]

@@ -11,7 +11,8 @@ import Unsafe.Coerce (unsafeCoerce)
 import Data.STRef (STRef, newSTRef)
 import qualified Data.Sequence as Seq
 import qualified Data.STRef as STRef
-import Control.Monad (unless, join)
+import Control.DeepSeq (NFData)
+import Control.Monad (unless, join, (>=>))
 import Control.Arrow ((>>>), first)
 import Data.Functor ((<&>), void)
 import Data.Sequence (Seq((:|>)), (|>))
@@ -168,10 +169,9 @@ parse nnf@(s1, s2, rules) = case s1 <|> s2 of
             let completed = M.lookup s completedMap & fold
                 mkLink nt predEim = WithCause{pred = (origin, predEim), cause = eim, causeNt = nt }
             unless (origin == currIdx || S.null completed) $ do
-              completions <- inactiveSet origin
-                <&> postDot
-                <&> (`M.intersection` S.toMap completed)
-                <&> M.toList
+              posts <- inactiveSet origin <&> postDot
+              let completions = toList completed
+                    & mapMaybe (\nt -> M.lookup nt posts <&> (nt,))
               forM_ completions $ \case
                 (nt, Right eims) -> forM_ eims $ mkLink nt  >>> stepAndAddEim set
                 (nt, Left (_, Lim predIdx eim' nt')) -> stepAndAddEim set LimCause{pred = (predIdx, eim'), limCause = (nt, eim), causeNt = nt'}
@@ -313,7 +313,7 @@ writeSTRef :: STRef s a -> a -> ReaderT r (ST s) ()
 writeSTRef ref = STRef.writeSTRef ref >>> lift
 
 -- Negative indices for epsilon derivations, non-negative for other derivations
-newtype Node = Node Int deriving (Eq, Hashable, Show)
+newtype Node = Node Int deriving (Eq, Hashable, Show, NFData)
 
 data NullDerivationState s t nodeF = NullDerivationState
   { n_nextNode :: !(STRef s Int)
@@ -424,25 +424,24 @@ constructDerivations startNt rules (states, _) postMap = doConstruct
       <&> toList
       <&> filter (isCompleted rules)
       <&> fmap (\(DotProd ruleIdx _) -> (ruleIdx, Seq.index rules ruleIdx))
-      <&> fmap (\(ruleIdx, Rule (EpsNT nt _) syms semantic) -> (nt, M.singleton ruleIdx (syms, Seq.singleton semantic)))
+      <&> fmap (\(ruleIdx, Rule (EpsNT nt _) syms semantic) -> (nt, M.singleton ruleIdx $ gobbleNulling (syms, Seq.singleton semantic)))
       <&> M.fromListWith (<>)
 
     -- | See if the last non-nullable symbol is of the given kind, and if so produce a new
     -- 'SemanticProd' that removes the suffix (symbol <| nulling) and makes the corresponding
     -- updates to the possible semantic values
     endsWith :: Sym EpsNT t -> Seq Any -> SemanticProd t -> Maybe (SemanticProd t)
-    endsWith sym alts (syms, semantics)
-      | (nullingSuffix, rest :|> sym') <- spanMaybeR nullNt syms
-      , sym == sym' = Just
-        ( rest
-        , foldr applyNulling semantics nullingSuffix
-          & \sem' -> anyToFunc <$> sem' <*> alts
-        )
+    endsWith sym alts (syms :|> sym', semantics)
+      | sym == sym' = (syms, anyToFunc <$> semantics <*> alts) & gobbleNulling & Just
+    endsWith _ _ _ = Nothing
+
+    gobbleNulling :: SemanticProd t -> SemanticProd t
+    gobbleNulling (syms, semantics) = (rest, foldr applyNulling semantics nullingSuffix)
       where
+        (nullingSuffix, rest) = spanMaybeR nullNt syms
         nullNt (Nt (EpsNT nt Nulling)) = Just nt
         nullNt _ = Nothing
         applyNulling nt sems = anyToFunc <$> sems <*> M.lookupDefault mempty nt epsMap
-    endsWith _ _ _ = Nothing
 
     -- | Given a successful parse, construct the possible derivations as a DAG.
     doConstruct :: Vector t -> [Eim] -> Seq InactiveSet -> (HashMap Node (nodeF (HashSet Node)), HashSet Node)
@@ -487,8 +486,7 @@ constructDerivations startNt rules (states, _) postMap = doConstruct
             Nothing -> do
               let eims = S.map (\s -> Eim s originIdx) ss
                   -- | The 'SemanticProd's that are completed in the active states
-                  completed = M.intersection completedMap (S.toMap ss)
-                    <&> M.lookupDefault mempty nt
+                  completed = foldMap ((`M.lookup` completedMap) >=> M.lookup nt) ss
                     & fold
                     & toList
                     & Seq.fromList

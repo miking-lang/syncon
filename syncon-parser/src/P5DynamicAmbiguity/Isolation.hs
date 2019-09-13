@@ -37,6 +37,7 @@ type IsolationM s a = ReaderT (State s) (ST s) a
 type FullNode = P4.Node SingleLanguage TypeName
 type Res = Result (HashMap (HashSet Node) (Seq NodeOrElide))
 
+-- TODO: Bail out if a single ambiguity gets too large
 -- | Produce a single parse tree, or a disjoint set of minimal ambiguities.
 isolate :: (Dag, HashSet Node)
         -> Result (Seq (Seq NodeOrElide)) FullNode

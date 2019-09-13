@@ -17,7 +17,7 @@ newtype Name = Name Text deriving (Show, Eq, Hashable, Data, Typeable, NFData)
 newtype TypeName = TypeName Text deriving (Show, Eq, Ord, Hashable, Data, Typeable, NFData)
 
 -- | Names for subsections of syntax descriptions.
-newtype SDName = SDName Text deriving (Show, Eq, Hashable, Data, Typeable)
+newtype SDName = SDName Text deriving (Show, Eq, Hashable, Data, Typeable, NFData)
 
 data DefinitionFile = DefinitionFile
   { syncons :: !(HashMap Name Syncon)

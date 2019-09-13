@@ -27,7 +27,7 @@ import P4Parsing.ForestParser.Grammar as Grammar
 
 -- interface
 
-newtype Node = Node Int deriving (Eq, Hashable, Show)
+newtype Node = Node Int deriving (Eq, Hashable, Show, NFData)
 
 -- | Parse a sequence given a grammar. The underlying parser doesn't give an easily inspectable error,
 -- hence we just pass that on, for the moment. In the success case you get a tuple containing the nodes

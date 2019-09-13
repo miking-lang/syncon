@@ -24,12 +24,15 @@ data NodeInternals l n node
   = NodeLeaf node
   | TokenLeaf (P1.Token l n)
   | Struct (HashMap P2.SDName (Seq (NodeInternals l n node)))
-  deriving (Show, Functor, Foldable, Traversable, Eq, Data, Typeable)
+  deriving (Show, Functor, Foldable, Traversable, Eq, Data, Typeable, Generic)
+instance (NFData l, NFData n, NFData node) => NFData (NodeInternals l n node)
 
 makeBaseFunctor ''Node
 makeBaseFunctor ''NodeInternals
 deriving instance (Eq l, Eq n, Eq a) => Eq (NodeF l n a)
 deriving instance (Show l, Show n, Show a) => Show (NodeF l n a)
+deriving instance Generic (NodeF l n a)
+instance (NFData l, NFData n, NFData a) => NFData (NodeF l n a)
 
 -- | Datatype to give the lexer to convince it to only parse a single language.
 data SingleLanguage = SingleLanguage deriving (Show, Eq, Ord, Generic, Data, Typeable)
