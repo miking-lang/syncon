@@ -57,6 +57,12 @@ sec 8:
 It would be good to discuss whether the results achieved in the case study are artifacts of the particular approach to defining the syntax.
 - I interpret this to be a request to actually discuss the differences between the formalization version and the syncon version of the specification language, instead of just mentioning it and treating it as a (the) reasonable implementation of it.
 
+--------------------------------
+
+C sec 8:
+It would be good to discuss whether the results achieved in the case study are artifacts of the particular approach to defining the syntax.
+- I interpret this to be a request to actually discuss the differences between the formalization version and the syncon version of the specification language, instead of just mentioning it and treating it as a (the) reasonable implementation of it.
+
 
 --------------------------------
 
@@ -74,30 +80,67 @@ Reviewer C
 Reviewer A + C
 - if-then-else should be there and/or it's a more well-known version of the match example
 
+---------------------------------
+
+
+
+
 ===================================================
 
-We thank the reviewers for their thoughtful comments!
+We thank the reviewers for their thoughtful comments! We initially address the larger/more common concerns, then smaller issues in an optional section after the line. Issues not mentioned we agree with, and will address.
 
-#### Overall motivation / Reviewer C on the overall approach
-Reviewer C comments that the overall approach shifts the burden of thinking about ambiguity arising from language composition from the language designer to the user. We argue that the user *already* has to deal with ambiguity issues in common general-purpose languages, but without compiler assistance. The programmer's understanding of the syntax of the language is likely ambiguous, possibly without them being aware, e.g., the match example in OCaml or infix operators rarely used together (try predicting the result of evaluating `1 & 3 == 1` in, e.g., C and Python). Resolvable ambiguity allows the compiler to assist in such cases by using an ambiguous grammar.
+**Reviewer C** comments that the overall approach shifts the burden of thinking about ambiguity arising from language composition from the language designer to the user. We argue that the user *already* has to deal with ambiguity issues in common general-purpose languages, but without compiler assistance. The programmer's understanding of the syntax of the language is likely ambiguous, possibly without them being aware, e.g., the match example in OCaml or infix operators rarely used together (try predicting the result of evaluating `1 & 3 == 1` in, e.g., C and Python). Resolvable ambiguity allows the compiler to assist in such cases by using an ambiguous grammar.
 
 That said, giving the compiler this capability does not absolve the language designer of the responsibility of making sure their language is convenient to use $-$ it merely provides an alternative way to deal with this sort of edge cases.
 
-#### Reviewers A and C, dangling else
-Reviewer A notes the absence of dangling else, and Reviewer C further notes that nested match is essentially the same issue, only the former is more well-known. We decided to use the match example instead since, anecdotally, nested matches in OCaml occur more often than nested if-statements without braces and only a single else, and is thus more likely to become an issue. We will add a comparison to dangling else.
+**Reviewer A** notes the absence of dangling else, and **Reviewer C** further notes that nested match is essentially the same issue, only the former is more well-known. We decided to use the match example instead since, anecdotally, nested matches in OCaml occur more often than nested if-statements without braces and only a single else, and is thus more likely to become an issue. We will add a comparison to dangling else.
 
-#### Reviewer A, results of the static analysis
-Reviewer A asks when the static analysis can give definitive answers. For the static analysis we can achieve a positive result (resolvably ambiguous) for a language that does not need forbids (essentially precedence and associativity) to be resolvable. For example, OCaml does not fit here, since [1; 2] needs to forbid sequential composition as a direct child of a list to be resolvable, while arithmetic expressions do fit, since precedence and associativity are merely conveniences $-$ all possible expressions can be written merely by putting grouping parentheses around all subexpressions.
+**Reviewer A** asks when the static analysis can give definitive answers. For the static analysis we can achieve a positive result (resolvably ambiguous) for a language that does not need forbids (essentially precedence and associativity) to be resolvable. For example, OCaml does not fit here, since [1; 2] needs to forbid sequential composition as a direct child of a list to be resolvable, while arithmetic expressions do fit, since precedence and associativity are merely conveniences $-$ all possible expressions can be written merely by putting grouping parentheses around all subexpressions.
 
 The negative result is less intuitive, but it arises when some tree can never be disambiguated from some particular other tree, i.e., $\exists t_1, t_2.\ \forall w.\ t_1 \in \mathit{parse}(w) \Rightarrow t_2 \in \mathit{parse}(w)$.
 
-#### Reviewer C, limited class of grammars and hope for version 3
-Reviewer C notes that the class of grammars supported by the static analysis is quite limited, which is indeed true (though slightly larger than is immediately obvious, see the previous answer). The contribution here is largely the concept, and the introduction of a problem that is more difficult than it first appears, and some initial steps towards solving it. We thus do not yet know if the problem is decidable for version 3.
+**Reviewer C** notes that the class of grammars supported by the static analysis is quite limited, which is indeed true (though slightly larger than is immediately obvious, see the previous answer). The contribution here is largely the concept, and the introduction of a problem that is more difficult than it first appears. We thus do not yet know if the problem is decidable for version 3, and leave that for future research. However, we will add more discussion of these restrictions.
 
 The dynamic analysis on the other hand is only limited to languages with balanced parentheses.
 
-#### Reviewer B, practicality
-Reviewer B wonders about the practicality of this approach. The OCaml case-study contributes the most to this, in that we can parse 75% of the `.ml` files in the OCaml compiler (including test cases, i.e., many uncommonly used language features). As for efficiency and similar concerns, we leave those for future work.
+**Reviewer B** wonders about the practicality of this approach. The OCaml case-study contributes the most to this, in that we can parse 75% of the `.ml` files in the OCaml compiler (including test cases, i.e., many uncommonly used language features). As for efficiency and similar concerns, we leave those for future work.
 
-#### Reviewer C, nested words and our alternative word representation
-Reviewer C asks for the relation between nested words and our alternative word representation. They are quite similar, but nested words disallow nesting edges that share a left and/or right point. This makes them unsuitable for our usecase, since that would disallow double parentheses and parentheses of the form `(a(b))`. We will add a comparison to the paper.
+**Reviewer C** asks for the relation between nested words and our alternative word representation. They are quite similar, but nested words disallow nesting edges that share a left and/or right point. This makes them unsuitable for our usecase, since that would disallow double parentheses and parentheses of the form `(a(b))`. We will add a comparison to the paper.
+
+------------------------------------------------------------
+
+#### Reviewer A
+
+> Why is operator precedence often mentioned but not really part of any formal constraints, rather assumed as additional meta-level constraints?
+
+The intent was that forbids would be a strictly more general construct than precedence, whereby the formalities would use forbids, while users would most frequently interact with precedence, seeing as it is a more generally understood concept. The need for deep precedence, as discussed in the evaluation, suggests a flaw in this however.
+
+#### Reviewer C
+
+> It is hard to see whether the general framework proposed in sec 4 is needed
+
+For this particular language formalism, no, but the general idea can be used for other formalisms with other forms of disambiguation, e.g., optional semicolons and the like.
+
+> line 94: A different approach would be to design the grammar so that the infix operators have associativity. That would force the user to put parentheses and avoid the problem. I don't quite see why this is more awkward than what the authors propose.
+
+We assume this to mean "set both operators at the same relative precedence, and arbitrarily pick left- or right-associativity" (since each operation is likely to be associative, in the mathematical sense, it shouldn't matter which associativity is chosen). The difference is that our approach makes the compiler highlight to the user that there are multiple distinct alternatives, all of which might be what the user intends, instead of just picking one that the user might not expect.
+
+> line 271: *parse languages* It seems to me that any decidable language can be a parse language, so there's not much point in defining that concept.
+
+The central notion that we require is the connection between words and trees, the latter is not present in the classical definition of a language (a set of words).
+
+> line 582 Can you explain why lemma 6.3 is nontrivial? it obviously corresponds to removing double parentheses.
+
+It corresponds to removing both double and optional parentheses, leaving only those required by forbids, making it slightly less obvious.
+
+> line 932 theorem 6.15. why is this a decidable property and how does it yield the proofs of soundness and completeness of version 1? what about version 2?
+
+The property is decidable since the construction of $A_{()}$ and $A'_{()}$, and their trimmed product, is decidable. The procedure discovers unresolvable ambiguities where the lattice of one tree is entirely contained in the lattice of another tree. It is thus sound, since it always produces a concrete tree that has no unambiguous word. In version 1 there are no other forms of unresolvable ambiguities (Lemma 6.9, line 683-685), thus it is there complete. We will clarify the surrounding text to make these connections more clear.
+
+> line 1001 lemma 7.2. the property that is to be proved seems to be missing.
+
+The property is the possibility of constructing this set in finite time, i.e., that it is decidable.
+
+> line 1005 lemma 7.3. the trees $t_1, \dots, t_n$ are not connected to the statement.
+
+Indeed, it should be "[...] the set of trees $t' \in L(T_D)$ such that $\mathit{words}(t') \cap \bigcup_i \mathit{words}(t_i) \neq \emptyset$ is finite".
