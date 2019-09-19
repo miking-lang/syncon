@@ -87,25 +87,25 @@ Reviewer A + C
 
 ===================================================
 
-We thank the reviewers for their thoughtful comments! We start by addressing major concerns and leave minor comments for the end of the rebuttal.
+We thank the reviewers for their thoughtful comments! We start by addressing major concerns and leave other comments for the end of the rebuttal.
 
 **Reviewer C** comments that the overall approach shifts the burden of thinking about ambiguity from the language designer to the user. We argue that the user *already* has to deal with ambiguity issues in common general-purpose languages, but without compiler assistance. The programmer's understanding of syntax is likely (unknowingly) ambiguous, e.g., the match example in OCaml or combinations of infix operators (what is the result of  `1 & 3 == 1` in, e.g., C and Python?). Resolvable ambiguity allows the compiler to assist in such cases by using an ambiguous grammar.
 
 However, enhancing the compiler does not absolve the language designer of the responsibility of making sure their language is convenient to use $-$ it merely provides an alternative way to deal with this sort of edge cases.
 
-**Reviewers A and B** note the connection between nested matches and dangling else. We use the match example since, anecdotally, nested matches in OCaml occur more often than nested if-statements without braces and only a single `else`, and is thus more likely to become an issue. We will add a comparison to dangling else.
+**Reviewers A and C** note the connection between nested matches and dangling else. We use the match example since, anecdotally, nested matches in OCaml occur more often than nested if-statements without braces and only a single `else`, and is thus more likely to become an issue. We will add a comparison to dangling else.
 
 **Reviewer A** asks when the static analysis can give definitive answers. We can achieve a positive result (resolvably ambiguous) for a language that does not need forbids (precedence and associativity) to be resolvable. For example, OCaml does not fit here, since `[1; 2]` needs to forbid sequential composition as a direct child of a list to be resolvable, while arithmetic expressions do fit, since precedence and associativity are merely conveniences $-$ all possible expressions can disambiguated using parentheses.
 
 The negative result is less intuitive, but arises when some tree can never be disambiguated from another particular tree, i.e., $\exists t_1, t_2.\ \forall w.\ t_1 \in \mathit{parse}(w) \Rightarrow t_2 \in \mathit{parse}(w)$.
 
-**Reviewer C** notes that the class of grammars supported by the static analysis is quite limited, which is true (though slightly larger than is immediately obvious, see above). Our contribution is largely the concept, and the introduction of the resolvable ambiguity problem. We do not yet know if the problem is decidable for version 3, and leave that for future research. We will add more discussion of these restrictions.
+**Reviewer C** notes that the class of grammars supported by the static analysis is quite limited, which is true (though slightly larger than is immediately obvious, see above). Our contribution is largely the concept, and the introduction of the resolvable ambiguity problem, which is more difficult than it initially appears. We do not yet know if the problem is decidable for version 3, and leave that for future research. We will add more discussion of these restrictions.
 
 The dynamic analysis, however, is only limited to languages with balanced parentheses.
 
 **Reviewer B** wonders about the practicality of this approach. As stated in the paper, we can parse 75% of the `.ml` files in the OCaml compiler (including test cases, i.e., many uncommonly used language features). We leave efficiency and similar concerns for future work.
 
-**Reviewer C** asks for the relation between nested words and our alternative word representation. They are quite similar, but nested words disallow nesting edges that share a left or right point. This makes them unsuitable for our usecase, since that would disallow double parentheses and parentheses of the form `(a(b))`. We will add a comparison to the paper.
+**Reviewer C** asks for the relation between nested words and our alternative word representation. They are quite similar, but nested words disallow nesting edges that share a left or right point. This makes them unsuitable for our usecase, since that would disallow double parentheses and parentheses of the form `(a(b))`. We will add a comparison.
 
 ------------------------------------------------------------
 
@@ -144,3 +144,8 @@ The property is the possibility of constructing this set in finite time, i.e., t
 > line 1005 lemma 7.3. the trees $t_1, \dots, t_n$ are not connected to the statement.
 
 Indeed, it should be "[...] the set of trees $t' \in L(T_D)$ such that $\mathit{words}(t') \cap \bigcup_i \mathit{words}(t_i) \neq \emptyset$ is finite".
+
+> sec 8:
+> It would be good to discuss whether the results achieved in the case study are artifacts of the particular approach to defining the syntax.
+
+Most results would be the same with some other more monolithic approach, assuming it supported ambiguity and a dynamic resolvability analysis, except of course for the compositional examples. The compositional examples are interesting since separately defined language fragments cannot be defined to compose unambiguously in general, thus we cannot simply forbid ambiguity.
