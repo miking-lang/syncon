@@ -124,6 +124,14 @@ mkDFA (s1, s2, rules) = case s1 <|> s2 of
           | S.null new = prev
           | otherwise = go prev' $ (`S.difference` prev') $ foldMap f new
           where prev' = prev <> new
+    -- iterateInductively :: (Eq a, Hashable a) => (a -> HashSet a) -> HashSet a -> HashSet a
+    -- iterateInductively f start = go start $ (`S.difference` start) $ foldMap f start
+    --   where
+    --     go prev new
+    --       | S.null new = prev
+    --       | otherwise = go (S.union prev new) new'
+    --       where
+    --         new' = foldMap (f >>> (`S.difference` prev)) new
 
 completedNT :: Seq (Rule EpsNT (Sym EpsNT t) nodeF) -> DotProd -> Maybe NT
 completedNT rules (DotProd ruleIdx dotIdx) = Seq.index rules ruleIdx

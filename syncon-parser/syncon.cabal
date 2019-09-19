@@ -10,7 +10,7 @@ executable syncon-parser
   hs-source-dirs: exe
   main-is: Main.hs
   default-language: Haskell2010
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -funbox-strict-fields
   build-depends: base
                , syncon
                , optparse-applicative

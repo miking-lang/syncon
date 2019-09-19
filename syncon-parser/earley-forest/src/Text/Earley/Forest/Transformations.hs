@@ -9,6 +9,7 @@ module Text.Earley.Forest.Transformations
 , NT(..)
 , NtKind(..)
 , EpsNT(..)
+, rightRecursive
 ) where
 
 import Prelude
@@ -22,7 +23,8 @@ import Control.Monad.Trans.Reader (ReaderT, runReaderT, ask, asks)
 import Control.Monad.ST (runST, ST)
 import Control.Monad.Trans.Class (lift)
 import Data.Bifunctor (first)
-import Data.Foldable (forM_, toList)
+import Data.Maybe (mapMaybe)
+import Data.Foldable (forM_, toList, fold)
 import Data.Function ((&))
 import Data.Functor ((<&>), void)
 import Data.HashSet (HashSet)
@@ -30,6 +32,7 @@ import Data.Hashable (Hashable)
 import Data.List (partition)
 import Data.STRef (STRef, newSTRef, readSTRef, modifySTRef')
 import Data.Sequence (Seq, (<|), (|>))
+import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
 import qualified Data.Sequence as Seq
 
@@ -214,6 +217,27 @@ nullableSet nullStatus = toList
       where
         (nullProds, nextProds) = partition (snd >>> isInteresting prev) prods
         next = nullProds <&> fst & S.fromList & S.union prev
+
+-- | Find the right-recursive non-terminals in the given NNF grammar
+rightRecursive :: Seq (Rule EpsNT (Sym EpsNT t) nodeF) -> HashSet NT
+rightRecursive = toList
+  >>> mapMaybe rightNt
+  >>> M.fromListWith S.union
+  >>> closeTrans
+  >>> M.mapMaybeWithKey isRecursive
+  >>> S.fromMap
+  where
+    rightNt (Rule (EpsNT nt NonNullable) syms _) = do
+      Nt (EpsNT nt' _) <- Seq.findIndexR isNonNullable syms <&> Seq.index syms
+      return (nt, S.singleton nt')
+    rightNt _ = Nothing
+    isNonNullable (Nt (EpsNT _ NonNullable)) = True
+    isNonNullable (Sym _) = True
+    isNonNullable _ = False
+    isRecursive nt nts
+      | nt `S.member` nts = Just ()
+      | otherwise = Nothing
+    closeTrans prev = M.map (\here -> prev `M.intersection` S.toMap here & fold & S.union here) prev
 
 toAny :: a -> Any
 toAny = unsafeCoerce

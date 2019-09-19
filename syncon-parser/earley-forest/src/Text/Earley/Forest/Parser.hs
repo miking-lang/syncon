@@ -33,7 +33,7 @@ import qualified Data.HashMap.Lazy as M
 import qualified Data.Vector as Vector
 
 import Text.Earley.Forest.Grammar (TokKind, Parseable, getKind)
-import Text.Earley.Forest.Transformations (EpsNT(..), NT(..), Rule(..), Sym(..), NullStatus(..), NtKind(..))
+import Text.Earley.Forest.Transformations (EpsNT(..), NT(..), Rule(..), Sym(..), NullStatus(..), NtKind(..), rightRecursive)
 import Text.Earley.Forest.SplitEpsDFA (EpsDFA(..), mkDFA, renumberStates, completedNT, isCompleted, DotProd(..))
 
 -- | Several Earley items, in the form of an EpsDFA state and origin
@@ -128,6 +128,9 @@ parse nnf@(s1, s2, rules) = case s1 <|> s2 of
         single _ = Nothing
         haveSuccessors = M.filter (M.null >>> not) transitions
 
+    limInteresting :: HashSet NT
+    limInteresting = rightRecursive rules
+
     -- | The transition (if any) from a given DFA state with an epsilon label.
     epsMap :: HashMap Int Int
     epsMap = M.lookup Nothing `M.mapMaybe` transitions
@@ -173,7 +176,7 @@ parse nnf@(s1, s2, rules) = case s1 <|> s2 of
               let completions = toList completed
                     & mapMaybe (\nt -> M.lookup nt posts <&> (nt,))
               forM_ completions $ \case
-                (nt, Right eims) -> forM_ eims $ mkLink nt  >>> stepAndAddEim set
+                (nt, Right eims) -> forM_ eims $ mkLink nt >>> stepAndAddEim set
                 (nt, Left (_, Lim predIdx eim' nt')) -> stepAndAddEim set LimCause{pred = (predIdx, eim'), limCause = (nt, eim), causeNt = nt'}
             -- Compute postdot map
             modifySTRef' currPostDot $ M.unionWith S.union $ computePostDot eim
@@ -235,23 +238,24 @@ parse nnf@(s1, s2, rules) = case s1 <|> s2 of
         -- most importantly, compute the postDot map, including 'Lim's.
         mkInactiveSet :: ActiveSet s -> ParseM s InactiveSet
         mkInactiveSet ActiveSet{currPostDot, currIdx, currLinks} = do
-          postDots <- readSTRef currPostDot <&> fmap splitSingles
+          postDots <- readSTRef currPostDot
           links <- readSTRef currLinks
           M.traverseWithKey (go postDots) postDots
             <&> InactiveSet links
           where
-            splitSingles (S.toList -> [eim]) = Left eim
-            splitSingles eims = Right eims
-            go postDots nt (Left eim@(Eim s origin)) = do  -- OPTIMIZE: this may recompute the same lims multiple times (when they are from the same earley set)
-              mLim <- fmap join $ forM (M.lookup s postMap >>= M.lookup nt) $ \postS ->
-                fmap join $ forM (M.lookup postS limMap) $ \nt' ->
-                  if currIdx /= origin
-                  then inactiveSet origin <&> postDot <&> M.lookup nt' <&> \case
-                    Just (Left lim) -> Just lim
-                    _ -> Nothing
-                  else forM (M.lookup nt' postDots) (go postDots nt') <&> (>>= fromLeft)
-              return $ Left $ (eim,) $ maybe (Lim currIdx eim nt) snd mLim
-            go _ _ (Right eims) = return $ Right eims
+            go postDots nt prev@(S.toList -> [eim@(Eim s origin)])
+              | not $ nt `S.member` limInteresting = return $ Right prev
+              | otherwise = do  -- OPTIMIZE: this may recompute the same lims multiple times (when they are from the same earley set)
+                  mLim <- fmap join $ forM (M.lookup s postMap >>= M.lookup nt) $ \postS ->
+                    fmap join $ forM (M.lookup postS limMap) $ \nt' ->
+                      if currIdx /= origin
+                      then inactiveSet origin <&> postDot <&> M.lookup nt' <&> \case
+                        Just (Left lim) -> Just lim
+                        _ -> Nothing
+                      else forM (M.lookup nt' postDots) (go postDots nt') <&> (>>= fromLeft)
+                  let res = (eim,) $ maybe (Lim currIdx eim nt) snd mLim
+                  return $ Left res
+            go _ _ eims = return $ Right eims
             fromLeft (Left a) = Just a
             fromLeft _ = Nothing
 
