@@ -1,158 +1,164 @@
-{-# LANGUAGE RankNTypes, KindSignatures, ScopedTypeVariables, TupleSections, NamedFieldPuns, OverloadedLists, DeriveGeneric, LambdaCase, StandaloneDeriving, FlexibleContexts, UndecidableInstances #-}
+{-# LANGUAGE RankNTypes, KindSignatures, ScopedTypeVariables, TupleSections, NamedFieldPuns, OverloadedLists, DeriveGeneric, LambdaCase, StandaloneDeriving, FlexibleContexts, UndecidableInstances, DataKinds, GeneralizedNewtypeDeriving, GADTs, ViewPatterns #-}
 
 module Text.Earley.Forest.Transformations
 ( mkGrammar
 , mkNNFGrammar
 , Rule(..)
-, NullStatus(..)
+, ruleAsTuple
 , Sym(..)
 , NT(..)
 , NtKind(..)
-, EpsNT(..)
 , rightRecursive
 ) where
 
 import Prelude
 
-import GHC.Exts (Any)
 import GHC.Generics (Generic)
-import Unsafe.Coerce (unsafeCoerce)
 
-import Control.Arrow ((>>>))
-import Control.Monad.Trans.Reader (ReaderT, runReaderT, ask, asks)
+import Control.Arrow ((>>>), (&&&))
+import Control.DeepSeq (NFData)
 import Control.Monad.ST (runST, ST)
 import Control.Monad.Trans.Class (lift)
-import Data.Bifunctor (first)
-import Data.Maybe (mapMaybe)
+import Control.Monad.Trans.Reader (ReaderT, runReaderT, ask, asks)
 import Data.Foldable (forM_, toList, fold)
 import Data.Function ((&))
 import Data.Functor ((<&>), void)
 import Data.HashSet (HashSet)
 import Data.Hashable (Hashable)
 import Data.List (partition)
+import Data.List.NonEmpty ()
+import Data.Maybe (mapMaybe)
 import Data.STRef (STRef, newSTRef, readSTRef, modifySTRef')
-import Data.Sequence (Seq, (<|), (|>))
+import Data.Sequence (Seq((:|>)))
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Sequence as Seq
 
-import Text.Earley.Forest.Grammar (Grammar(..), runGrammar, Prod(..), TokKind)
+import Text.Earley.Forest.Grammar (Grammar(..), runGrammar, Prod(..), NodeKind(..))
 
-data NtKind = NtMerge | NtNode | NtNormal | NtRanged deriving (Show, Eq, Generic)
-data NT = NT !Int !NtKind deriving (Show, Eq, Generic)
-instance Hashable NtKind
-instance Hashable NT
+data NtKind nodeLabel = NtMerge | NtNode nodeLabel | NtNormal deriving (Show, Eq, Generic)
+instance (NFData nodeLabel) => NFData (NtKind nodeLabel)
+newtype NT = NT Int deriving (Show, Eq, Hashable, NFData)
 
-data Sym nt t = Sym !(TokKind t) | Nt !nt
-  deriving (Generic)
-deriving instance (Eq nt, Eq (TokKind t)) => Eq (Sym nt t)
-deriving instance (Show nt, Show (TokKind t)) => Show (Sym nt t)
-instance (Hashable nt, Hashable (TokKind t)) => Hashable (Sym nt t)
+-- | The first label is the closest label (i.e., the one used for token label a or
+-- nodeLeaf label a). The sequence of labels are applied right first in sequence.
+data Sym intLabel nt tok
+  = Sym !tok !(Maybe intLabel) !(Seq intLabel)
+  | Nt !nt !(Seq intLabel)
+  deriving (Show, Generic)
+instance (NFData intLabel, NFData nt, NFData tok) => NFData (Sym intLabel nt tok)
 
--- | 'Rule nt syms sem' is a production with lefthand side 'nt', righthand side
--- 'syms', and semantics 'sem'. The semantics are described as a function that takes
--- an argument per element in 'syms', in reverse order. E.g., for a production
--- `A -> a b c` the semantics should be a function `\c b a -> result`.
-data Rule nt sym (nodeF :: * -> *) = Rule !nt !(Seq sym) !Any
+-- | 'Rule nt syms is a production with lefthand side 'nt' and righthand side
+-- 'syms'.
+data Rule nt t sym
+  = Rule !nt !(Seq sym)
+  | NodeRule !nt !(Seq t) !nt !(Seq t)
+  deriving (Show, Generic)
+instance (NFData nt, NFData t, NFData sym) => NFData (Rule nt t sym)
+
+ruleAsTuple :: Rule nt t (Sym intLabel nt t) -> (nt, Seq (Sym intLabel nt t))
+ruleAsTuple (Rule nt syms) = (nt, syms)
+ruleAsTuple (NodeRule nt l nt' r) = (nt, fmap mkSym l <> pure (Nt nt' mempty) <> fmap mkSym r)
+  where
+    mkSym t = Sym t Nothing mempty
 
 -- | A production (or list of productions) with the given non-terminal. No other
 -- production has that non-terminal on the lefthand side.
-data WrappedProd t nodeF
-  = WrappedProd NT (Prod' t nodeF (nodeF (WrappedProd t nodeF)))
-  | WrappedProds NT [Prod' t nodeF (WrappedProd t nodeF)]
-type Prod' t nodeF = Prod (WrappedProd t nodeF) t nodeF
+data WrappedProd intLabel tok
+  = WrappedProd NT (Prod' intLabel tok 'Interior)
+  | WrappedProds NT [Prod' intLabel tok 'Node]
+type Prod' intLabel tok = Prod (WrappedProd intLabel tok) intLabel tok
 
-data MkGrammarState s t nodeF = MkGrammarState
-  { nextNt :: !(STRef s Int)
+data MkGrammarState s nodeLabel intLabel tok = MkGrammarState
+  { nts :: !(STRef s (Seq (NtKind nodeLabel)))
   , alreadyStarted :: !(STRef s (HashSet NT))
-  , rules :: !(STRef s (Seq (Rule NT (Sym NT t) nodeF))) }
+  , rules :: !(STRef s (Seq (Rule NT tok (Sym intLabel NT tok)))) }
 
 -- | Construct a standard context-free grammar from the given 'Grammar'. Note that
 -- the non-teminals 'NT' contain additional information about post-processing that
 -- should be done on the result(s) derived using the non-teminal: nothing, merging,
--- or supplying range information. This function ensures that the resulting 'Any'
--- can be 'unsafeCoerce'd to the correct type (`a`, `HashSet NT`, `Maybe (t, t) -> a`,
--- respectively.
-mkGrammar :: forall (nodeF :: * -> *) t.
-             (forall r. Grammar r t nodeF (Prod r t nodeF r))
-          -> (NT, Seq (Rule NT (Sym NT t) nodeF))
+-- or constructing a node.
+mkGrammar :: forall nodeLabel intLabel tok.
+             (forall r. Grammar r nodeLabel intLabel tok (Prod r intLabel tok 'Node))
+          -> (NT, Seq (Rule NT tok (Sym intLabel NT tok)), Seq (NtKind nodeLabel))
 mkGrammar unfixedGrammar = runST $ do
-  initialState@MkGrammarState{rules} <- MkGrammarState <$> newSTRef 0 <*> newSTRef S.empty <*> newSTRef Seq.empty
-  startNt <- runReaderT (runGrammar mkRule mkAmbig unfixedGrammar >>= buildProd >>= mkStart) initialState
-  (startNt,) <$> readSTRef rules
+  initialState@MkGrammarState{rules, nts} <- MkGrammarState <$> newSTRef Seq.empty <*> newSTRef S.empty <*> newSTRef Seq.empty
+  startNt <- runReaderT (runGrammar mkRule mkAmbig unfixedGrammar >>= mkStart) initialState
+  (startNt,,) <$> readSTRef rules <*> readSTRef nts
   where
-    freshNt :: NtKind -> ReaderT (MkGrammarState s t nodeF) (ST s) NT
+    freshNt :: NtKind nodeLabel -> ReaderT (MkGrammarState s nodeLabel intLabel tok) (ST s) NT
     freshNt k = do
-      ref <- asks nextNt
-      prev <- lift $ readSTRef ref <* modifySTRef' ref (+1)
-      return $ NT prev k
+      ref <- asks nts
+      prev <- lift $ Seq.length <$> readSTRef ref <* modifySTRef' ref (:|> k)
+      return $ NT prev
 
-    addProd :: Rule NT (Sym NT t) nodeF -> ReaderT (MkGrammarState s t nodeF) (ST s) ()
+    addProd :: Rule NT tok (Sym intLabel NT tok) -> ReaderT (MkGrammarState s nodeLabel intLabel tok) (ST s) ()
     addProd rule = do
       ref <- asks rules
-      void $ lift $ modifySTRef' ref $ (|> rule)
+      void $ lift $ modifySTRef' ref $ (:|> rule)
 
-    mkRule :: forall s. Prod (WrappedProd t nodeF) t nodeF (nodeF (WrappedProd t nodeF))
-           -> ReaderT (MkGrammarState s t nodeF) (ST s) (Prod' t nodeF (WrappedProd t nodeF))
-    mkRule p = do
-      nt <- freshNt NtNode
-      return $ NonTerminal (WrappedProd nt p) $ pure id
-    mkAmbig :: forall s. [Prod (WrappedProd t nodeF) t nodeF (WrappedProd t nodeF)]
-            -> ReaderT (MkGrammarState s t nodeF) (ST s) (Prod' t nodeF (WrappedProd t nodeF))
+    mkRule :: forall s. nodeLabel -> Prod (WrappedProd intLabel tok) intLabel tok 'Interior
+           -> ReaderT (MkGrammarState s nodeLabel intLabel tok) (ST s) (Prod' intLabel tok 'Node)
+    mkRule label p = do
+      nt <- freshNt $ NtNode label
+      return $ NonTerminal mempty (WrappedProd nt p) mempty
+    mkAmbig :: forall s. [Prod (WrappedProd intLabel tok) intLabel tok 'Node]
+            -> ReaderT (MkGrammarState s nodeLabel intLabel tok) (ST s) (Prod' intLabel tok 'Node)
     mkAmbig ps = do
       nt <- freshNt NtMerge
-      return $ NonTerminal (WrappedProds nt ps) $ pure id
+      return $ NonTerminal mempty (WrappedProds nt ps) mempty
 
-    mkStart :: (Seq (Sym NT t), Any) -> ReaderT (MkGrammarState s t nodeF) (ST s) NT
-    mkStart (syms, semantic) = do
-      nt <- freshNt NtNormal
-      addProd $ Rule nt syms semantic
+    mkStart :: Prod' intLabel tok 'Node -> ReaderT (MkGrammarState s nodeLabel intLabel tok) (ST s) NT
+    mkStart (NonTerminal l wp r) = do
+      nt <- buildWrappedProd wp
+      startNt <- freshNt NtNormal
+      addProd $ NodeRule startNt l nt r
       return nt
 
-    buildProd :: Prod' t nodeF a
-              -> ReaderT (MkGrammarState s t nodeF) (ST s) (Seq (Sym NT t), Any)
-    buildProd (Pure a) = return (Seq.empty, toAny a)
-    buildProd (Terminal k cont) = buildProd cont <&> first (Sym k <|)
-    buildProd (NonTerminal wp cont) = do
-      wpnt <- buildWrappedProd wp
-      buildProd cont <&> first (Nt wpnt <|)
-    buildProd (Ranged r cont) = do
-      nt <- freshNt NtRanged
-      (syms, semantic) <- buildProd r
-      addProd $ Rule nt syms semantic
-      buildProd cont <&> first (Nt nt <|)
-    buildProd (Alts ps cont) = do
+    buildProd :: Prod' intLabel tok 'Interior
+              -> ReaderT (MkGrammarState s nodeLabel intLabel tok) (ST s) (Seq (Sym intLabel NT tok))
+    buildProd (Sequence ps) = mapM buildProd ps <&> fold
+    buildProd (Terminal mLabels tk) =
+      Sym tk (NE.head <$> mLabels) (maybe mempty NE.tail mLabels & Seq.fromList)
+      & Seq.singleton & return
+    buildProd (NonTerminalWrap labels (NonTerminal l wp r)) = buildWrappedProd wp
+      <&> (\nt -> Nt nt (toList labels & Seq.fromList))
+      <&> Seq.singleton
+      <&> (fmap (\t -> Sym t Nothing mempty) l <>)
+      <&> (<> fmap (\t -> Sym t Nothing mempty) r)
+    buildProd (Alts as) = do
       nt <- freshNt NtNormal
-      forM_ ps $ \p -> do
-        (syms, semantic) <- buildProd p
-        addProd $ Rule nt syms semantic
-      buildProd cont <&> first (Nt nt <|)
-    buildProd (Many p cont) = do
+      forM_ as $ \a -> do
+        syms <- buildProd a
+        addProd $ Rule nt syms
+      return $ Seq.singleton $ Nt nt mempty
+    buildProd (Many labels p) = do
       nt1 <- freshNt NtNormal
       nt2 <- freshNt NtNormal
-      addProd $ Rule nt1 Seq.empty (toAny ([] :: forall a. [a]))
-      addProd $ Rule nt1 [Nt nt2, Nt nt1] (toAny $ flip (:))
-      (syms, semantic) <- buildProd p
-      addProd $ Rule nt2 syms semantic
-      buildProd cont <&> first (Nt nt1 <|)
+      addProd $ Rule nt1 mempty
+      addProd $ Rule nt1 [Nt nt2 mempty, Nt nt1 mempty]
+      syms <- buildProd p
+      addProd $ Rule nt2 syms
+      return $ Seq.singleton $ Nt nt1 $ Seq.fromList labels
 
-    buildWrappedProd :: WrappedProd t nodeF -> ReaderT (MkGrammarState s t nodeF) (ST s) NT
+    buildWrappedProd :: WrappedProd intLabel tok -> ReaderT (MkGrammarState s nodeLabel intLabel tok) (ST s) NT
     buildWrappedProd (WrappedProd nt prod) = do
       MkGrammarState{alreadyStarted} <- ask
       started <- lift $ readSTRef alreadyStarted <&> S.member nt
       if started then return nt else do
         lift $ modifySTRef' alreadyStarted $ S.insert nt
-        (syms, semantic) <- buildProd prod
-        addProd $ Rule nt syms semantic
+        syms <- buildProd prod
+        addProd $ Rule nt syms
         return nt
     buildWrappedProd (WrappedProds nt prods) = do
       MkGrammarState{alreadyStarted} <- ask
       started <- lift $ readSTRef alreadyStarted <&> S.member nt
       if started then return nt else do
         lift $ modifySTRef' alreadyStarted $ S.insert nt
-        forM_ prods $ \prod -> do
-          (syms, semantic) <- buildProd prod
-          addProd $ Rule nt syms semantic
+        forM_ prods $ \(NonTerminal l wp r) -> do
+          nt' <- buildWrappedProd wp
+          addProd $ NodeRule nt l nt' r
         return nt
 
 data NullStatus = Nulling | NonNullable deriving (Eq, Show)
@@ -160,55 +166,81 @@ data EpsNT = EpsNT !NT !NullStatus deriving (Eq, Show)
 
 -- | Create a grammar in nihilistic normal form, from Aycock & Horspool 2002. Ensures that
 -- each non-terminal is either strictly nulling or non-nullable, never proper nullable,
--- without changing the grammar too dramatically; the same non-terimnals are used, but with
+-- without changing the grammar too dramatically; the same non-terminals are used, but with
 -- an added subscript to show if it's the nulling or non-nullable version, and the overall
 -- structure is otherwise the same.
--- As a result, there may be two starting symbols in the new grammar: the nulling and non-nullable
--- versions of the original start symbol.
-mkNNFGrammar :: (NT, Seq (Rule NT (Sym NT t) nodeF))
-             -> (Maybe EpsNT, Maybe EpsNT, Seq (Rule EpsNT (Sym EpsNT t) nodeF))
-mkNNFGrammar (startNt, prods) = (start1, start2, prods')
+--
+-- Because of the formulation of 'ParseTree' we will never need any nulling symbol, thus we
+-- also remove all such symbols, and every rule with a nulling lefthand side.
+--
+-- The result is then a tuple containing: the start symbol if it is productive, a 'Bool'
+-- indicatining if the grammar is nullable, all non-nullable rules with nulling symbols
+-- removed from their righthand sides, and the set of top level nullable nodes.
+mkNNFGrammar :: (Eq nodeLabel, Hashable nodeLabel)
+             => (NT, Seq (Rule NT tok (Sym intLabel NT tok)), Seq (NtKind nodeLabel))
+             -> (Maybe NT, Bool, Seq (Rule NT tok (Sym intLabel NT tok)), HashSet nodeLabel, Seq (NtKind nodeLabel))
+mkNNFGrammar (startNt, prods, ntKinds) = (start, startNullable, prods', findTops startNt, ntKinds)
   where
     prods' = prods >>= expandProd
-    start1 = if startNt `S.member` productive then Just $ EpsNT startNt NonNullable else Nothing
-    start2 = if startNt `S.member` nullable then Just $ EpsNT startNt Nulling else Nothing
+    startNullable = startNt `S.member` nullable
+    start = if startNt `S.member` productive then Just startNt else Nothing
 
     nullable = nullableSet Nullable prods
-    isNulling (Nt (EpsNT _ Nulling)) = True
-    isNulling _ = False
+    isProductive (Nt (EpsNT nt NonNullable) ls) = Just $ Nt nt ls
+    isProductive (Sym k ml ls) = Just $ Sym k ml ls
+    isProductive _ = Nothing
     productive = nullableSet Productive prods
 
-    expandProd (Rule nt syms sem) = mapM expandSym syms <&> \syms' ->
-      if all isNulling syms'
-      then Rule (EpsNT nt Nulling) syms' sem
-      else Rule (EpsNT nt NonNullable) syms' sem
-    expandSym :: Sym NT t -> Seq (Sym EpsNT t)
-    expandSym (Nt nt) = nullSym <> prodSym
+    prodMap = prods <&> (getNt &&& Seq.singleton)
+      & toList
+      & M.fromListWith (<>)
+    getNt = ruleAsTuple >>> fst
+    findTops nt@(NT idx) = case Seq.index ntKinds idx of
+      NtNode label -> S.singleton label
+      _ -> M.lookup nt prodMap & fold & foldMap getSingleEntry
+    getSingleEntry (ruleAsTuple -> (_, Seq.Empty :|> Nt nt _)) = findTops nt
+    getSingleEntry _ = mempty
+
+    expandProd (Rule nt syms) = mapM expandSym syms
+      <&> (toList >>> mapMaybe isProductive >>> Seq.fromList)
+      >>= \case
+        Seq.Empty -> Seq.empty
+        syms' -> return $ Rule nt syms'
+    expandProd (NodeRule nt l nt' r) = expandNt nt' >>= \case
+      EpsNT _ Nulling
+        | Seq.length l > 0 || Seq.length r > 0
+          -> return $ Rule nt $ (\t -> Sym t Nothing mempty) <$> l <> r
+      EpsNT _ Nulling -> Seq.empty
+      EpsNT _ NonNullable -> return $ NodeRule nt l nt' r
+    expandNt :: NT -> Seq EpsNT
+    expandNt nt = nullNt <> prodNt
       where
-        nullSym = if nt `S.member` nullable then [Nt $ EpsNT nt Nulling] else Seq.empty
-        prodSym = if nt `S.member` productive then [Nt $ EpsNT nt NonNullable] else Seq.empty
-    expandSym (Sym k) = Seq.singleton $ Sym k
+        nullNt = if nt `S.member` nullable then [EpsNT nt Nulling] else Seq.empty
+        prodNt = if nt `S.member` productive then [EpsNT nt NonNullable] else Seq.empty
+    expandSym :: Sym intLabel NT t -> Seq (Sym intLabel EpsNT t)
+    expandSym (Nt nt ls) = Nt <$> expandNt nt <*> pure ls
+    expandSym (Sym k ml ls) = Seq.singleton $ Sym k ml ls
 
 data Nullability = Nullable | Productive
 
 -- TODO: OPTIMIZE: implement a linear algorithm for this, and/or use less pointer chasing, and/or calculate both versions at once
-nullableSet :: Nullability -> Seq (Rule NT (Sym NT t) nodeF) -> HashSet NT
+nullableSet :: Nullability -> Seq (Rule NT tok (Sym intLabel NT tok)) -> HashSet NT
 nullableSet nullStatus = toList
-  >>> fmap (\(Rule nt syms _) -> (nt, syms))
+  >>> fmap ruleAsTuple
   >>> filter (snd >>> maybeInteresting)
   >>> findInteresting S.empty
   where
     maybeInteresting = case nullStatus of
       Nullable -> all $ \case
-        Nt _ -> True
+        Nt _ _ -> True
         _ -> False
       Productive -> Seq.null >>> not
     isInteresting = case nullStatus of
       Nullable -> \set -> all $ \case
-        Nt nt -> nt `S.member` set
+        Nt nt _ -> nt `S.member` set
         _ -> False
       Productive -> \set -> any $ \case
-        Nt nt -> nt `S.member` set
+        Nt nt _ -> nt `S.member` set
         _ -> True
 
     findInteresting prev prods
@@ -219,7 +251,7 @@ nullableSet nullStatus = toList
         next = nullProds <&> fst & S.fromList & S.union prev
 
 -- | Find the right-recursive non-terminals in the given NNF grammar
-rightRecursive :: Seq (Rule EpsNT (Sym EpsNT t) nodeF) -> HashSet NT
+rightRecursive :: Seq (Rule NT t (Sym intLabel NT t)) -> HashSet NT
 rightRecursive = toList
   >>> mapMaybe rightNt
   >>> M.fromListWith S.union
@@ -227,17 +259,9 @@ rightRecursive = toList
   >>> M.mapMaybeWithKey isRecursive
   >>> S.fromMap
   where
-    rightNt (Rule (EpsNT nt NonNullable) syms _) = do
-      Nt (EpsNT nt' _) <- Seq.findIndexR isNonNullable syms <&> Seq.index syms
-      return (nt, S.singleton nt')
+    rightNt (Rule nt (_ :|> Nt nt' _)) = Just (nt, S.singleton nt')
     rightNt _ = Nothing
-    isNonNullable (Nt (EpsNT _ NonNullable)) = True
-    isNonNullable (Sym _) = True
-    isNonNullable _ = False
     isRecursive nt nts
       | nt `S.member` nts = Just ()
       | otherwise = Nothing
     closeTrans prev = M.map (\here -> prev `M.intersection` S.toMap here & fold & S.union here) prev
-
-toAny :: a -> Any
-toAny = unsafeCoerce

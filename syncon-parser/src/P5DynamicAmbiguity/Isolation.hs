@@ -9,12 +9,12 @@ import qualified Data.Sequence as Seq
 import Data.STRef (STRef, newSTRef, readSTRef, modifySTRef')
 
 import Data.Functor.Foldable (embed)
-import Text.Earley.Forest.Grammar (unlex)
+import Text.Earley.Forest.Grammar (unlex, Parseable)
 import Text.Earley.Forest.Parser (Node)
 
 import P1Lexing.Types (Range)
 import P2LanguageDefinition.Types (TypeName(..))
-import P4Parsing.Types (SingleLanguage, pattern NodeF, n_nameF, n_rangeF, n_beginEndF)
+import P4Parsing.Types (NodeF(NodeF), n_nameF, n_rangeF, n_beginEndF)
 import qualified P4Parsing.Types as P4
 import P5DynamicAmbiguity.Types hiding (NodeOrElide)
 import P5DynamicAmbiguity.TreeLanguage (PreLanguage(..))
@@ -24,28 +24,26 @@ import qualified P5DynamicAmbiguity.Types as P5
 type Elidable = Either Node (HashSet Node)
 type NodeOrElide = P5.NodeOrElide Elidable
 
-type NodeF = P4.NodeF SingleLanguage TypeName
+type Dag tok = HashMap Node (NodeF tok (HashSet Node))
 
-type Dag = HashMap Node (NodeF (HashSet Node))
-
-data State s = State
-  { dag :: !Dag
+data State s tok = State
+  { dag :: !(Dag tok)
   , validElisonsMemo :: !(STRef s (HashMap Elidable (HashSet Elidable)))  -- ^ Memoized results of the elidable analysis
   }
-type IsolationM s a = ReaderT (State s) (ST s) a
+type IsolationM s tok a = ReaderT (State s tok) (ST s) a
 
-type FullNode = P4.Node SingleLanguage TypeName
-type Res = Result (HashMap (HashSet Node) (Seq NodeOrElide))
+type FullNode = P4.Node
+type Res tok = Result (HashMap (HashSet Node) (Seq (NodeOrElide tok)))
 
 -- TODO: Bail out if a single ambiguity gets too large
 -- | Produce a single parse tree, or a disjoint set of minimal ambiguities.
-isolate :: (Dag, HashSet Node)
-        -> Result (Seq (Seq NodeOrElide)) FullNode
+isolate :: (Dag tok, HashSet Node)
+        -> Result (Seq (Seq (NodeOrElide tok))) (FullNode tok)
 isolate (dag, roots) = runST $ do
   state <- State dag <$> newSTRef M.empty
   runReaderT (amb roots) state <&> first (toList >>> Seq.fromList)
 
-getElidable :: PreLanguage -> Dag -> Elidable -> (Range, TypeName)
+getElidable :: PreLanguage -> Dag tok -> Elidable -> (Range, TypeName)
 getElidable PreLanguage{getSyTy} dag = fmap toList >>> \case
   Left n -> getNode n & \NodeF{n_nameF, n_rangeF} -> (n_rangeF, getSyTy n_nameF)
   Right (n : _) -> getNode n & \NodeF{n_nameF, n_rangeF} -> (n_rangeF, getSyTy n_nameF)
@@ -54,7 +52,7 @@ getElidable PreLanguage{getSyTy} dag = fmap toList >>> \case
     getNode n = M.lookup n dag
       & compFromJust "P5DynamicAmbiguity.Analysis.getElidable.getNode" ("Missing node " <> show n)
 
-showElidable :: Dag -> Elidable -> Text
+showElidable :: (Eq tok, Parseable tok) => Dag tok -> Elidable -> Text
 showElidable dag = fmap toList >>> \case
   Left n -> formatNode n
   Right (n : _) -> formatNode n
@@ -70,7 +68,7 @@ showElidable dag = fmap toList >>> \case
 
 -- | Given a potential ambiguity, construct either a complete subtree, or a disjoint set of
 -- minimal ambiguities
-amb :: HashSet Node -> IsolationM s (Res FullNode)
+amb :: HashSet Node -> IsolationM s tok (Res tok (FullNode tok))
 amb nodes
   | [node] <- toList nodes = do
       fetchNode node >>= traverse amb <&> sequence <&> fmap embed
@@ -80,7 +78,7 @@ amb nodes
 
 -- | Construct the ambiguity rooted at the second argument, using the first argument as the
 -- nodes that are valid elisons.
-mkAmb :: forall s. HashSet Elidable -> HashSet Node -> IsolationM s (HashMap (HashSet Node) (Seq NodeOrElide))
+mkAmb :: forall s tok. HashSet Elidable -> HashSet Node -> IsolationM s tok (HashMap (HashSet Node) (Seq (NodeOrElide tok)))
 mkAmb elidable roots = recurAmb roots
   <&> second (Seq.fromList >>> M.singleton roots >>> Error)
   <&> uncurry (<*)
@@ -90,11 +88,11 @@ mkAmb elidable roots = recurAmb roots
     -- delimited parse trees that are a part of the current ambiguity. That's the second value
     -- in the returned tuple. The first value is a computation that has looked for ambiguities
     -- further down the AST.
-    recurAmb :: HashSet Node -> IsolationM s (Res (), [NodeOrElide])
+    recurAmb :: HashSet Node -> IsolationM s tok (Res tok (), [NodeOrElide tok])
     recurAmb nodes
       | Right nodes `S.member` elidable = amb nodes <&> void <&> (,[Elide $ Right nodes])
       | otherwise = toList nodes & traverse recur <&> mconcat
-    recur :: Node -> IsolationM s (Res (), [NodeOrElide])
+    recur :: Node -> IsolationM s tok (Res tok (), [NodeOrElide tok])
     recur node
       | Left node `S.member` elidable = amb (S.singleton node) <&> void <&> (,[Elide $ Left node])
       | otherwise = fetchNode node >>= traverse recurAmb <&> sequence <&> second (sequence >>> fmap Node)
@@ -104,7 +102,7 @@ mkAmb elidable roots = recurAmb roots
 
 -- | Given a particular root (most commonly an ambiguity node HashSet Node), find the set of nodes
 -- that can be elided, i.e., the nodes that are present in all alternatives.
-validElidables :: Elidable -> IsolationM s (HashSet Elidable)
+validElidables :: Elidable -> IsolationM s tok (HashSet Elidable)
 validElidables top = do
   ref <- asks validElisonsMemo
   mTop <- lift $ readSTRef ref <&> M.lookup top
@@ -123,7 +121,7 @@ validElidables top = do
       [] -> S.empty
       (x : xs) -> foldl' S.intersection x xs
 
-fetchNode :: Node -> IsolationM s (NodeF (HashSet Node))
+fetchNode :: Node -> IsolationM s tok (NodeF tok (HashSet Node))
 fetchNode node = asks
   $ dag
   >>> M.lookup node

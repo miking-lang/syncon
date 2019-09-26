@@ -60,6 +60,7 @@ instance Coercible n Text => Forest.Parseable (Token l n) where  -- TODO: have s
 data TokenKind n = LitKind !Text | TypeKind !n
   deriving (Show, Eq, Generic)
 instance Hashable n => Hashable (TokenKind n)
+instance NFData n => NFData (TokenKind n)
 
 class Ranged a where
   range :: a -> Range

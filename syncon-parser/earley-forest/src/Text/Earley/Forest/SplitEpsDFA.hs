@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, LambdaCase, ScopedTypeVariables, FlexibleContexts, NamedFieldPuns, TupleSections, OverloadedStrings, TypeApplications #-}
+{-# LANGUAGE DeriveGeneric, LambdaCase, ScopedTypeVariables, FlexibleContexts, NamedFieldPuns, TupleSections, OverloadedStrings, TypeApplications, AllowAmbiguousTypes #-}
 
 module Text.Earley.Forest.SplitEpsDFA
 ( EpsDFA(..)
@@ -7,6 +7,7 @@ module Text.Earley.Forest.SplitEpsDFA
 , renumberStates
 , completedNT
 , isCompleted
+, dotToRule
 , epsDFAtoGraphViz
 , defaultEpsDFAtoGraphViz
 , defaultShowState
@@ -17,33 +18,35 @@ import Prelude
 
 import GHC.Generics (Generic)
 
-import Data.Text (Text)
-import qualified Data.Text as Text
-import Data.Tuple (swap)
-import Control.Applicative ((<|>))
 import Control.Arrow ((>>>), (&&&), (***))
-import Control.Monad.Trans.Reader (ReaderT, runReaderT, asks)
+import Control.DeepSeq (NFData)
 import Control.Monad.ST (ST, runST)
 import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Reader (ReaderT, runReaderT, asks)
 import Data.Foldable (toList, fold)
 import Data.Function ((&))
 import Data.Functor ((<&>))
 import Data.HashMap.Strict (HashMap)
 import Data.HashSet (HashSet)
 import Data.Hashable (Hashable)
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (isJust)
 import Data.STRef (STRef, readSTRef, modifySTRef', newSTRef)
 import Data.Sequence (Seq)
+import Data.Text (Text)
+import Data.Tuple (swap)
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
 import qualified Data.Sequence as Seq
+import qualified Data.Text as Text
 
 import Text.Earley.Forest.Grammar (TokKind, kindLabel, Parseable)
-import Text.Earley.Forest.Transformations (EpsNT(..), NT(..), Rule(..), Sym(..), NullStatus(..))
+import Text.Earley.Forest.Transformations (NT(..), Rule(..), ruleAsTuple, Sym(..))
 
 data EpsDFA s t = EpsDFA
   { transitions :: !(HashMap s (HashMap (Maybe t) s))
-  , initial :: !s }
+  , initial :: !s
+  } deriving (Generic)
+instance (NFData s, NFData t) => NFData (EpsDFA s t)
 
 data DotProd = DotProd
   !Int -- ^ Which rule, indexing into the sequence of rules
@@ -52,19 +55,19 @@ data DotProd = DotProd
 instance Hashable DotProd
 
 data MkDFAState s t = MkDFAState
-  { inProgress :: !(STRef s (HashMap (HashSet DotProd) (HashMap (Maybe (Sym NT t)) (HashSet DotProd))))
+  { inProgress :: !(STRef s (HashMap (HashSet DotProd) (HashMap (Maybe (Either NT t)) (HashSet DotProd))))
   }
 
 -- | Create a split LR(0) epsilon-DFA, in line with Aycock & Horspool 2002.
 -- Note that this function assumes that the starting symbol(s) never occur
 -- on the righthand side in any production. 'mkGrammar' will produce such
 -- a grammar, and 'mkNNFGrammar' will preserve this property.
-mkDFA :: forall t nodeF. (Eq (TokKind t), Hashable (TokKind t))
-      => (Maybe EpsNT, Maybe EpsNT, Seq (Rule EpsNT (Sym EpsNT t) nodeF))
-      -> EpsDFA (HashSet DotProd) (Sym NT t)
-mkDFA (s1, s2, rules) = case s1 <|> s2 of
+mkDFA :: forall t intLabel. (Eq t, Hashable t)
+      => (Maybe NT, Bool, Seq (Rule NT t (Sym intLabel NT t)))
+      -> EpsDFA (HashSet DotProd) (Either NT t)
+mkDFA (productiveStart, _, rules) = case productiveStart of
   Nothing -> EpsDFA M.empty S.empty
-  Just (EpsNT nt _) -> runST $ do
+  Just nt -> runST $ do
     state@MkDFAState{inProgress} <- MkDFAState <$> newSTRef M.empty
     let initial = M.lookup nt dotsByNT & fold
     runReaderT (requestState initial) state
@@ -78,7 +81,7 @@ mkDFA (s1, s2, rules) = case s1 <|> s2 of
       if done then return () else do
         let eps = M.singleton Nothing $ iterateInductively mPredict dotProds `S.difference` dotProds
             others = toList dotProds
-              <&> ((postDot >>> fmap (either Nt Sym)) &&& (advance >>> S.singleton))
+              <&> (postDot &&& (advance >>> S.singleton))
               & filter (fst >>> isJust)
               & M.fromListWith S.union
             final = M.union eps others & M.filter (S.null >>> not)
@@ -88,34 +91,21 @@ mkDFA (s1, s2, rules) = case s1 <|> s2 of
     mPredict :: DotProd -> HashSet DotProd
     mPredict = postDot >>> maybe S.empty (either (`M.lookup` dotsByNT) mempty >>> fold)
 
-    postDot :: DotProd -> Maybe (Either NT (TokKind t))
+    postDot :: DotProd -> Maybe (Either NT t)
     postDot (DotProd ruleIdx dotIdx) = Seq.lookup ruleIdx rules  -- NOTE: this first operations should never fail, but eh
       >>= (getSyms >>> Seq.lookup dotIdx)
       >>= \case
-      Nt (EpsNT nt NonNullable) -> Just $ Left nt
-      Sym t -> Just $ Right t
-      _ -> Nothing  -- NOTE: this should never happen, and could maybe be elided/errored upon, but for now I'm just making it a total, correct function
-    getSyms (Rule _ syms _) = syms
+      Nt nt _ -> Just $ Left nt
+      Sym t _ _ -> Just $ Right t
+    getSyms = ruleAsTuple >>> snd
 
     dotsByNT :: HashMap NT (HashSet DotProd)
-    dotsByNT = [ (nt, S.singleton $ DotProd idx $ advancePastNulls 0 syms)
-               | (idx, Rule nt'@(EpsNT nt status) syms _) <- [0..] `zip` toList rules
-               , status == NonNullable || Just nt' == s1 || Just nt' == s2 ] -- NOTE: slightly hacky way to ensure that the starting symbol has all productions in the DFA. This is ok since the starting symbol is never in the righthand side of a production
+    dotsByNT = [ (nt, S.singleton $ DotProd idx 0)
+               | (idx, (nt, _)) <- [0..] `zip` fmap ruleAsTuple (toList rules) ]
       & M.fromListWith S.union
 
-    advancePastNulls :: Int -> Seq (Sym EpsNT t) -> Int
-    advancePastNulls startIdx syms = Seq.drop startIdx syms
-      & Seq.findIndexL nonNullable
-      <&> (+startIdx)
-      & fromMaybe (Seq.length syms)
-    nonNullable (Nt (EpsNT _ Nulling)) = False
-    nonNullable _ = True
-
     advance :: DotProd -> DotProd
-    advance (DotProd ruleIdx dotIdx) = Seq.index rules ruleIdx
-      & getSyms
-      & advancePastNulls (dotIdx + 1)
-      & DotProd ruleIdx
+    advance (DotProd ruleIdx dotIdx) = DotProd ruleIdx (dotIdx + 1)
 
     iterateInductively :: (Eq a, Hashable a) => (a -> HashSet a) -> HashSet a -> HashSet a
     iterateInductively f start = go start $ (`S.difference` start) $ foldMap f start
@@ -124,22 +114,19 @@ mkDFA (s1, s2, rules) = case s1 <|> s2 of
           | S.null new = prev
           | otherwise = go prev' $ (`S.difference` prev') $ foldMap f new
           where prev' = prev <> new
-    -- iterateInductively :: (Eq a, Hashable a) => (a -> HashSet a) -> HashSet a -> HashSet a
-    -- iterateInductively f start = go start $ (`S.difference` start) $ foldMap f start
-    --   where
-    --     go prev new
-    --       | S.null new = prev
-    --       | otherwise = go (S.union prev new) new'
-    --       where
-    --         new' = foldMap (f >>> (`S.difference` prev)) new
 
-completedNT :: Seq (Rule EpsNT (Sym EpsNT t) nodeF) -> DotProd -> Maybe NT
+dotToRule :: Seq (Rule nt t sym) -> DotProd -> (Int, Rule nt t sym)
+dotToRule rules (DotProd ruleIdx _) = (ruleIdx, Seq.index rules ruleIdx)
+
+completedNT :: Seq (Rule NT t (Sym intLabel NT t)) -> DotProd -> Maybe NT
 completedNT rules (DotProd ruleIdx dotIdx) = Seq.index rules ruleIdx
-  & \(Rule (EpsNT nt _) syms _) -> if Seq.length syms == dotIdx then Just nt else Nothing
+  & ruleAsTuple
+  & \(nt, syms) -> if Seq.length syms == dotIdx then Just nt else Nothing
 
-isCompleted :: Seq (Rule nt sym nodeF) -> DotProd -> Bool
+isCompleted :: Seq (Rule nt t (Sym intLabel nt t)) -> DotProd -> Bool
 isCompleted rules (DotProd ruleIdx dotIdx) = Seq.index rules ruleIdx
-  & \(Rule _ syms _) -> Seq.length syms == dotIdx
+  & ruleAsTuple
+  & \(_, syms) -> Seq.length syms == dotIdx
 
 -- | Replace all states by integers, and also return a map with sufficient information to reverse
 -- the operation.
@@ -166,27 +153,28 @@ states EpsDFA{initial, transitions} = M.toList transitions
   & foldMap (\(s, m) -> foldMap S.singleton m & S.insert s)
   & S.insert initial
 
-defaultShowState :: forall t nodeF. Parseable t
-                 => Seq (Rule EpsNT (Sym EpsNT t) nodeF)
+defaultShowState :: forall t intLabel. Parseable t
+                 => Seq (Rule NT (TokKind t) (Sym intLabel NT (TokKind t)))
                  -> HashSet DotProd -> Text
 defaultShowState rules dots = Text.unlines $ work <$> toList dots
   where
-    showSym :: Sym EpsNT t -> Text
-    showSym (Nt nt) = Text.pack $ show nt
-    showSym (Sym t) = kindLabel @t t
+    showSym :: Sym intLabel NT (TokKind t) -> Text
+    showSym (Nt nt _) = Text.pack $ show nt
+    showSym (Sym t _ _) = kindLabel @t t
     work (DotProd ruleIdx dotIdx) = Seq.index rules ruleIdx
-      & \(Rule nt syms _) ->
+      & ruleAsTuple
+      & \(nt, syms) ->
           let (pre, post) = Seq.splitAt dotIdx $ showSym <$> syms
           in Text.pack (show nt) <> " -> " <> Text.unwords (toList pre) <> " * " <> Text.unwords (toList post)
 
-defaultShowEdge :: forall t. Parseable t => Sym NT t -> Text
-defaultShowEdge (Nt nt) = Text.pack $ show nt
-defaultShowEdge (Sym k) = kindLabel @t k
+defaultShowEdge :: forall t. Parseable t => Either NT (TokKind t) -> Text
+defaultShowEdge (Left nt) = Text.pack $ show nt
+defaultShowEdge (Right k) = kindLabel @t k
 
-defaultEpsDFAtoGraphViz :: Parseable t
-                        => Seq (Rule EpsNT (Sym EpsNT t) nodeF)
-                        -> EpsDFA (HashSet DotProd) (Sym NT t) -> Text
-defaultEpsDFAtoGraphViz rules = epsDFAtoGraphViz (defaultShowState rules) defaultShowEdge
+defaultEpsDFAtoGraphViz :: forall t intLabel. Parseable t
+                        => Seq (Rule NT (TokKind t) (Sym intLabel NT (TokKind t)))
+                        -> EpsDFA (HashSet DotProd) (Either NT (TokKind t)) -> Text
+defaultEpsDFAtoGraphViz rules = epsDFAtoGraphViz @_ @(Either NT (TokKind t)) (defaultShowState @t rules) (defaultShowEdge @t)
 
 epsDFAtoGraphViz :: (Eq s, Hashable s) => (s -> Text) -> (t -> Text) -> EpsDFA s t -> Text
 epsDFAtoGraphViz showState showEdge dfa = "digraph {\n"

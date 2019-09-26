@@ -52,7 +52,7 @@ import qualified P6Output.JsonV1 as Output
 import qualified Data.Automaton.NVA as NVA
 import qualified Data.Automaton.GraphViz as GraphViz
 
-nodeAnnotation :: Parser.Node l LD.TypeName -> [(Range, Text)]
+nodeAnnotation :: Parser.Node (Lexer.Token l LD.TypeName) -> [(Range, Text)]
 nodeAnnotation n = (range n, Parser.n_name n & coerce)
   : cata findToks (Parser.Struct $ Parser.n_contents n)
   where
@@ -95,8 +95,8 @@ test :: IO ()
 -- test = withArgs ["languages/lispy/lispy.syncon", "languages/lispy/lispy.test", "--two-level"] main
 -- test = withArgs ["languages/simple-right-recursion/def.syncon", "languages/simple-right-recursion/test.test", "--two-level"] main
 -- test = withArgs ["languages/atest/atest.syncon", "languages/atest/atest.test", "--two-level"] main
-test = withArgs ["languages/ocaml/ocaml.syncon", "languages/ocaml/a_ustring.ml", "--html=out.html", "--two-level"] main
--- test = withArgs ["languages/ocaml/ocaml.syncon", "languages/ocaml/ustring.ml", "--html=out.html", "--two-level"] main
+-- test = withArgs ["languages/ocaml/ocaml.syncon", "languages/ocaml/a_ustring.ml", "--html=out.html", "--two-level"] main
+test = withArgs ["languages/ocaml/ocaml.syncon", "languages/ocaml/ustring.ml", "--html=out.html", "--two-level"] main
 -- test = withArgs ["case-studies/ocaml.syncon", "case-studies/ocaml/fizzbuzz.ml", "--html=out.html", "--two-level"] main
 -- test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--dot=out"] main
 -- test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--two-level"] main
@@ -164,7 +164,7 @@ common = do
     tops <- M.traverseWithKey (\defFile _ -> LD.parseFile $ toS defFile) defSources
       >>= (fold >>> dataOrError defSources ())
     df <- LD.mkDefinitionFile tops & dataOrError defSources ()
-    parseFile <- Parser2.parseSingleLanguage df & dataOrError defSources ()
+    preParse <- Parser2.precomputeSingleLanguage @(Lexer.Token Parser.SingleLanguage LD.TypeName) df & dataOrError defSources ()
     let pl = DynAmb.precompute df
 
     srcSources <- extraSrcFiles <> srcFiles & S.fromList & S.toMap
@@ -178,7 +178,7 @@ common = do
       putStrLn @Text $ "Parsing \"" <> path <> "\""
       handle (\(SourceFileException t) -> modifyIORef' failureFiles (+1) >> sourceFailureHandler t) $ do
         mNode <- timeout sourceTimeout $ do
-          forest@(nodeMap, _) <- parseFile (toS path) >>= dataOrError' srcSources ()
+          forest@(nodeMap, _) <- Parser2.parseFile preParse (toS path) >>= dataOrError' srcSources ()
           forM_ dot $ \outPath -> do
             let fullPath = outPath </> toS path <.> "dot"
             putStrLn @Text $"Writing to \"" <> toS fullPath <> "\""
@@ -188,7 +188,7 @@ common = do
           DynAmb.isolate forest & \case
             Data node -> modifyIORef' successfulFiles (+1) >> return node
             Error ambs -> ambs
-              & mapM (foldMap S.singleton >>> DynAmb.analyze dynAmbTimeout pl (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
+              & mapM (foldMap S.singleton >>> DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
               <&> fmap (formatError DynAmb.EO{DynAmb.showTwoLevel, DynAmb.showElided = DynAmb.showElidable nodeMap, DynAmb.elidedRange = DynAmb.getElidable pl nodeMap >>> fst})
               <&> formatErrors srcSources
               & (>>= die')

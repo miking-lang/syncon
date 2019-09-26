@@ -13,16 +13,16 @@ import Data.Automaton.EpsilonNVA (untag, TaggedTerminal(..))
 
 import ErrorMessage (FormatError(..), simpleErrorMessage)
 
-import P1Lexing.Types (Range, textualRange)
+import P1Lexing.Types (Range, textualRange, Ranged)
 import P2LanguageDefinition.Types (TypeName, Name(..))
 import P4Parsing.Types (NodeF(..))
 import P5DynamicAmbiguity.TreeLanguage (treeLanguage, PreLanguage)
 import P5DynamicAmbiguity.Types
 
-data Error elidable = Ambiguity Range [(NodeOrElide elidable, Text)] [NodeOrElide elidable]  -- ^ Resolvable alternatives, and unresolvable alternatives
+data Error elidable tok = Ambiguity Range [(NodeOrElide elidable tok, Text)] [NodeOrElide elidable tok]  -- ^ Resolvable alternatives, and unresolvable alternatives
 
-instance FormatError (Error elidable) where
-  type ErrorOpts (Error elidable) = ErrorOptions elidable
+instance FormatError (Error elidable tok) where
+  type ErrorOpts (Error elidable tok) = ErrorOptions elidable
   formatError EO{showTwoLevel, elidedRange, showElided} (Ambiguity r resolvable trees) = simpleErrorMessage r $
     kind <> " with " <> show (length trees + length resolvable) <> " alternatives.\n" <>
     resolvableSection <>
@@ -49,7 +49,7 @@ instance FormatError (Error elidable) where
         | hasResolvable = "\nUnresolvable alternatives:\n" <> formattedUnresolvable
         | otherwise = "\n" <> formattedUnresolvable
       formattedUnresolvable = trees <&> twoLevel & S.fromList & fold
-      twoLevel :: NodeOrElide elidable -> Text
+      twoLevel :: NodeOrElide elidable tok -> Text
       twoLevel (Elide elided) = "  " <> showElided elided <> "\n"
       twoLevel (Node n@NodeF{n_nameF}) = "  " <> coerce n_nameF <> formatChildren (toList n) <> "\n"
         where
@@ -68,14 +68,15 @@ data ErrorOptions elidable = EO
 
 type ResLang elidable = NVA Int Int (Token elidable) (Token elidable) (Token elidable)
 
-analyze :: forall elidable. (Eq elidable, Hashable elidable, Show elidable)
+analyze :: forall elidable tok. (Eq elidable, Hashable elidable, Show elidable, Show tok, Ranged tok)
         => Int  -- ^ Timeout in microseconds. Negative to never timeout.
         -> PreLanguage
+        -> (tok -> Token elidable)
         -> (elidable -> (Range, TypeName))
         -> (elidable -> Text)
-        -> HashSet (NodeOrElide elidable)
-        -> IO (Error elidable)
-analyze timeout pl getElided showElided alts = do
+        -> HashSet (NodeOrElide elidable tok)
+        -> IO (Error elidable tok)
+analyze timeout pl mkToken getElided showElided alts = do
   res <- shortest
   M.toList languages
     <&> (\(node, lang) ->
@@ -94,9 +95,9 @@ analyze timeout pl getElided showElided alts = do
       Node NodeF{n_rangeF} : _ -> n_rangeF
       Elide elidable : _ -> getElided elidable & fst
       [] -> compErr "P5DynamicAmbiguity.analyze.range" "got zero alternatives"
-    mkLanguage = treeLanguage pl getElided
+    mkLanguage = treeLanguage pl mkToken getElided
 
-    languages :: HashMap (NodeOrElide elidable) (ResLang elidable)
+    languages :: HashMap (NodeOrElide elidable tok) (ResLang elidable)
     languages = S.toMap alts & M.mapWithKey (\node _ -> mkLanguage node)
 
     shortest :: IO (HashMap (ResLang elidable) [TaggedTerminal (Token elidable) (Token elidable) (Token elidable)])

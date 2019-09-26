@@ -3,11 +3,12 @@ module P5DynamicAmbiguity.Types where
 import Pre
 
 import P1Lexing.Types (Ranged(..))
+import qualified P1Lexing.Types as P1
 import qualified P2LanguageDefinition.Types as P2
 import qualified P4Parsing.Types as P4
 
-data NodeOrElide elidable
-  = Node !(P4.NodeF P4.SingleLanguage P2.TypeName (NodeOrElide elidable))
+data NodeOrElide elidable t
+  = Node !(P4.NodeF t (NodeOrElide elidable t))
   | Elide !elidable
   deriving (Show, Generic, Eq)
 
@@ -34,12 +35,16 @@ mkTok :: Either Text P2.TypeName -> Token elidable
 mkTok (Left t) = LitTok t
 mkTok (Right n) = OtherTok n
 
+convertToken :: P1.Token l P2.TypeName -> Token elidable
+convertToken (P1.LitTok _ _ t) = LitTok t
+convertToken (P1.OtherTok _ _ tyn t) = OtherTokInstance tyn t
+
 instance Eq elidable => Eq (Token elidable) where
   (==) = (==) `on` eitherRepr
 instance Hashable elidable => Hashable (Token elidable) where
   hashWithSalt = hashUsing eitherRepr
 
-instance Ranged elidable => Ranged (NodeOrElide elidable) where
+instance Ranged elidable => Ranged (NodeOrElide elidable t) where
   range (Node n) = range n
   range (Elide e) = range e
-instance Hashable elidable => Hashable (NodeOrElide elidable)
+instance (Hashable elidable, Hashable t) => Hashable (NodeOrElide elidable t)

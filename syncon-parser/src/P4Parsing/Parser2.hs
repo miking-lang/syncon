@@ -1,12 +1,11 @@
-{-# LANGUAGE RecordWildCards, ViewPatterns #-}
+{-# LANGUAGE RecordWildCards, ViewPatterns, UndecidableInstances #-}
 
-module P4Parsing.Parser2 (Error(..), dfToLanguageTokens, genEpsDFADot, parseTokens, parseSingleLanguage, forestToDot) where
+module P4Parsing.Parser2 (Error(..), precomputeSingleLanguage, dfToLanguageTokens, parseTokens, parseFile, forestToDot) where
 
-import Pre hiding (from)
+import Pre hiding (from, some, many, optional)
 import Result (Result(..))
 
 import Control.Monad.Fix (mfix)
-import qualified Data.Sequence as Seq
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
 import qualified Data.Text as Text
@@ -14,91 +13,70 @@ import qualified Data.Text as Text
 import Data.Generics.Uniplate.Data (universe)
 import Data.Functor.Foldable (para)
 
-import Text.Earley.Forest.Grammar (terminal, ambig, rule)
+import Text.Earley.Forest.Grammar (terminal, ambig, node, NodeKind(..), Parseable(..), (<--), (-->), noparse, nodeLeaf, label, alts, many, some, optional)
 import Text.Earley.Forest.Transformations (mkGrammar, mkNNFGrammar)
-import Text.Earley.Forest.SplitEpsDFA (mkDFA, defaultEpsDFAtoGraphViz)
-import Text.Earley.Forest.Parser (parse, Node)
+import Text.Earley.Forest.Parser (precompute, recognize, mkDerivation, Node)
 import qualified Text.Earley.Forest.Grammar as Forest
+import qualified Text.Earley.Forest.Parser as Forest
 
 import ErrorMessage (FormatError(..), simpleErrorMessage)
 
-import P1Lexing.Types (Token(..), Range(Nowhere), range, TokenKind(..))
+import P1Lexing.Types (Token(..), TokenKind(..), Ranged(..))
 import P1Lexing.Lexer (LanguageTokens(..))
 import qualified P1Lexing.Lexer as Lexer
 import P2LanguageDefinition.Types (DefinitionFile(..), TypeName(..), Name(..), Syncon(..), Comment(..), Elaboration, SyntaxDescription(..), SyntaxDescriptionF(..), TokenType(..), SDName, SyntaxType, Repetition(..), Rec(..))
 import P2LanguageDefinition.Elaborator (elaborate)
-import P4Parsing.Types (pattern NodeF, SL, NodeInternals(..), SingleLanguage(..))
-import qualified P4Parsing.Types as P4
+import P4Parsing.Types (NodeF, SL, SingleLanguage(..))
 
-data Error l
+data Error l tok
   = LexingError (Lexer.Error l TypeName)
-  | ParseError Text
+  | ParseError (HashSet (Maybe (TokKind tok))) (Maybe tok)
   | MissingTop
-  deriving (Show)
 
-instance Show l => FormatError (Error l) where
+instance (Show l, Ranged tok, Parseable tok) => FormatError (Error l tok) where
   formatError _ (LexingError e) = formatError () e
-  formatError _ (ParseError t) = simpleErrorMessage mempty $
-    "Parse error, and the current parser gives the error as a string, thus the\n"
-    <> "below error is taken verbatim, and is likely hard to understand, for now. :(\n\n"
-    <> t
+  formatError _ (ParseError expected found) = simpleErrorMessage (foldMap range found) $
+    "Parse error, found " <> maybe "<end-of-file>" unlex found <> " expected one of:\n"
+    <> Text.unlines (expected & toList <&> \tokKind -> "  " <> maybe "<end-of-file>" (kindLabel @tok) tokKind)
   formatError _ MissingTop = simpleErrorMessage mempty
     "You must define a syntax type named 'Top'."
 
-type Res l = Result [Error l]
+type Res l tok = Result [Error l tok]
 
-type NodeF l = P4.NodeF l TypeName
+type Prod r l = Forest.Prod r SDName TK
+type Grammar r l = Forest.Grammar r Name SDName TK
 
-type Prod r l a = Forest.Prod r (Tok l) (NodeF l) a
-type Grammar r l a = Forest.Grammar r (Tok l) (NodeF l) a
-type Tok l = Token l TypeName
+type TK = TokenKind TypeName
 
--- parseSingleLanguage :: DefinitionFile -> Res SL (FilePath -> IO (Res SL (HashMap Node (NodeF SL (HashSet Node)), HashSet Node)))
--- parseSingleLanguage df = do
---   lexFile <- lexer
---   grammar <- generateGrammar df
---   let parseFunc = parse (unquant grammar)
---   pure $ \path -> do
---     resTokens <- lexFile path <&> first (fmap LexingError)
---     return $ resTokens >>= \resTokens' -> case parseFunc resTokens' of
---       Left err -> Error [ParseError err]
---       Right forest -> return forest
---   where
---     lexer = Lexer.allOneLanguage SingleLanguage (dfToLanguageTokens df) & first (fmap LexingError)
+data Precomputed l = Precomputed
+  { forest :: !(Forest.Precomputed Name SDName TK)
+  , tokens :: !(LanguageTokens TypeName)
+  , lexFile :: !(FilePath -> IO (Res l (Token l TypeName) [Token l TypeName]))
+  } deriving (Generic)
+instance NFData l => NFData (Precomputed l)
 
--- parseTokens :: (Show l, Ord l, Hashable l, Foldable f) => DefinitionFile -> Res l (f (Tok l) -> Res l (HashMap Node (NodeF l (HashSet Node)), HashSet Node))
--- parseTokens df = do
---   grammar <- generateGrammar df
---   let parseFunc = parse (unquant grammar)
---   pure $ parseFunc >>> \case
---     Left err -> Error [ParseError err]
---     Right forest -> return forest
-
-parseSingleLanguage :: DefinitionFile -> Res SL (FilePath -> IO (Res SL (HashMap Node (NodeF SL (HashSet Node)), HashSet Node)))
-parseSingleLanguage df = do
-  lexFile <- lexer
-  parseFunc <- parseTokens df
-  return $ \path -> do
-    resTokens <- lexFile path <&> first (fmap LexingError)
-    return $ resTokens >>= parseFunc
-  where
-    lexer = Lexer.allOneLanguage SingleLanguage (dfToLanguageTokens df) & first (fmap LexingError)
-
-parseTokens :: forall l f. Foldable f => DefinitionFile -> Res l (f (Tok l) -> Res l (HashMap Node (NodeF l (HashSet Node)), HashSet Node))
-parseTokens df = do
+precomputeSingleLanguage :: DefinitionFile -> Res SL tok (Precomputed SL)
+precomputeSingleLanguage df = do
+  let tokens = dfToLanguageTokens df
+  lexFileLexErr <- Lexer.allOneLanguage SingleLanguage tokens & first (fmap LexingError)
+  let lexFile path = lexFileLexErr path <&> first (fmap LexingError)
   grammar <- generateGrammar df
-  let parseFunc = mkGrammar (unquant grammar) & mkNNFGrammar & parse
-  pure $ parseFunc >>> \case
-    Left _ -> Error []  -- TODO: construct actual errors
-    Right res -> Data res
+  let forest = mkGrammar (unquant grammar) & mkNNFGrammar & precompute
+  return Precomputed{..}
 
-genEpsDFADot :: DefinitionFile -> Res SL Text
-genEpsDFADot df = do
-  grammar <- generateGrammar df
-  let nnf@(_, _, rules) = mkGrammar (unquant grammar) & mkNNFGrammar
-  mkDFA nnf
-    & defaultEpsDFAtoGraphViz rules
-    & return
+parseFile :: Precomputed l
+          -> FilePath
+          -> IO (Res l (Token l TypeName) (HashMap Node (NodeF (Token l TypeName) (HashSet Node)), HashSet Node))
+parseFile pc@Precomputed{lexFile} path = do
+  resTokens <- lexFile path
+  return $ resTokens >>= parseTokens pc
+
+parseTokens :: (Foldable f, Ranged t, Parseable t, TokKind t ~ TK)
+            => Precomputed l
+            -> f t -> Res l t (HashMap Node (NodeF t (HashSet Node)), HashSet Node)
+parseTokens Precomputed{forest} = toList >>> recognize forest >>> mkDerivation forest >>> \case
+  Left (Forest.Error expected found) -> Error [ParseError expected found]
+  Right res -> Data res
 
 -- | Look up keywords, comment syntax, etc., to produce the parameters for the lexer.
 dfToLanguageTokens :: DefinitionFile -> LanguageTokens TypeName
@@ -158,23 +136,23 @@ computeSynconsBySyntaxType syncons = M.fromListWith S.union $ do
   pure (snd s_syntaxType, S.singleton s_name)
 
 -- | Dummy wrapper to allow a forall quantified type inside 'Result'.
-newtype GrammarQuant l = GrammarQuant {unquant :: forall r. Grammar r l (Prod r l r)}
+newtype GrammarQuant l = GrammarQuant {unquant :: forall r. Grammar r l (Prod r l 'Node)}
 
 -- | The top level generation function.
-generateGrammar :: forall l. DefinitionFile -> Res l (GrammarQuant l)
+generateGrammar :: forall l tok. DefinitionFile -> Res l tok (GrammarQuant l)
 generateGrammar DefinitionFile{..}
   | not $ (TypeName "Top", S.empty) `S.member` nts = Error [MissingTop]
   | otherwise = Data $ GrammarQuant $ do
       -- The 'mfix' section takes a mapping from high-level non-terminals to their
       -- productions, and then produces that map.
-      nts' <- mfix $ \(nts' :: HashMap (TypeName, HashSet Name) (Prod r l r)) -> do
+      nts' <- mfix $ \(nts' :: HashMap (TypeName, HashSet Name) (Prod r l 'Node)) -> do
         let parens = M.mapWithKey (mkGrouping nts') syTyToSyncon
-        syncons' <- mapM (generateSyncon markings isSyTy nts' >>> rule) syncons
+        syncons' <- mapM (generateSyncon markings isSyTy nts') syncons
         sequence $ forWithKey (S.toMap nts) $ \(tyn, excludes) _ ->
           syncons'
           & (`M.intersection` (S.toMap $ M.lookupDefault S.empty tyn syTyToSyncon))
           & (`M.difference` S.toMap excludes)
-          & toList & (lookupEmpty tyn parens : ) & ambig
+          & toList & (M.lookupDefault [] tyn parens <>) & ambig
       M.lookup (TypeName "Top", S.empty) nts'
         & compFromJust "P4Parsing.Parser.generateGrammar" "Top somehow vanished during generation"
         & return
@@ -183,9 +161,10 @@ generateGrammar DefinitionFile{..}
     markings = mkMarkings syncons isSyTy elaboration
     nts = computeNonTerminals syntaxTypes markings
     syTyToSyncon = computeSynconsBySyntaxType syncons
-    mkGrouping :: HashMap (TypeName, HashSet Name) (Prod r l r) -> TypeName -> b -> Prod r l r
-    mkGrouping nts' tyn _ = asum $ foreach (M.lookup tyn groupings & fold) $ \(open, close) ->
-      either lit othertok open *> lookupEmpty (tyn, S.empty) nts' <* either lit othertok close
+    mkGrouping :: HashMap (TypeName, HashSet Name) (Prod r l 'Node) -> TypeName -> b -> [Prod r l 'Node]
+    mkGrouping nts' tyn _ = catMaybes $ toList $ foreach (M.lookup tyn groupings & fold) $ \(open, close) ->
+      M.lookup (tyn, S.empty) nts' <&> \prod ->
+        either LitKind TypeKind open --> prod <-- either LitKind TypeKind close
     isSyTy :: TypeName -> Bool
     isSyTy tyn = M.lookup tyn syntaxTypes <&> isLeft & fromMaybe False
     forWithKey = flip M.mapWithKey
@@ -194,56 +173,46 @@ generateGrammar DefinitionFile{..}
 -- | Generate a production for a single 'Syncon'
 generateSyncon :: HashMap (Name, Either Rec SDName) (TypeName, HashSet Name)
                -> (TypeName -> Bool)
-               -> HashMap (TypeName, HashSet Name) (Prod r l r)
-               -> Syncon -> Prod r l (NodeF l r)
+               -> HashMap (TypeName, HashSet Name) (Prod r l 'Node)
+               -> Syncon -> Grammar r l (Prod r l 'Node)
 generateSyncon markings isSyTy nts Syncon{s_name = n, s_syntaxDescription, s_syntaxType = (_, syty)} =
-  para alg s_syntaxDescription
-  <&> asStruct
-  <&> NodeF n
-  & ranged
+  para alg s_syntaxDescription & node n
   where
     alg (SDNamedF _ sdname (SDSyTy _ tyn, _))
       | isSyTy tyn = M.lookupDefault (tyn, S.empty) (n, Right sdname) markings
-        & flip lookupEmpty nts
-        <&> (NodeLeaf >>> Seq.singleton >>> M.singleton sdname >>> Struct)
+        & (`M.lookup` nts)
+        & maybe noparse (nodeLeaf sdname)
+      | otherwise = othertok sdname tyn
     alg (SDNamedF _ sdname (SDRec{}, _)) = M.lookupDefault (syty, S.empty) (n, Right sdname) markings
-      & flip lookupEmpty nts
-      <&> (NodeLeaf >>> Seq.singleton >>> M.singleton sdname >>> Struct)
+        & (`M.lookup` nts)
+        & maybe noparse (nodeLeaf sdname)
+    alg (SDNamedF _ sdname (SDToken _ t, _)) = lit sdname t
     alg sdf = snd <$> sdf & \case
-      SDTokenF _ t -> lit t <&> TokenLeaf
+      SDTokenF _ t -> lit_ t
       SDSyTyF _ tyn -> if isSyTy tyn
-        then lookupEmpty (tyn, S.empty) nts <&> NodeLeaf
-        else othertok tyn <&> TokenLeaf
-      SDRecF _ _ -> lookupEmpty (syty, S.empty) nts <&> NodeLeaf
-      SDNamedF _ sdname sd -> sd <&> (Seq.singleton >>> M.singleton sdname >>> Struct)
-      SDRepF _ rep sd -> repF rep sd <&> combineMany
-      SDSeqF _ sds -> toList sds & sequenceA <&> combineMany
-      SDAltF _ sds -> toList sds & asum
-    repF RepStar = many
-    repF RepPlus = some
-    repF RepQuestion = optional >>> fmap toList
-    combineMany = fmap asStruct >>> foldl' (M.unionWith (<>)) M.empty >>> Struct
-    asStruct (Struct s) = s
-    asStruct _ = M.empty
-
-ranged :: Prod r l (Maybe (Tok l, Tok l) -> Range -> a) -> Prod r l a
-ranged p = Forest.ranged $ do
-  constr <- p
-  return $ \case
-    res@Nothing -> constr res Nowhere
-    res@(Just (a, b)) -> constr res $ range a <> range b
+        then compErr "P4Parsing.Parser2.generateSyncon.alg" "Got an unnamed syty"
+        else othertok_ tyn
+      SDRecF _ _ -> compErr "P4Parsing.Parser2.generateSyncon.alg" "Got an unnamed rec"
+      SDNamedF _ sdname sd -> label sdname sd
+      SDRepF _ RepStar sd -> many sd
+      SDRepF _ RepPlus sd -> some sd
+      SDRepF _ RepQuestion sd -> optional sd
+      SDSeqF _ sds -> fold sds
+      SDAltF _ sds -> alts $ toList sds
 
 -- | Parse a literal.
-lit :: Text -> Prod r l (Tok l)
-lit = LitKind >>> terminal
+lit :: SDName -> Text -> Prod r TK 'Interior
+lit sdname = LitKind >>> terminal (Just sdname)
+
+lit_ :: Text -> Prod r TK 'Interior
+lit_ = LitKind >>> terminal Nothing
 
 -- | Parse a specific kind of token.
-othertok :: TypeName -> Prod r l (Tok l)
-othertok = TypeKind >>> terminal
+othertok :: SDName -> TypeName -> Prod r TK 'Interior
+othertok sdname = TypeKind >>> terminal (Just sdname)
 
--- | Total lookup in a map, defaulting to 'empty' from 'Alternative', i.e., a parser that fails.
-lookupEmpty :: (Eq k, Hashable k, Alternative v) => k -> HashMap k (v a) -> (v a)
-lookupEmpty = M.lookupDefault empty
+othertok_ :: TypeName -> Prod r TK 'Interior
+othertok_ = TypeKind >>> terminal Nothing
 
 -- TODO: (much later) ensure that the SyntaxDescriptions are formulated in an unambiguous way, after an internal ambiguity check
 
@@ -258,7 +227,7 @@ forestToDot showNode (nodeMap, roots) = "digraph {\n"
   where
     keyToIMap = M.keys nodeMap `zip` [(0::Int)..] & M.fromList
     keyToI key = M.lookup key keyToIMap & compFromJust "P4Parsing.ForestParser.forestToDot" "Missing key in keyToIMap"
-    nodeDesc (key, node) = "  " <> show (keyToI key) <> " [label = \"" <> escape (showNode $ void node) <> "\"];\n"
+    nodeDesc (key, realNode) = "  " <> show (keyToI key) <> " [label = \"" <> escape (showNode $ void realNode) <> "\"];\n"
     firstAmbigNode = maximum keyToIMap + 1
 
     genAlt :: HashSet n -> State (HashMap (HashSet n) Int, Int) (Int, Text)
@@ -275,7 +244,7 @@ forestToDot showNode (nodeMap, roots) = "digraph {\n"
     nodeEdgeDescs = evalState (foldMapM nodeEdges $ M.toList nodeMap) (M.empty, firstAmbigNode)
 
     nodeEdges :: (n, nodeF (HashSet n)) -> State (HashMap (HashSet n) Int, Int) Text
-    nodeEdges (keyToI -> from, node) = flip foldMapM node $ \alternatives -> do
+    nodeEdges (keyToI -> from, realNode) = flip foldMapM realNode $ \alternatives -> do
       (altId, altDesc) <- genAlt alternatives
       return $ altDesc
         <> "  " <> show from <> " -> " <> show altId <> "[arrowhead=none];\n"

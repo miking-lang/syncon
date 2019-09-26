@@ -11,7 +11,9 @@ import System.Directory (listDirectory, doesDirectoryExist, doesFileExist)
 import qualified Data.HashMap.Strict as M
 import Data.List (partition)
 
+import P1Lexing.Types (Token)
 import qualified P1Lexing.Lexer as Lexer
+import P2LanguageDefinition.Types (TypeName(..))
 import qualified P2LanguageDefinition.Parser as LD
 import qualified P2LanguageDefinition.BasicChecker as LD
 import qualified P4Parsing.Parser as Parser
@@ -30,10 +32,10 @@ langToBench :: (FilePath, ([FilePath], ([FilePath], [FilePath]))) -> Benchmark
 langToBench (lang, (defFiles, uncurry mappend -> srcFiles)) = env (mkEnv lang defFiles) $ \env ->
   bgroup lang $ benchSrc env <$> srcFiles
   where
-    benchSrc ~(lexFile, parseTokens, parseTokens2) srcFile = env (doLexFile lexFile srcFile) $ \toks ->
+    benchSrc ~(lexFile, parseTokens, precomputed) srcFile = env (doLexFile lexFile srcFile) $ \toks ->
       bgroup (takeFileName srcFile)
       [ bench "gll" $ whnf parseTokens toks
-      , bench "earley-forest" $ whnf parseTokens2 toks ]
+      , bench "earley-forest" $ whnf (Parser2.parseTokens precomputed) toks ]
     doLexFile lexFile path = lexFile path >>= \case
       Error _ -> die $ "Could not lex file " <> toS path
       Data toks -> return toks
@@ -63,6 +65,6 @@ mkEnv lang defFiles = mkDf >>= \df -> (,,) <$> mkLexer df <*> mkGllParser df <*>
     mkGllParser df = case Parser.parseTokens @SingleLanguage @[] df of
       Error _ -> die $ "Could not generate gll parser for language " <> toS lang
       Data parseTokens -> evaluate (parseTokens []) >> return parseTokens
-    mkEarleyParser df = case Parser2.parseTokens @SingleLanguage @[] df of
+    mkEarleyParser df = case Parser2.precomputeSingleLanguage @(Token SingleLanguage TypeName) df of
       Error _ -> die $ "Could not generate earley parser for language " <> toS lang
-      Data parseTokens -> evaluate (parseTokens []) >> return parseTokens
+      Data precomputed -> return precomputed

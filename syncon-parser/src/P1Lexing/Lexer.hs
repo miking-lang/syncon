@@ -33,6 +33,8 @@ data LanguageTokens n = LanguageTokens
   [Text] -- ^ Literals
   [(n, (Range, Text))] -- ^ Other token kinds, with regexes in the texts (paired with the range at which they were defined)
   [((Range, Text), (Range, Text))] -- ^ Regexes for comments (range for the string, the regex itself). The regexes are presented as 'begin' 'end' pairs.
+  deriving (Generic)
+instance NFData n => NFData (LanguageTokens n)
 
 data Error l n
   = RegexError l Text Position Text

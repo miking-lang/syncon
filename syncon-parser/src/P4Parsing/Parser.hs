@@ -42,7 +42,7 @@ instance Show l => FormatError (Error l) where
 
 type Res l = Result [Error l]
 
-type NodeF l = P4.NodeF l TypeName
+type NodeF l = P4.NodeF (Tok l)
 
 type Prod r l a = Forest.Prod r (Tok l) (NodeF l) a
 type Grammar r l a = Forest.Grammar r (Tok l) (NodeF l) a
