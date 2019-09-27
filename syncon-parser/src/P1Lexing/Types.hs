@@ -7,8 +7,6 @@ import Codec.Serialise (Serialise)
 
 import Text.Earley.Forest.Grammar as Forest
 
-import P4Parsing.ForestParser (Unlexable(..))
-
 data Range = Nowhere | Range !Text !Position !Position deriving (Show, Eq, Ord, Data, Typeable, Generic)
 data Position = Position { line :: !Int, column :: !Int } deriving (Show, Eq, Ord, Data, Typeable, Generic)
 
@@ -79,10 +77,6 @@ instance Ranged (a, Range) where
 instance Ranged (Token l n) where
   range (LitTok r _ _) = r
   range (OtherTok r _ _ _) = r
-
-instance Unlexable (Token l n) where
-  unlex (LitTok _ _ t) = t
-  unlex (OtherTok _ _ _ t) = t
 
 instance Hashable Range
 instance Hashable Position

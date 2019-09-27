@@ -13,11 +13,12 @@ import Data.IORef (newIORef, readIORef, IORef, writeIORef)
 import qualified Data.HashMap.Strict as M
 import Data.List (partition)
 
+import P1Lexing.Types (Token)
 import qualified P1Lexing.Lexer as Lexer
+import P2LanguageDefinition.Types (TypeName(..))
 import qualified P2LanguageDefinition.Parser as LD
 import qualified P2LanguageDefinition.BasicChecker as LD
 import qualified P4Parsing.Parser as Parser
-import qualified P4Parsing.Parser2 as Parser2
 import P4Parsing.Types (SingleLanguage(..))
 
 main :: IO ()
@@ -36,15 +37,13 @@ langToTest failRef (lang, (defFiles, (successFiles, failFiles))) = do
   mapM_ (mkTest env True) successFiles
   mapM_ (mkTest env False) failFiles
   where
-    mkTest (lexFile, parseTokens, parseTokens2) expected srcFile = do
+    mkTest (lexFile, precomputed) expected srcFile = do
       toks <- doLexFile lexFile srcFile
-      let gllResult = parseTokens toks & isData & (== expected)
-          earleyResult = parseTokens2 toks & isData & (== expected)
+      let earleyResult = Parser.parseTokens precomputed toks & isData & (== expected)
           showRes True  = "    "
           showRes False = "FAIL"
-      putStrLn $ showRes gllResult <> " parser/" <> lang <> "/" <> takeFileName srcFile <> "/gll"
       putStrLn $ showRes earleyResult <> " parser/" <> lang <> "/" <> takeFileName srcFile <> "/earley-forest"
-      when (not gllResult || not earleyResult) $ writeIORef failRef True
+      when (not earleyResult) $ writeIORef failRef True
     doLexFile lexFile path = lexFile path >>= \case
       Error _ -> die $ "Could not lex file " <> toS path
       Data toks -> return toks
@@ -62,7 +61,7 @@ getLanguages languageDirectory = do
   where
     listDir path = listDirectory path <&> fmap (path </>)
 
-mkEnv lang defFiles = mkDf >>= \df -> (,,) <$> mkLexer df <*> mkGllParser df <*> mkEarleyParser df
+mkEnv lang defFiles = mkDf >>= \df -> (,) <$> mkLexer df <*> mkEarleyParser df
   where
     mkDf = do
       foldMapM LD.parseFile defFiles >>= \case
@@ -73,9 +72,6 @@ mkEnv lang defFiles = mkDf >>= \df -> (,,) <$> mkLexer df <*> mkGllParser df <*>
     mkLexer df = case Parser.dfToLanguageTokens df & Lexer.allOneLanguage SingleLanguage of
       Error _ -> die $ "Could not generate a parser for lanugage " <> toS lang
       Data lexFile -> return lexFile
-    mkGllParser df = case Parser.parseTokens @SingleLanguage @[] df of
-      Error _ -> die $ "Could not generate gll parser for language " <> toS lang
-      Data parseTokens -> evaluate (parseTokens []) >> return parseTokens
-    mkEarleyParser df = case Parser2.parseTokens @SingleLanguage @[] df of
+    mkEarleyParser df = case Parser.precomputeSingleLanguage @(Token SingleLanguage TypeName) df of
       Error _ -> die $ "Could not generate earley parser for language " <> toS lang
-      Data parseTokens -> evaluate (parseTokens []) >> return parseTokens
+      Data precomputed -> return precomputed

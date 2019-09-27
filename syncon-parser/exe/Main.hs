@@ -41,7 +41,7 @@ import qualified P2LanguageDefinition.BasicChecker as LD
 import qualified P2LanguageDefinition.Elaborator as LD
 
 import qualified P4Parsing.Types as Parser
-import qualified P4Parsing.Parser2 as Parser2
+import qualified P4Parsing.Parser as Parser
 
 import qualified P5DynamicAmbiguity.Types as DynAmb
 import qualified P5DynamicAmbiguity.TreeLanguage as DynAmb
@@ -133,10 +133,10 @@ compile = Opt.command "compile" (Opt.info compileCmd $ Opt.progDesc "Compile a l
         tops <- M.traverseWithKey (\defFile _ -> LD.parseFile $ toS defFile) sources
           >>= (fold >>> dataOrError sources ())
         df <- LD.mkDefinitionFile tops & dataOrError sources ()
-        preParse <- Parser2.precomputeSingleLanguage @(Lexer.Token Parser.SingleLanguage LD.TypeName) df & dataOrError sources ()
+        preParse <- Parser.precomputeSingleLanguage @(Lexer.Token Parser.SingleLanguage LD.TypeName) df & dataOrError sources ()
         let pl = DynAmb.precompute @() df
 
-        let serialisable = (Parser2.precomputeToSerialisable preParse, pl)
+        let serialisable = (Parser.precomputeToSerialisable preParse, pl)
         writeFileSerialise outputFile serialisable
 
 parse :: Opt.Mod Opt.CommandFields (IO ())
@@ -177,7 +177,7 @@ parse = Opt.command "parse" (Opt.info parseCmd $ Opt.progDesc "Parse a list of f
 
       pure $ do
         (preParseSerialisable, pl) <- readFileDeserialise synconc
-        preParse <- Parser2.serialisableToPrecompute @(Lexer.Token Parser.SingleLanguage LD.TypeName) preParseSerialisable & dataOrError mempty ()
+        preParse <- Parser.serialisableToPrecompute @(Lexer.Token Parser.SingleLanguage LD.TypeName) preParseSerialisable & dataOrError mempty ()
 
         sources <- files & S.fromList & S.toMap
           & M.traverseWithKey (\path _ -> readFile $ toS path)
@@ -190,12 +190,12 @@ parse = Opt.command "parse" (Opt.info parseCmd $ Opt.progDesc "Parse a list of f
           putStrLn @Text $ "Parsing \"" <> path <> "\""
           handle (\(SourceFileException t) -> modifyIORef' failureFiles (+1) >> sourceFailureHandler t) $ do
             mNode <- timeout sourceTimeout $ do
-              forest@(nodeMap, _) <- Parser2.parseFile preParse (toS path) >>= dataOrError' sources ()
+              forest@(nodeMap, _) <- Parser.parseFile preParse (toS path) >>= dataOrError' sources ()
               forM_ dot $ \outPath -> do
                 let fullPath = outPath </> toS path <.> "dot"
                 putStrLn @Text $"Writing to \"" <> toS fullPath <> "\""
                 createDirectoryIfMissing True $ takeDirectory fullPath
-                Parser2.forestToDot (Parser.n_nameF >>> coerce) forest
+                Parser.forestToDot (Parser.n_nameF >>> coerce) forest
                   & writeFile fullPath
               DynAmb.isolate forest & \case
                 Data node -> modifyIORef' successfulFiles (+1) >> return node
@@ -286,7 +286,7 @@ common = do
     tops <- M.traverseWithKey (\defFile _ -> LD.parseFile $ toS defFile) defSources
       >>= (fold >>> dataOrError defSources ())
     df <- LD.mkDefinitionFile tops & dataOrError defSources ()
-    preParse <- Parser2.precomputeSingleLanguage @(Lexer.Token Parser.SingleLanguage LD.TypeName) df & dataOrError defSources ()
+    preParse <- Parser.precomputeSingleLanguage @(Lexer.Token Parser.SingleLanguage LD.TypeName) df & dataOrError defSources ()
     let pl = DynAmb.precompute df
 
     srcSources <- extraSrcFiles <> srcFiles & S.fromList & S.toMap
@@ -300,12 +300,12 @@ common = do
       putStrLn @Text $ "Parsing \"" <> path <> "\""
       handle (\(SourceFileException t) -> modifyIORef' failureFiles (+1) >> sourceFailureHandler t) $ do
         mNode <- timeout sourceTimeout $ do
-          forest@(nodeMap, _) <- Parser2.parseFile preParse (toS path) >>= dataOrError' srcSources ()
+          forest@(nodeMap, _) <- Parser.parseFile preParse (toS path) >>= dataOrError' srcSources ()
           forM_ dot $ \outPath -> do
             let fullPath = outPath </> toS path <.> "dot"
             putStrLn @Text $"Writing to \"" <> toS fullPath <> "\""
             createDirectoryIfMissing True $ takeDirectory fullPath
-            Parser2.forestToDot (Parser.n_nameF >>> coerce) forest
+            Parser.forestToDot (Parser.n_nameF >>> coerce) forest
               & writeFile fullPath
           DynAmb.isolate forest & \case
             Data node -> modifyIORef' successfulFiles (+1) >> return node

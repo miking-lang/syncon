@@ -17,7 +17,6 @@ import P2LanguageDefinition.Types (TypeName(..))
 import qualified P2LanguageDefinition.Parser as LD
 import qualified P2LanguageDefinition.BasicChecker as LD
 import qualified P4Parsing.Parser as Parser
-import qualified P4Parsing.Parser2 as Parser2
 import P4Parsing.Types (SingleLanguage(..))
 
 import Criterion.Main
@@ -32,10 +31,9 @@ langToBench :: (FilePath, ([FilePath], ([FilePath], [FilePath]))) -> Benchmark
 langToBench (lang, (defFiles, uncurry mappend -> srcFiles)) = env (mkEnv lang defFiles) $ \env ->
   bgroup lang $ benchSrc env <$> srcFiles
   where
-    benchSrc ~(lexFile, parseTokens, precomputed) srcFile = env (doLexFile lexFile srcFile) $ \toks ->
+    benchSrc ~(lexFile, precomputed) srcFile = env (doLexFile lexFile srcFile) $ \toks ->
       bgroup (takeFileName srcFile)
-      [ bench "gll" $ whnf parseTokens toks
-      , bench "earley-forest" $ whnf (Parser2.parseTokens precomputed) toks ]
+      [ bench "earley-forest" $ whnf (Parser.parseTokens precomputed) toks ]
     doLexFile lexFile path = lexFile path >>= \case
       Error _ -> die $ "Could not lex file " <> toS path
       Data toks -> return toks
@@ -51,7 +49,7 @@ getLanguages languageDirectory = do
   where
     listDir path = listDirectory path <&> fmap (path </>)
 
-mkEnv lang defFiles = mkDf >>= \df -> (,,) <$> mkLexer df <*> mkGllParser df <*> mkEarleyParser df
+mkEnv lang defFiles = mkDf >>= \df -> (,) <$> mkLexer df <*> mkEarleyParser df
   where
     mkDf = do
       foldMapM LD.parseFile defFiles >>= \case
@@ -62,9 +60,6 @@ mkEnv lang defFiles = mkDf >>= \df -> (,,) <$> mkLexer df <*> mkGllParser df <*>
     mkLexer df = case Parser.dfToLanguageTokens df & Lexer.allOneLanguage SingleLanguage of
       Error _ -> die $ "Could not generate a parser for lanugage " <> toS lang
       Data lexFile -> return lexFile
-    mkGllParser df = case Parser.parseTokens @SingleLanguage @[] df of
-      Error _ -> die $ "Could not generate gll parser for language " <> toS lang
-      Data parseTokens -> evaluate (parseTokens []) >> return parseTokens
-    mkEarleyParser df = case Parser2.precomputeSingleLanguage @(Token SingleLanguage TypeName) df of
+    mkEarleyParser df = case Parser.precomputeSingleLanguage @(Token SingleLanguage TypeName) df of
       Error _ -> die $ "Could not generate earley parser for language " <> toS lang
       Data precomputed -> return precomputed

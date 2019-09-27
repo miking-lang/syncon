@@ -85,7 +85,6 @@ library
                , Earley
                , earley-forest
                , aeson
-               , gll
                , serialise
   exposed-modules: Pre
                  , Result
@@ -109,10 +108,6 @@ library
                  , P2LanguageDefinition.Elaborator
                  , P4Parsing.Types
                  , P4Parsing.Parser
-                 , P4Parsing.Parser2
-                 , P4Parsing.ForestParser
-                 , P4Parsing.ForestParser.Grammar
-                 , P4Parsing.ForestParser.GLL
                  , P5DynamicAmbiguity.Types
                  , P5DynamicAmbiguity.TreeLanguage
                  , P5DynamicAmbiguity.Analysis
