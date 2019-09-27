@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-unused-imports #-} -- TODO: remove
 {-# LANGUAGE NamedFieldPuns, FlexibleContexts, ScopedTypeVariables, DeriveGeneric, RankNTypes, ViewPatterns, LambdaCase, GeneralizedNewtypeDeriving, TypeApplications, TupleSections, RecordWildCards #-}
 
 module Text.Earley.Forest.Parser
@@ -15,8 +14,7 @@ import Prelude hiding (pred)
 import GHC.Generics (Generic)
 
 import Codec.Serialise (Serialise)
-import Control.Applicative ((<|>))
-import Control.Arrow ((>>>), first)
+import Control.Arrow ((>>>))
 import Control.DeepSeq (NFData)
 import Control.Monad (unless, join, (>=>))
 import Control.Monad.ST (ST, runST)
@@ -28,7 +26,7 @@ import Data.Functor ((<&>), void)
 import Data.HashMap.Lazy (HashMap)
 import Data.HashSet (HashSet)
 import Data.Hashable (Hashable)
-import Data.Maybe (catMaybes, mapMaybe, isJust)
+import Data.Maybe (catMaybes, mapMaybe)
 import Data.STRef (STRef, newSTRef)
 import Data.Sequence (Seq((:|>)), (|>))
 import Data.Traversable (forM)
@@ -41,9 +39,8 @@ import qualified Data.Vector as Vector
 
 import Text.Earley.Forest.Grammar (TokKind, Parseable, getKind)
 import Text.Earley.Forest.ParseTree (ParseTree(..))
-import Text.Earley.Forest.SplitEpsDFA (EpsDFA(..), mkDFA, renumberStates, completedNT, isCompleted, DotProd(..), dotToRule)
+import Text.Earley.Forest.SplitEpsDFA (EpsDFA(..), mkDFA, renumberStates, completedNT, dotToRule)
 import Text.Earley.Forest.Transformations (NT(..), Rule(..), Sym(..), NtKind(..), rightRecursive, NtKind(..), ruleAsTuple)
-import qualified Text.Earley.Forest.ParseTree as PT
 
 -- | Several Earley items, in the form of an EpsDFA state and origin
 data Eim = Eim
