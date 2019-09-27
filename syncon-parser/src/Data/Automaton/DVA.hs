@@ -242,7 +242,6 @@ mapSta convert dva@DVA{openTransitions,closeTransitions} = dva
   { openTransitions = openTransitions <&> fmap (first convert)
   , closeTransitions = closeTransitions <&> fmap (mapKeys convert) }
 
--- TODO: this assumes that the transitions of the operands are total, but determinize above does not produce total transitions. Make this work without them (add a dummy fail state to each automaton, use it when an edge is missing)
 dvaOp :: ( Eq s1, Hashable s1
          , Eq s2, Hashable s2
          , Eq sta1, Hashable sta1

@@ -146,8 +146,8 @@ mkDefinitionFile :: [Top] -> Res DefinitionFile
 mkDefinitionFile (addImplicits >>> Seq.fromList -> tops) = do
   findDuplicates s_name synconTops
   findDuplicates getTypeName typeTops
-  (bracketKind, Groupings groupings) <- checkGroupings syntaxTypes tops
-  traverse_ (checkSyncon syntaxTypes bracketKind) synconTops
+  (bracketKindInfo, Groupings groupings) <- checkGroupings syntaxTypes tops
+  traverse_ (checkSyncon syntaxTypes (bracketKind bracketKindInfo)) synconTops
   traverse_ (checkForbid synconAndSDNames) forbids
   precedences <- checkPrecedences synconAndSDNames tops
   checkNonProductiveCycles synconTops
@@ -389,7 +389,7 @@ instance Monoid TokenClassifications where
   mempty = TokenClassifications M.empty
   mappend = (<>)
 
-checkGroupings :: Foldable t => HashMap TypeName (Either SyntaxType TokenType) -> t Top -> Res (Either Text TypeName -> BracketKind, Groupings)
+checkGroupings :: Foldable t => HashMap TypeName (Either SyntaxType TokenType) -> t Top -> Res (BracketKindInfo, Groupings)
 checkGroupings types tops = do
   (groupings, TokenClassifications classifications) <-
     foldMap groupingPair [g | GroupingTop g <- toList tops]
@@ -397,7 +397,7 @@ checkGroupings types tops = do
     case M.toList kinds of
       [(kind, _)] -> pure kind
       kinds' -> Error [InconsistentBracketKinds tok kinds']
-  pure (\tok -> M.lookupDefault NonBracket tok classMap, groupings)
+  pure (BracketKindInfo classMap, groupings)
   where
     groupingPair :: Grouping -> Res (Groupings, TokenClassifications)
     groupingPair Grouping{..} = do

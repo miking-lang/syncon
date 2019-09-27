@@ -514,7 +514,6 @@ shortestWord NVA{..} = recur initialConfigs
     isFinal (s, [], _) = S.member s final
     isFinal _ = False
 
--- TODO: make a timeouting version of this in IO
 shortestUniqueWord :: forall s sta i o c.
                       ( Eq s, Hashable s
                       , Eq sta, Hashable sta

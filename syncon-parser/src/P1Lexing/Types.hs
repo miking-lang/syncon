@@ -3,6 +3,9 @@ module P1Lexing.Types where
 import Pre
 
 import Data.Data (Data)
+import Codec.Serialise (Serialise)
+
+import Text.Earley.Forest.Grammar as Forest
 
 data Range = Nowhere | Range !Text !Position !Position deriving (Show, Eq, Ord, Data, Typeable, Generic)
 data Position = Position { line :: !Int, column :: !Int } deriving (Show, Eq, Ord, Data, Typeable, Generic)
@@ -36,12 +39,28 @@ instance Monoid Range where
 data Token l n
   = LitTok Range l Text
   | OtherTok Range l n Text
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Show, Eq, Ord, Generic, Data, Typeable)
 instance (Hashable l, Hashable n) => Hashable (Token l n)
+instance (NFData l, NFData n) => NFData (Token l n)
 
 textualToken :: Show n => Token l n -> Text
 textualToken (LitTok _ _ t) = show t
 textualToken (OtherTok _ _ n t) = "(" <> show n <> ") " <> t  -- TODO: better printing of this
+
+instance Coercible n Text => Forest.Parseable (Token l n) where  -- TODO: have some better method to print the 'n'
+  type TokKind (Token l n) = TokenKind n
+  kindLabel (LitKind t) = t
+  kindLabel (TypeKind tyn) = coerce tyn
+  getKind (LitTok _ _ t) = LitKind t
+  getKind (OtherTok _ _ tyn _) = TypeKind tyn
+  unlex (LitTok _ _ t) = t
+  unlex (OtherTok _ _ _ t) = t
+
+data TokenKind n = LitKind !Text | TypeKind !n
+  deriving (Show, Eq, Generic)
+instance Hashable n => Hashable (TokenKind n)
+instance NFData n => NFData (TokenKind n)
+instance Serialise n => Serialise (TokenKind n)
 
 class Ranged a where
   range :: a -> Range
@@ -61,3 +80,7 @@ instance Ranged (Token l n) where
 
 instance Hashable Range
 instance Hashable Position
+instance NFData Position
+instance NFData Range
+instance Serialise Position
+instance Serialise Range

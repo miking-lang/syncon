@@ -1,0 +1,7 @@
+Syncon
+    filter remove_matches ([0-9]+.*)+\s+/
+    filter call_regexp_common C++
+    filter remove_inline //.*$
+    extension syncon
+    3rd_gen_scale 0.77
+    end_of_line_continuation \\$

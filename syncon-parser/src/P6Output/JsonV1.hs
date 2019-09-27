@@ -47,14 +47,14 @@ import P4Parsing.Types (Node(..), NodeInternals(..))
 
 -}
 
-encode :: HashMap Text (Node l TypeName) -> LByteString
+encode :: HashMap Text (Node (Token l TypeName)) -> LByteString
 encode files = pairs (pair "version" (int 1) <> foldMap encodeFile (M.toList files))
   & encodingToLazyByteString
 
-encodeFile :: (Text, Node l TypeName) -> Series
+encodeFile :: (Text, Node (Token l TypeName)) -> Series
 encodeFile (path, node) = pair path $ encodeNode node
 
-encodeNode :: Node l TypeName -> Encoding
+encodeNode :: Node (Token l TypeName) -> Encoding
 encodeNode Node{n_name, n_contents, n_range} = pair "type" (text "node")
   <> pair "name" (text $ coerce n_name)
   <> pair "range" (encodeRange n_range)
@@ -70,13 +70,13 @@ encodeRange (Range path start end) = pair "file" (text path)
     encodePos (Position line col) = pair "line" (int line) <> pair "col" (int col) & pairs
 encodeRange Nowhere = null_
 
-encodeMap :: HashMap SDName (Seq (NodeInternals l TypeName (Node l TypeName))) -> Encoding
+encodeMap :: HashMap SDName (Seq (NodeInternals (Token l TypeName) (Node (Token l TypeName)))) -> Encoding
 encodeMap = M.toList
   >>> foldMap (coerce *** foldable encodeInternal >>> uncurry pair)
   >>> mappend (pair "type" (text "internal"))
   >>> pairs
 
-encodeInternal :: NodeInternals l TypeName (Node l TypeName) -> Encoding
+encodeInternal :: NodeInternals (Token l TypeName) (Node (Token l TypeName)) -> Encoding
 encodeInternal (NodeLeaf node) = encodeNode node
 encodeInternal (TokenLeaf tok) = pair "range" (encodeRange $ range tok)
   <> case tok of

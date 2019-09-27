@@ -1,0 +1,19 @@
+token LowerIdent = "[[:lower:]_][[:alnum:]_']*"  // was called "lowercase-ident"
+
+syncon unitImplementation: Top =
+  "a"? eh:"foo"
+
+// token LowerIdent = "[[:lower:]_][[:alnum:]_']*"  // was called "lowercase-ident"
+
+// type ValueName
+// syncon valueName: ValueName = n:LowerIdent
+
+// type ValuePath
+// syncon valuePath: ValuePath = n:ValueName
+
+// type Exp
+// grouping "(" Exp ")"
+// syncon identExp: Exp = id:ValuePath
+
+// syncon unitImplementation: Top =
+//   ";;"* (eh:Exp) (";;"* (";;" et:Exp))* ";;"*  // NOTE: technically there should be a ? around the entire thing

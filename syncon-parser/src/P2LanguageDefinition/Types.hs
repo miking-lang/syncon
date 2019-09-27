@@ -8,16 +8,17 @@ import Pre
 
 import Data.Data (Data)
 import Data.Functor.Foldable.TH (makeBaseFunctor)
+import Codec.Serialise (Serialise)
 import qualified Data.HashMap.Strict as M
 
 import P1Lexing.Types (Range, Ranged, range)
 
 -- TODO: make this something more fancy once we start namespacing things
-newtype Name = Name Text deriving (Show, Eq, Hashable, Data, Typeable)
-newtype TypeName = TypeName Text deriving (Show, Eq, Hashable, Data, Typeable)
+newtype Name = Name Text deriving (Show, Eq, Hashable, Data, Typeable, NFData, Serialise)
+newtype TypeName = TypeName Text deriving (Show, Eq, Ord, Hashable, Data, Typeable, NFData, Serialise)
 
 -- | Names for subsections of syntax descriptions.
-newtype SDName = SDName Text deriving (Show, Eq, Hashable, Data, Typeable)
+newtype SDName = SDName Text deriving (Show, Eq, Hashable, Data, Typeable, NFData, Serialise)
 
 data DefinitionFile = DefinitionFile
   { syncons :: !(HashMap Name Syncon)
@@ -25,12 +26,18 @@ data DefinitionFile = DefinitionFile
   , forbids :: !(Seq Forbid)
   , precedences :: !PrecedenceMatrix
   , comments :: !(Seq Comment)
-  , bracketKind :: !((Either Text TypeName) -> BracketKind)
+  , bracketKindInfo :: !BracketKindInfo
   , groupings :: !(HashMap TypeName (Seq (Either Text TypeName, Either Text TypeName)))
   }
 
+newtype BracketKindInfo = BracketKindInfo (HashMap (Either Text TypeName) BracketKind) deriving (Serialise)
+
+bracketKind :: BracketKindInfo -> Either Text TypeName -> BracketKind
+bracketKind (BracketKindInfo info) tok = M.lookupDefault NonBracket tok info
+
 data BracketKind = OpenBracket | NonBracket | CloseBracket deriving (Show, Eq, Generic)
 instance Hashable BracketKind
+instance Serialise BracketKind
 
 -- | A big sum type of all the top-level declarations
 data Top
@@ -96,14 +103,17 @@ data SyntaxDescription
   | SDSyTy Range TypeName
   | SDRec Range Rec
   | SDToken Range Text -- ^ A literal token, i.e., something written as a quoted string in a .syncon file
-  deriving (Eq, Show, Data, Typeable)
+  deriving (Eq, Show, Data, Typeable, Generic)
+instance Serialise SyntaxDescription
 
 -- | Recursion to the same syntax type, behaves exactly the same as just writing that syntax type,
 -- except in precedence lists, where forbids are generated for recs.
 data Rec = LRec | RRec | Rec deriving (Show, Data, Typeable, Eq, Generic)
 instance Hashable Rec
+instance Serialise Rec
 
-data Repetition = RepStar | RepQuestion | RepPlus deriving (Eq, Show, Data, Typeable)
+data Repetition = RepStar | RepQuestion | RepPlus deriving (Eq, Show, Data, Typeable, Generic)
+instance Serialise Repetition
 
 -- |
 -- = Disambiguation
