@@ -11,20 +11,6 @@ packages:
       sha256: fecec01e618890c284e57cb873b8f9531f479562b7cf08497aef097da3ef90ec
   original:
     hackage: pretty-terminal-0.1.0.0
-- completed:
-    hackage: TypeCompose-0.9.14@sha256:a49b68dfbd2b7affffaf929036a74b8d2bdca1dd7bb73ff4fe80ce5dbe32afdf,1502
-    pantry-tree:
-      size: 758
-      sha256: 47246d0e05c100194b09021ff22d0a268c8bb7fa12d7213c2f34db3d5daf00c1
-  original:
-    hackage: TypeCompose-0.9.14
-- completed:
-    hackage: random-strings-0.1.1.0@sha256:935a7a23dab45411960df77636a29b44ce42b89eeb15f2b1e809d771491fa677,2517
-    pantry-tree:
-      size: 663
-      sha256: 5a382966fdd8d5220b5791f3bff6db00d2ea29235e2716dadd52461b8a8beb97
-  original:
-    hackage: random-strings-0.1.1.0
 snapshots:
 - completed:
     size: 497510
