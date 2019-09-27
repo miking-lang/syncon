@@ -34,5 +34,6 @@ library
                      , transformers
                      , vector
                      , deepseq
+                     , serialise
   -- hs-source-dirs:
   default-language:    Haskell2010

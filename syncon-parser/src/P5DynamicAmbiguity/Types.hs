@@ -2,6 +2,8 @@ module P5DynamicAmbiguity.Types where
 
 import Pre
 
+import Codec.Serialise (Serialise)
+
 import P1Lexing.Types (Ranged(..))
 import qualified P1Lexing.Types as P1
 import qualified P2LanguageDefinition.Types as P2
@@ -17,7 +19,8 @@ data Token elidable
   | OtherTokInstance !P2.TypeName !Text
   | OtherTok !P2.TypeName
   | ElidedTok !elidable
-  deriving (Show)
+  deriving (Show, Generic)
+instance Serialise elidable => Serialise (Token elidable)
 
 eitherRepr :: Token elidable -> Either Text (Either P2.TypeName elidable)
 eitherRepr (LitTok t) = Left t

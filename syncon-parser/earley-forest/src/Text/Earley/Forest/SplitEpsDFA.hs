@@ -18,6 +18,7 @@ import Prelude
 
 import GHC.Generics (Generic)
 
+import Codec.Serialise (Serialise)
 import Control.Arrow ((>>>), (&&&), (***))
 import Control.DeepSeq (NFData)
 import Control.Monad.ST (ST, runST)
@@ -47,6 +48,7 @@ data EpsDFA s t = EpsDFA
   , initial :: !s
   } deriving (Generic)
 instance (NFData s, NFData t) => NFData (EpsDFA s t)
+instance (Eq s, Hashable s, Eq t, Hashable t, Serialise s, Serialise t) => Serialise (EpsDFA s t)
 
 data DotProd = DotProd
   !Int -- ^ Which rule, indexing into the sequence of rules

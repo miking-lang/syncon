@@ -2,7 +2,7 @@
 {-# LANGUAGE ViewPatterns #-}
 
 
-module P5DynamicAmbiguity.TreeLanguage (precompute, PreLanguage(PreLanguage, getSyTy), treeLanguage) where
+module P5DynamicAmbiguity.TreeLanguage (precompute, PreLanguage(PreLanguage), treeLanguage, getSyTy) where
 
 import Pre hiding (reduce)
 
@@ -14,6 +14,7 @@ import qualified Data.Sequence as Seq
 import Data.Sequence (pattern Empty, pattern (:<|), pattern (:|>))
 
 import Data.Generics.Uniplate.Data (universe)
+import Codec.Serialise (Serialise)
 
 import Data.Automaton.EpsilonNVA (EpsNVA(..), fromNFA, TaggedTerminal(..))
 import qualified Data.Automaton.EpsilonNVA as EpsNVA
@@ -37,7 +38,7 @@ import P5DynamicAmbiguity.Types
 --
 -- Note that the 'Node' doesn't have to be of syntax type Top, it can be any syntax type.
 treeLanguage :: (Eq elidable, Hashable elidable, Show elidable, Show tok, Ranged tok)
-             => PreLanguage -> (tok -> Token elidable)
+             => PreLanguage elidable -> (tok -> Token elidable)
              -> (elidable -> (Range, TypeName)) -> NodeOrElide elidable tok
              -> NVA Int Int (Token elidable) (Token elidable) (Token elidable)
 treeLanguage pl mkToken getElidable =
@@ -46,21 +47,38 @@ treeLanguage pl mkToken getElidable =
   >>> reduce
   >>> renumber
 
-data PreLanguage = PreLanguage
-  { isForbidden :: Name -> SDName -> Name -> Bool
-  , bracketKind :: forall elidable. Either Text (Either TypeName elidable) -> BracketKind
-  , getSyTy :: Name -> TypeName
-  , getGroupings :: forall elidable. TypeName -> Seq (Token elidable, Token elidable)
-  , syncons :: forall elidable.
-               HashMap Name ( SyntaxDescription
+data PreLanguage elidable = PreLanguage
+  { bracketKindInfo :: !P2.BracketKindInfo
+  , elaborationWithRecs :: !(HashMap (Name, SDName) (HashSet Name))
+  , nameToSyTy :: !(HashMap Name TypeName)
+  , tokGroupings :: !(HashMap TypeName (Seq (Token elidable, Token elidable)))
+  , syncons :: HashMap Name ( SyntaxDescription
                             , HashMap (SavedPoint elidable ()) Path
                             , HashSet Path )
-  }
+  } deriving (Generic)
+instance (Eq elidable, Hashable elidable, Serialise elidable) => Serialise (PreLanguage elidable)
+
+bracketKind :: PreLanguage elidable -> Either Text (Either TypeName elidable) -> BracketKind
+bracketKind _ (Right Right{}) = NonBracket
+bracketKind PreLanguage{bracketKindInfo} (Right (Left a)) = P2.bracketKind bracketKindInfo $ Right a
+bracketKind PreLanguage{bracketKindInfo} (Left a) = P2.bracketKind bracketKindInfo $ Left a
+
+isForbidden :: PreLanguage elidable -> Name -> SDName -> Name -> Bool
+isForbidden PreLanguage{elaborationWithRecs} n1 sdname n2 = M.lookup (n1, sdname) elaborationWithRecs
+  & fold
+  & S.member n2
+
+getSyTy :: PreLanguage elidable -> Name -> TypeName
+getSyTy PreLanguage{nameToSyTy} n = M.lookup n nameToSyTy
+  & compFromJust "P4Parsing.AmbiguityReporter.nodePoints.getSyTy" "Syncon without a type"
+
+getGroupings :: PreLanguage elidable -> TypeName -> Seq (Token elidable, Token elidable)
+getGroupings PreLanguage{tokGroupings} tyn = M.lookup tyn tokGroupings & fold
 
 -- | Do some precomputations that are useful for the remaining functions in this module, to
 -- enable sharing some work.
-precompute :: DefinitionFile -> PreLanguage
-precompute df = PreLanguage{..}
+precompute :: DefinitionFile -> PreLanguage elidable
+precompute df@P2.DefinitionFile{bracketKindInfo} = PreLanguage{..}
   where
     elaboration = elaborate (P2.syncons df) (P2.forbids df) (P2.precedences df)
     elaborationWithRecs :: HashMap (Name, SDName) (HashSet Name)
@@ -78,26 +96,8 @@ precompute df = PreLanguage{..}
               pure ((n, sdname), M.lookupDefault S.empty (n, Left sdrec) elaboration)
             _ -> []
 
-    bracketKind :: Either Text (Either TypeName elidable) -> BracketKind
-    bracketKind (Right Right{}) = NonBracket
-    bracketKind (Right (Left a)) = P2.bracketKind df $ Right a
-    bracketKind (Left a) = P2.bracketKind df $ Left a
-
-    isForbidden :: Name -> SDName -> Name -> Bool
-    isForbidden n1 sdname n2 = M.lookup (n1, sdname) elaborationWithRecs
-      & fold
-      & S.member n2
-
-    getSyTy :: Name -> TypeName
-    getSyTy n = M.lookup n (P2.syncons df)
-      & compFromJust "P4Parsing.AmbiguityReporter.nodePoints.getSyTy" "Syncon without a type"
-      & s_syntaxType
-      & snd
-
     tokGroupings :: HashMap TypeName (Seq (Token elidable, Token elidable))
     tokGroupings = P2.groupings df <&> fmap (mkTok *** mkTok)
-    getGroupings :: TypeName -> Seq (Token elidable, Token elidable)
-    getGroupings tyn = M.lookup tyn tokGroupings & fold
 
     syncons :: HashMap Name (SyntaxDescription, HashMap (SavedPoint elidable ()) Path, HashSet Path)
     syncons = P2.syncons df <&> \Syncon{..} ->
@@ -108,6 +108,9 @@ precompute df = PreLanguage{..}
           sps = toElidable $ discoverSavePoints isSyTy (snd s_syntaxType) sd
           paths = S.fromList $ toList sps
       in (sd, sps, paths)
+
+    nameToSyTy :: HashMap Name TypeName
+    nameToSyTy = P2.syncons df <&> s_syntaxType <&> snd
 
     isSyTy :: TypeName -> Bool
     isSyTy tyn = M.lookup tyn (P2.syntaxTypes df) & maybe False isLeft
@@ -153,18 +156,18 @@ precompute df = PreLanguage{..}
 -- to a syncon, and Just n for the nth paren location, to ensure that grouping
 -- parens are paired appropriately. (TODO: update documentation comment)
 mkLanguage :: forall elidable tok. (Eq elidable, Hashable elidable, Show elidable, Show tok, Ranged tok)
-           => PreLanguage
+           => PreLanguage elidable
            -> (tok -> Token elidable)
            -> (elidable -> (Range, TypeName))
            -> NodeOrElide elidable tok
            -> EpsNVA Int (Either () Int) (Token elidable) (Token elidable) (Token elidable)
-mkLanguage PreLanguage{bracketKind} _ _ (Elide elidable) = ElidedTok elidable
+mkLanguage pl _ _ (Elide elidable) = ElidedTok elidable
   & Terminal
   & Regex.toAutomaton
   & fromNFA tag
   & EpsNVA.mapSta Left
   where
-    tag tok = case eitherRepr tok & bracketKind of
+    tag tok = case eitherRepr tok & bracketKind pl of
       OpenBracket -> Open tok
       NonBracket -> Inner tok
       CloseBracket -> Close tok
@@ -187,7 +190,7 @@ mkLanguage pl@PreLanguage{..} mkToken getElidable (Node n@NodeF{n_nameF}) =
     genPoint (TokPoint _ tok) = regexToEpsNVA $ Terminal tok
     genPoint (NodePoint sdname _ node) = case node of
       Node NodeF{n_nameF=innerName}
-        | isForbidden n_nameF sdname innerName -> withOpt
+        | isForbidden pl n_nameF sdname innerName -> withOpt
           { EpsNVA.initial = S.singleton (-1)
           , EpsNVA.final = S.singleton (-2)
           , EpsNVA.openTransitions = mkMandEdge (-1) <$> toList (EpsNVA.initial withOpt) <*> (second fst <$> toList groupings)
@@ -200,9 +203,9 @@ mkLanguage pl@PreLanguage{..} mkToken getElidable (Node n@NodeF{n_nameF}) =
       Elide _ -> innerLang
       where
         syTy = case node of
-          Node NodeF{n_nameF=innerName} -> getSyTy innerName
+          Node NodeF{n_nameF=innerName} -> getSyTy pl innerName
           Elide elidable -> getElidable elidable & snd
-        groupings = getGroupings syTy
+        groupings = getGroupings pl syTy
           & toList
           & zip [-1,-2..]
           <&> first Right
@@ -223,7 +226,7 @@ mkLanguage pl@PreLanguage{..} mkToken getElidable (Node n@NodeF{n_nameF}) =
     regexToEpsNVA = Regex.toAutomaton >>> fromNFA tag >>> EpsNVA.mapSta Left
 
     tag :: Token elidable -> TaggedTerminal (Token elidable) (Token elidable) (Token elidable)
-    tag tok = case bracketKind $ eitherRepr tok of
+    tag tok = case bracketKind pl $ eitherRepr tok of
       OpenBracket -> Open tok
       NonBracket -> Inner tok
       CloseBracket -> Close tok
@@ -241,6 +244,7 @@ data SavedPoint elidable node
   | NodePoint SDName TypeName node
   deriving (Functor, Eq, Generic, Show)
 instance (Hashable node, Hashable elidable) => Hashable (SavedPoint elidable node)
+instance (Serialise elidable, Serialise node) => Serialise (SavedPoint elidable node)
 
 asLookupPoint :: SavedPoint elidable node -> SavedPoint elidable ()
 asLookupPoint (TokPoint sdname (OtherTokInstance tyn _)) = TokPoint sdname (OtherTok tyn)
@@ -252,13 +256,13 @@ asLookupPoint (NodePoint sdname tyn _) = NodePoint sdname tyn ()
 -- node points remain as the second component of the tuple, i.e., the second component
 -- is 'Nothing' iff the first component is 'Start' or 'End'.
 pathPoints :: (Eq elidable, Hashable elidable, Show elidable, Show tok, Ranged tok)
-           => PreLanguage
+           => PreLanguage elidable
            -> (tok -> Token elidable)
            -> (elidable -> (Range, TypeName))
            -> NodeF tok (NodeOrElide elidable tok)
            -> Seq (Path, Maybe (SavedPoint elidable (NodeOrElide elidable tok)))
-pathPoints PreLanguage{syncons,getSyTy} mkToken getElidable n@NodeF{n_nameF} = (Start, Nothing) Seq.:<|
-  (((pointToPath &&& Just) <$> nodePoints mkToken getElidable getSyTy n)
+pathPoints pl@PreLanguage{syncons} mkToken getElidable n@NodeF{n_nameF} = (Start, Nothing) Seq.:<|
+  (((pointToPath &&& Just) <$> nodePoints mkToken getElidable (getSyTy pl) n)
    Seq.:|> (End, Nothing))
   where
     (_, pointToPathMap, _) = M.lookup n_nameF syncons
@@ -274,11 +278,11 @@ nodePoints :: Ranged tok
            -> (Name -> TypeName)
            -> NodeF tok (NodeOrElide elidable tok)
            -> Seq (SavedPoint elidable (NodeOrElide elidable tok))
-nodePoints mkToken getElidable getSyTy = n_contentsF >>> mapRecur >>> Seq.sortBy (comparing fst) >>> fmap snd
+nodePoints mkToken getElidable nameToSyTy = n_contentsF >>> mapRecur >>> Seq.sortBy (comparing fst) >>> fmap snd
   where
     mapRecur = M.toList >>> foldMap (\(name, children) -> children >>= recur name)
     recur name (NodeLeaf n@(Node NodeF{n_nameF, n_rangeF})) = Seq.singleton
-      (n_rangeF, NodePoint name (getSyTy n_nameF) n)
+      (n_rangeF, NodePoint name (nameToSyTy n_nameF) n)
     recur name (NodeLeaf n@(Elide elidable)) = Seq.singleton $
       second (\tyn -> NodePoint name tyn n) $ getElidable elidable
     recur name (TokenLeaf tok) = Seq.singleton $
@@ -298,6 +302,7 @@ instance Hashable Path where
   hashWithSalt s Start = s `hashWithSalt` (0::Int)
   hashWithSalt s (Path path) = s `hashWithSalt` (1::Int) `hashWithSalt` toList path
   hashWithSalt s End = s `hashWithSalt` (2::Int)
+instance Serialise Path
 
 discoverSavePoints :: (TypeName -> Bool) -> TypeName -> SyntaxDescription
                    -> HashMap (SavedPoint Void ()) Path

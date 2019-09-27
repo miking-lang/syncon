@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards, ViewPatterns, UndecidableInstances #-}
 
-module P4Parsing.Parser2 (Error(..), precomputeSingleLanguage, dfToLanguageTokens, parseTokens, parseFile, forestToDot) where
+module P4Parsing.Parser2 (Error(..), precomputeSingleLanguage, dfToLanguageTokens, parseTokens, parseFile, forestToDot, precomputeToSerialisable, serialisableToPrecompute) where
 
 import Pre hiding (from, some, many, optional)
 import Result (Result(..))
@@ -54,6 +54,15 @@ data Precomputed l = Precomputed
   , lexFile :: !(FilePath -> IO (Res l (Token l TypeName) [Token l TypeName]))
   } deriving (Generic)
 instance NFData l => NFData (Precomputed l)
+
+precomputeToSerialisable :: Precomputed l -> (Forest.Precomputed Name SDName TK, LanguageTokens TypeName)
+precomputeToSerialisable Precomputed{forest, tokens} = (forest, tokens)
+
+serialisableToPrecompute :: (Forest.Precomputed Name SDName TK, LanguageTokens TypeName) -> Res SL tok (Precomputed SingleLanguage)
+serialisableToPrecompute (forest, tokens) = do
+  lexFileLexErr <- Lexer.allOneLanguage SingleLanguage tokens & first (fmap LexingError)
+  let lexFile path = lexFileLexErr path <&> first (fmap LexingError)
+  return Precomputed{forest, tokens, lexFile}
 
 precomputeSingleLanguage :: DefinitionFile -> Res SL tok (Precomputed SL)
 precomputeSingleLanguage df = do

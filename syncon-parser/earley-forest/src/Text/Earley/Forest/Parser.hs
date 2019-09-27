@@ -14,6 +14,7 @@ import Prelude hiding (pred)
 
 import GHC.Generics (Generic)
 
+import Codec.Serialise (Serialise)
 import Control.Applicative ((<|>))
 import Control.Arrow ((>>>), first)
 import Control.DeepSeq (NFData)
@@ -141,6 +142,7 @@ data Precomputed nodeLabel intLabel t = Precomputed
   , completedProdsMap :: !(HashMap Int (HashMap NT (HashMap Int (Rule NT t (Sym intLabel NT t)))))
   } deriving (Generic)
 instance (NFData t, NFData nodeLabel, NFData intLabel) => NFData (Precomputed nodeLabel intLabel t)
+instance (Serialise t, Serialise intLabel, Serialise nodeLabel, Eq t, Hashable t, Eq nodeLabel, Hashable nodeLabel) => Serialise (Precomputed nodeLabel intLabel t)
 
 precompute :: (Eq t, Hashable t)
            => (Maybe NT, Bool, Seq (Rule NT t (Sym intLabel NT t)), HashSet nodeLabel, Seq (NtKind nodeLabel))
@@ -343,7 +345,7 @@ modifySTRef' ref = STRef.modifySTRef' ref >>> lift
 writeSTRef :: STRef s a -> a -> ReaderT r (ST s) ()
 writeSTRef ref = STRef.writeSTRef ref >>> lift
 
-newtype Node = Node Int deriving (Eq, Hashable, Show, NFData)
+newtype Node = Node Int deriving (Eq, Hashable, Show, NFData, Serialise)
 
 -- | Expected next tokens. 'Nothing' corresponds to EOF.
 data Error nodeLabel tok

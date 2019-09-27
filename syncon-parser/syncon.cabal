@@ -24,6 +24,7 @@ executable syncon-parser
                , directory
                , filepath
                , text
+               , serialise
   default-extensions: NoImplicitPrelude
                     , EmptyCase
                     , FlexibleContexts
@@ -85,6 +86,7 @@ library
                , earley-forest
                , aeson
                , gll
+               , serialise
   exposed-modules: Pre
                  , Result
                  , Util

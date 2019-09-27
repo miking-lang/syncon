@@ -15,6 +15,7 @@ import Prelude
 
 import GHC.Generics (Generic)
 
+import Codec.Serialise (Serialise)
 import Control.Arrow ((>>>), (&&&))
 import Control.DeepSeq (NFData)
 import Control.Monad.ST (runST, ST)
@@ -39,7 +40,8 @@ import Text.Earley.Forest.Grammar (Grammar(..), runGrammar, Prod(..), NodeKind(.
 
 data NtKind nodeLabel = NtMerge | NtNode nodeLabel | NtNormal deriving (Show, Eq, Generic)
 instance (NFData nodeLabel) => NFData (NtKind nodeLabel)
-newtype NT = NT Int deriving (Show, Eq, Hashable, NFData)
+instance (Serialise nodeLabel) => Serialise (NtKind nodeLabel)
+newtype NT = NT Int deriving (Show, Eq, Hashable, NFData, Serialise)
 
 -- | The first label is the closest label (i.e., the one used for token label a or
 -- nodeLeaf label a). The sequence of labels are applied right first in sequence.
@@ -48,6 +50,7 @@ data Sym intLabel nt tok
   | Nt !nt !(Seq intLabel)
   deriving (Show, Generic)
 instance (NFData intLabel, NFData nt, NFData tok) => NFData (Sym intLabel nt tok)
+instance (Serialise intLabel, Serialise nt, Serialise tok) => Serialise (Sym intLabel nt tok)
 
 -- | 'Rule nt syms is a production with lefthand side 'nt' and righthand side
 -- 'syms'.
@@ -56,6 +59,7 @@ data Rule nt t sym
   | NodeRule !nt !(Seq t) !nt !(Seq t)
   deriving (Show, Generic)
 instance (NFData nt, NFData t, NFData sym) => NFData (Rule nt t sym)
+instance (Serialise nt, Serialise t, Serialise sym) => Serialise (Rule nt t sym)
 
 ruleAsTuple :: Rule nt t (Sym intLabel nt t) -> (nt, Seq (Sym intLabel nt t))
 ruleAsTuple (Rule nt syms) = (nt, syms)

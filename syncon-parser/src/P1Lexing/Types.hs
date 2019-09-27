@@ -3,6 +3,7 @@ module P1Lexing.Types where
 import Pre
 
 import Data.Data (Data)
+import Codec.Serialise (Serialise)
 
 import Text.Earley.Forest.Grammar as Forest
 
@@ -61,6 +62,7 @@ data TokenKind n = LitKind !Text | TypeKind !n
   deriving (Show, Eq, Generic)
 instance Hashable n => Hashable (TokenKind n)
 instance NFData n => NFData (TokenKind n)
+instance Serialise n => Serialise (TokenKind n)
 
 class Ranged a where
   range :: a -> Range
@@ -86,3 +88,5 @@ instance Hashable Range
 instance Hashable Position
 instance NFData Position
 instance NFData Range
+instance Serialise Position
+instance Serialise Range

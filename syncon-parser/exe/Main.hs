@@ -27,6 +27,7 @@ import Data.FileEmbed (embedFile)
 import Data.Generics.Uniplate.Data (universe, universeBi)
 import Data.Functor.Foldable (project, cata)
 import Text.Show.Pretty (pPrint)
+import Codec.Serialise (writeFileSerialise, readFileDeserialise)
 
 import qualified Options.Applicative as Opt
 
@@ -113,6 +114,127 @@ instance Exception SourceFileException
 die' :: Text -> IO a
 die' t = do
   throwIO $ SourceFileException t
+
+compile :: Opt.Mod Opt.CommandFields (IO ())
+compile = Opt.command "compile" (Opt.info compileCmd $ Opt.progDesc "Compile a list of '.syncon' files to a single '.synconc' file, to be used for parsing.")
+  where
+    compileCmd = do
+      files <- some $ Opt.argument Opt.str $
+        Opt.metavar "FILES..."
+      outputFile <- Opt.strOption
+        $ Opt.long "output"
+        <> Opt.short 'o'
+        <> Opt.metavar "OUTPUT"
+
+      pure $ do
+        sources <- files & S.fromList & S.toMap
+          & M.traverseWithKey (\path _ -> readFile $ toS path)
+        putStrLn @Text "Parsing definition file(s)"
+        tops <- M.traverseWithKey (\defFile _ -> LD.parseFile $ toS defFile) sources
+          >>= (fold >>> dataOrError sources ())
+        df <- LD.mkDefinitionFile tops & dataOrError sources ()
+        preParse <- Parser2.precomputeSingleLanguage @(Lexer.Token Parser.SingleLanguage LD.TypeName) df & dataOrError sources ()
+        let pl = DynAmb.precompute @() df
+
+        let serialisable = (Parser2.precomputeToSerialisable preParse, pl)
+        writeFileSerialise outputFile serialisable
+
+parse :: Opt.Mod Opt.CommandFields (IO ())
+parse = Opt.command "parse" (Opt.info parseCmd $ Opt.progDesc "Parse a list of files using a compiled '.synconc' file.")
+  where
+    parseCmd = do
+      synconc <- Opt.argument Opt.str $ Opt.metavar "SYNCONC"
+      html <- optional $ Opt.strOption
+        $ Opt.long "html"
+        <> Opt.metavar "FILE"
+        <> Opt.help "Output the result of parsing as a debug HTML file."
+      json <- optional $ Opt.strOption
+        $ Opt.long "json"
+        <> Opt.metavar "FILE"
+        <> Opt.help "Output the ASTs as machine-readable JSON."
+      dot <- optional $ Opt.strOption
+        $ Opt.long "dot"
+        <> Opt.metavar "DIR"
+        <> Opt.help "Output the parse forests as graphviz dot files relative to DIR. Only works if all files were given as relative paths."
+      showTwoLevel <- Opt.switch
+        $ Opt.long "two-level"
+        <> Opt.help "Always show the two level representation, even if some alternatives are resolvable."
+      sourceTimeout <- fmap (*1_000_000) $ Opt.option Opt.auto
+        $ Opt.long "timeout"
+        <> Opt.metavar "S"
+        <> Opt.help "Timeout for attempting to parse a single source file, in seconds. A negative value means 'wait forever'."
+        <> Opt.value (-1)
+      dynAmbTimeout <- fmap (*1_000) $ Opt.option Opt.auto
+        $ Opt.long "dynamic-resolvability-timeout"
+        <> Opt.metavar "MS"
+        <> Opt.help "Timeout for determining if a single ambiguity is resolvable, in milliseconds. A negative value means 'wait forever'."
+        <> Opt.value 1_000
+      continueAfterError <- Opt.switch
+        $ Opt.long "continue-after-error"
+        <> Opt.help "Don't abort after the first source file that gives errors."
+      files <- some $ Opt.argument Opt.str $
+        Opt.metavar "FILES..."
+
+      pure $ do
+        (preParseSerialisable, pl) <- readFileDeserialise synconc
+        preParse <- Parser2.serialisableToPrecompute @(Lexer.Token Parser.SingleLanguage LD.TypeName) preParseSerialisable & dataOrError mempty ()
+
+        sources <- files & S.fromList & S.toMap
+          & M.traverseWithKey (\path _ -> readFile $ toS path)
+        successfulFiles <- newIORef @Int 0
+        failureFiles <- newIORef @Int 0
+        let sourceFailureHandler
+              | continueAfterError = \t -> putStrLn t >> return undefined  -- NOTE: this undefined is ok, since this case will only happen after we have recorded a failure, which means that we stop processing immediately after finishing constructing this map, i.e., its values will never be used
+              | otherwise = die
+        srcNodes <- flip M.traverseWithKey sources $ \path _ -> do
+          putStrLn @Text $ "Parsing \"" <> path <> "\""
+          handle (\(SourceFileException t) -> modifyIORef' failureFiles (+1) >> sourceFailureHandler t) $ do
+            mNode <- timeout sourceTimeout $ do
+              forest@(nodeMap, _) <- Parser2.parseFile preParse (toS path) >>= dataOrError' sources ()
+              forM_ dot $ \outPath -> do
+                let fullPath = outPath </> toS path <.> "dot"
+                putStrLn @Text $"Writing to \"" <> toS fullPath <> "\""
+                createDirectoryIfMissing True $ takeDirectory fullPath
+                Parser2.forestToDot (Parser.n_nameF >>> coerce) forest
+                  & writeFile fullPath
+              DynAmb.isolate forest & \case
+                Data node -> modifyIORef' successfulFiles (+1) >> return node
+                Error ambs -> ambs
+                  & mapM (foldMap S.singleton >>> DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
+                  <&> fmap (formatError DynAmb.EO{DynAmb.showTwoLevel, DynAmb.showElided = DynAmb.showElidable nodeMap, DynAmb.elidedRange = DynAmb.getElidable pl nodeMap >>> fst})
+                  <&> formatErrors sources
+                  & (>>= die')
+            maybe (die' "        timeout when parsing file") return mNode
+
+        numSuccesses <- readIORef successfulFiles
+        numFailures <- readIORef failureFiles
+        putStrLn @Text $ "Parsed " <> show numSuccesses <> " files successfully, failed on " <> show numFailures <> " files."
+
+        when (numFailures /= 0) exitFailure
+
+        forM_ html $ \htmlPath -> do
+          putStrLn @Text $ "Writing HTML to \"" <> toS htmlPath <> "\""
+          toList srcNodes >>= universe >>= nodeAnnotation
+            & annotate sources
+            & putInTextTemplate (toS $(embedFile "resources/htmlTemplate.html"))
+            & writeFile htmlPath
+
+        forM_ json $ \jsonPath -> do
+          putStrLn @Text $ "Writing JSON to \"" <> toS jsonPath <> "\""
+          LByteString.writeFile jsonPath $ Output.encode srcNodes
+
+        -- forM_ outdir $ \outPath ->
+        --   forM_ (M.toList srcNodes) $ \(path, node) -> do
+        --     let fullPath = outPath </> toS path
+        --     putStrLn @Text $ "Writing to \"" <> toS fullPath <> "\""
+        --     createDirectoryIfMissing True $ takeDirectory fullPath
+        --     DynAmb.fastShortest pl node
+        --       <&> DynAmb.textualToken
+        --       & Seq.intersperse " "
+        --       & fold
+        --       & writeFile fullPath
+
+        putStrLn @Text "All done"
 
 common :: Opt.Parser (IO ())
 common = do
@@ -225,7 +347,7 @@ common = do
     putStrLn @Text "All done"
 
 main :: IO ()
-main = join $ Opt.execParser $ Opt.info (common <**> Opt.helper)
+main = join $ Opt.execParser $ Opt.info (Opt.hsubparser (compile <> parse) <**> Opt.helper)
   $ Opt.fullDesc
-  <> Opt.progDesc "Parse files using syncons. Files with the '.syncon' extension will be treated as definition files and used to generate a parser, which will then be run on the remaining files."
+  <> Opt.progDesc "Parse files using syncons. To parse a language defined with syncon you first have to compile it using the 'compile' command, then use the 'parse' command, giving it the file produced by 'compile'."
   <> Opt.header "syncon-parser -- A proof-of-concept parser based on syncons"

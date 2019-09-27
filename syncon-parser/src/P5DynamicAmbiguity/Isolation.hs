@@ -17,7 +17,7 @@ import P2LanguageDefinition.Types (TypeName(..))
 import P4Parsing.Types (NodeF(NodeF), n_nameF, n_rangeF, n_beginEndF)
 import qualified P4Parsing.Types as P4
 import P5DynamicAmbiguity.Types hiding (NodeOrElide)
-import P5DynamicAmbiguity.TreeLanguage (PreLanguage(..))
+import P5DynamicAmbiguity.TreeLanguage (PreLanguage(..), getSyTy)
 import qualified P5DynamicAmbiguity.Types as P5
 
 -- TODO: I suspect that only (HashSet Node) will be chosen for elison, check this
@@ -43,10 +43,10 @@ isolate (dag, roots) = runST $ do
   state <- State dag <$> newSTRef M.empty
   runReaderT (amb roots) state <&> first (toList >>> Seq.fromList)
 
-getElidable :: PreLanguage -> Dag tok -> Elidable -> (Range, TypeName)
-getElidable PreLanguage{getSyTy} dag = fmap toList >>> \case
-  Left n -> getNode n & \NodeF{n_nameF, n_rangeF} -> (n_rangeF, getSyTy n_nameF)
-  Right (n : _) -> getNode n & \NodeF{n_nameF, n_rangeF} -> (n_rangeF, getSyTy n_nameF)
+getElidable :: PreLanguage Elidable -> Dag tok -> Elidable -> (Range, TypeName)
+getElidable pl dag = fmap toList >>> \case
+  Left n -> getNode n & \NodeF{n_nameF, n_rangeF} -> (n_rangeF, getSyTy pl n_nameF)
+  Right (n : _) -> getNode n & \NodeF{n_nameF, n_rangeF} -> (n_rangeF, getSyTy pl n_nameF)
   Right [] -> compErr "P5DynamicAmbiguity.Analysis.getElidable" "Elided an empty ambiguity node"
   where
     getNode n = M.lookup n dag

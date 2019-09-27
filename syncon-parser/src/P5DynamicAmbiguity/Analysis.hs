@@ -70,7 +70,7 @@ type ResLang elidable = NVA Int Int (Token elidable) (Token elidable) (Token eli
 
 analyze :: forall elidable tok. (Eq elidable, Hashable elidable, Show elidable, Show tok, Ranged tok)
         => Int  -- ^ Timeout in microseconds. Negative to never timeout.
-        -> PreLanguage
+        -> PreLanguage elidable
         -> (tok -> Token elidable)
         -> (elidable -> (Range, TypeName))
         -> (elidable -> Text)

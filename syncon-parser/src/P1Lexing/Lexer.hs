@@ -17,6 +17,7 @@ import Result (Result(..))
 
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Char (isSpace)
+import Codec.Serialise (Serialise)
 import qualified Data.Array as Array
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.UTF8 as UTF8
@@ -35,6 +36,7 @@ data LanguageTokens n = LanguageTokens
   [((Range, Text), (Range, Text))] -- ^ Regexes for comments (range for the string, the regex itself). The regexes are presented as 'begin' 'end' pairs.
   deriving (Generic)
 instance NFData n => NFData (LanguageTokens n)
+instance Serialise n => Serialise (LanguageTokens n)
 
 data Error l n
   = RegexError l Text Position Text
