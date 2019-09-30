@@ -277,7 +277,7 @@ solution may be to leave the decision up to the programmer.
 % Motivation II, composing DSLs
 Another area where ambiguous grammars naturally arise is
 in domain-specific language development.  An important
-objective when designing domain-specific languages is to be able construct
+objective when designing domain-specific languages is to be able to construct
 languages by composing and extending existing
 languages.
 Unfortunately, the composition of
@@ -367,7 +367,7 @@ In this paper, we solve the static resolvability problem for certain classes of 
     problem} with increasing difficulty by considering two
   differently restricted classes of languages. We formalize a
   decidable algorithm that is sound and complete for the first
-  version, and sound for the second (Section~\ref{sec:static}).
+  class, and sound for the second (Section~\ref{sec:static}).
 \item We devise a decidable algorithm that solves the
   \emph{dynamic resolvability problem} for general context-free
   languages with well-balanced parentheses
@@ -582,7 +582,7 @@ However, in this paper we will only consider pushdown automata with relatively l
 
 \subsection{Visibly Pushdown Languages} \label{sec:preliminaries-vpls}
 
-A visibly pushdown language \cite{alurVisiblyPushdownLanguages2004} is a language that can be recognized by a visibly pushdown automaton. A visibly pushdown automaton is a pushdown automaton where the input alphabet $\T$ can be partitioned into three disjoint sets $\T_c$, $\T_i$, and $\T_r$, such that all transitions in the automaton has one of the following three forms:
+A visibly pushdown language \cite{alurVisiblyPushdownLanguages2004} is a language that can be recognized by a visibly pushdown automaton. A visibly pushdown automaton is a pushdown automaton where the input alphabet $\T$ can be partitioned into three disjoint sets $\T_c$, $\T_i$, and $\T_r$, such that all transitions in the automaton have one of the following three forms:
 
 \begin{itemize}
 \item $p \xrightarrow{c, +s} q$, where $c \in \T_c$ and $s \in \Gamma$; or
@@ -643,7 +643,7 @@ A formal language is defined as a set of words, i.e., a subset of $\T^{*}$ for s
 \end{itemize}
 \end{definition}
 
-\noindent This notion of an abstract parser enables the introduction of a particular class of formal languages that we will use throughout the rest of the paper; we call members of this class \emph{parse languages:}
+\noindent Note that we do not require each tree to have a unique word, i.e., there may exist two distinct $w_1$ and $w_2$ such that $t \in \parse(w_1)$ and $t \in \parse(w_2)$. This notion of an abstract parser enables the introduction of a particular class of formal languages that we will use throughout the rest of the paper; we call members of this class \emph{parse languages:}
 
 \begin{definition}
   Given a word $w \in \T^{*}$ and an abstract parser $P = (\T, T,
@@ -702,7 +702,8 @@ classical definition of a (formal) language as follows:
   $\forall t \in \parse(w).\ \exists w' \in \T^{*}.\ \parse(w') = \{t\}$.
 \end{definition}
 
-The example $\parse(1 + 2 \cdot 3)$
+The words $w$ and $w'$ will typically be related, e.g., $w'$ has a few added pairs of parentheses but is otherwise identical.
+The example $1 + 2 \cdot 3$
 %in Fig.~\ref{fig:arith-example}
 is not resolvably ambiguous, since neither of the two resulting trees can be written in any other way. However, if we add grouping parentheses to the language, we find that $1 + (2 \cdot 3)$ and $(1 + 2) \cdot 3$ are unambiguously parsed as the first and second tree, respectively.
 
@@ -718,7 +719,7 @@ Additionally, we define an \emph{abstract parser} to be resolvably ambiguous if 
 
 \begin{itemize}
 \item An unambigous word $w$ is trivially resolvably ambiguous, since its only parse tree $t$ can be written unambiguously with $w$ itself ($\parse(w) = \{t\}$). The set of resolvably ambiguous words is thus a superset of the unambiguous words.
-\item If a given parse tree $t$ has only one word $w$ such that $t \in \parse(w)$, then $w$ is resolvably ambiguous iff it is unambiguous. In general, $\forall t \in T.\ \lvert\{w \mid t \in \parse(w)\}\rvert \leq 1$ implies that the set of resolvably ambiguous words is exactly the set of unambiguous words.
+\item If a given parse tree $t$ has only one word $w$ such that $t \in \parse(w)$, then $w$ is resolvably ambiguous iff it is unambiguous. In general, $\forall t \in T.\ \lvert\{w \mid t \in \parse(w)\}\rvert = 1$ implies that the set of resolvably ambiguous words is exactly the set of unambiguous words.
 \end{itemize}
 
 \noindent The second point suggests that resolvable ambiguity is only an interesting property if an element of $T$ does not uniquely identify an element of $\T^{*}$. Intuitively, this only happens if $\parse$ discards some information present in its argument when constructing an individual parse tree. Fortunately, this is generally true for parsing in commonly used programming languages; they tend to discard, e.g., grouping parentheses and whitespace. In general, whatever information $\parse$ discards can be used by an end-user to disambiguate an ambiguity encountered at parse-time, without changing the parse tree.
@@ -757,7 +758,7 @@ studied in the following sections.
 \begin{definition}[Soundness of Dynamic Resolvability]\label{def:dynamic-procedure-sound}
   A decision procedure $f$, solving the dynamic resolvability problem, is sound iff
 
-  $f(\parse, w) \implies \rho_P(w) \text{ for all } w \in \Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$
+  $f(P, w) \implies \rho_P(w) \text{ for all } w \in \Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$
 \end{definition}
 
 \noindent Analogous to the static case, for the parse languages studied in the
@@ -768,7 +769,7 @@ that $g(\parse, w) \implies \lnot \rho_P(w) \text{ for all } w \in
 \begin{definition}[Completeness of Dynamic Resolvability]\label{def:dynamic-procedure-complete}
   A decision procedure $f$, solving the dynamic resolvability problem, is complete iff
 
-  $\rho_P(w) \implies f(\parse, w) \text{ for all } w \in \Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$
+  $\rho_P(w) \implies f(P, w) \text{ for all } w \in \Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$
 \end{definition}
 
 
@@ -2088,7 +2089,7 @@ practical applicability of the approach, both for building new
 domain-specific languages and for reasoning about existing
 general-purpose languages.
 
-In future work, we will investigate weakning the restrictions
+In future work, we will investigate weakening the restrictions
 currently needed for the static and dynamic resolvability
 algorithms to work. We also intend to develop our theory and tools
 to support handling deep precedence ambiguities and ambiguities

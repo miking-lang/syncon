@@ -609,21 +609,12 @@ Rust also offers a clear performance model, making it easier to predict and reas
   pages = {39-54}
 }
 
-@inproceedings{vanwykCopper2007,
-  title={Context-aware scanning for parsing extensible languages},
-  author={Van Wyk, Eric R and Schwerdfeger, August C},
-  booktitle={Proceedings of the 6th international conference on Generative programming and component engineering},
-  pages={63--72},
-  year={2007},
-  organization={ACM}
-}
-
 @inproceedings{wanFunctionalReactiveProgramming2000,
   address = {{New York, NY, USA}},
   series = {{{PLDI}} '00},
   title = {Functional {{Reactive Programming}} from {{First Principles}}},
   isbn = {978-1-58113-199-4},
-  abstract = {Functional Reactive Programming, or FRP, is a general framework for programming hybrid systems in a high-level, declarative manner. The key ideas in FRP are its notions of behaviors and events. Behaviors are time-varying, reactive values, while events are time-ordered sequences of discrete-time event occurrences. FRP is the essence of Fran, a domain-specific language embedded in Haskell for programming reactive animations, but FRP is now also being used in vision, robotics and other control systems applications.
+  abstract = {Functional Reactive Programming, or FRP, is a general framework for programming hybrid systems in a high-level, declarative manner. The key ideas in FRP are its notions of behaviors and events. Behaviors are time-varying, reactive values, while events are time-ordered sequences of discrete-time event occurrences. FRP is the essence of Fran, a domain-specific language embedded in Haskell for programming reactive animations, but FRP is now also being used in vision, robotics and other control systems applications. 
 In this paper we explore the formal semantics of FRP and how it
 relates to an implementation based on streams that represent (and therefore only approximate) continuous behaviors. We show that, in the limit as the sampling interval goes to zero, the implementation is faithful to the formal, continuous semantics, but only when certain constraints on behaviors are observed. We explore the nature of these constraints, which vary amongst the FRP primitives. Our results show both the power and limitations of this approach to language design and implementation. As an example of a limitation, we show that streams are incapable of representing instantaneous predicate events over behaviors.},
   booktitle = {Proceedings of the {{ACM SIGPLAN}} 2000 {{Conference}} on {{Programming Language Design}} and {{Implementation}}},
@@ -969,7 +960,7 @@ After introducing CAGs by way of an example, we provide a formal definition of C
   author = {Doczkal, Christian and Kaiser, Jan-Oliver and Smolka, Gert},
   editor = {Gonthier, Georges and Norrish, Michael},
   year = {2013},
-  keywords = {Coq,finite automata,Myhill-Nerode,regular expressions,regular languages,Ssreflect},
+  keywords = {regular expressions,Coq,finite automata,Myhill-Nerode,regular languages,Ssreflect},
   pages = {82-97}
 }
 
@@ -1015,7 +1006,7 @@ After introducing CAGs by way of an example, we provide a formal definition of C
   doi = {10.1145/1542476.1542499},
   author = {Schwerdfeger, August C. and Van Wyk, Eric R.},
   year = {2009},
-  keywords = {context-aware scanning,extensible languages,grammar composition,language composition,lr parsing},
+  keywords = {extensible languages,context-aware scanning,language composition,grammar composition,lr parsing},
   pages = {199--210}
 }
 
@@ -1059,12 +1050,34 @@ After introducing CAGs by way of an example, we provide a formal definition of C
   pages = {1-25}
 }
 
-@misc{OCamlReference,
-  title = {The {OCaml} system, release 4.08, Documentation and user's manual},
-  author = {Leroy, Xavier and Doligez, Damien and Frisch, Alain
-                  and Garrigue, Jacques and R\'{e}my Didier and
-                  Vouillon, J\'{e}r\^{o}me},
-  month = June,
-  year = 2019,
-  howpublished = {\url{https://caml.inria.fr/pub/docs/manual-ocaml}}
+@inproceedings{afroozehFasterPracticalGLL2015,
+  series = {Lecture {{Notes}} in {{Computer Science}}},
+  title = {Faster, {{Practical GLL Parsing}}},
+  isbn = {978-3-662-46663-6},
+  abstract = {Generalized LL (GLL) parsing is an extension of recursivedescent (RD) parsing that supports all context-free grammars in cubic time and space. GLL parsers have the direct relationship with the grammar that RD parsers have, and therefore, compared to GLR, are easier to understand, debug, and extend. This makes GLL parsing attractive for parsing programming languages.In this paper we propose a more efficient Graph-Structured Stack (GSS) for GLL parsing that leads to significant performance improvement. We also discuss a number of optimizations that further improve the performance of GLL. Finally, for practical scannerless parsing of programming languages, we show how common lexical disambiguation filters can be integrated in GLL parsing.Our new formulation of GLL parsing is implemented as part of the Iguana parsing framework. We evaluate the effectiveness of our approach using a highly-ambiguous grammar and grammars of real programming languages. Our results, compared to the original GLL, show a speedup factor of 10 on the highly-ambiguous grammar, and a speedup factor of 1.5, 1.7, and 5.2 on the grammars of Java, C\#, and OCaml, respectively.},
+  language = {en},
+  booktitle = {Compiler {{Construction}}},
+  publisher = {{Springer Berlin Heidelberg}},
+  author = {Afroozeh, Ali and Izmaylova, Anastasia},
+  editor = {Franke, Bj{\"o}rn},
+  year = {2015},
+  pages = {89-108}
 }
+
+@article{aycockEarlyActionEarley2009,
+  title = {Early Action in an {{Earley}} Parser},
+  volume = {46},
+  issn = {1432-0525},
+  abstract = {Traditional Earley parsers operate in two phases: first recognizing the input, then constructing the forest of parse trees. Practically speaking, this quirk makes it awkward to use in a compiler-compiler, because semantic actions attached to rules are only executed after the fact. We address this problem by identifying safe Earley sets, points during the recognition phase at which partial parse trees can be constructed; this means that semantic actions may be executed on the fly. A secondary benefit is that Earley sets can be deleted during recognition, resulting in a substantial savings of both space and time.},
+  language = {en},
+  number = {8},
+  journal = {Acta Informatica},
+  doi = {10.1007/s00236-009-0107-6},
+  author = {Aycock, John and Borsotti, Angelo},
+  month = oct,
+  year = {2009},
+  keywords = {Parse Tree,Grammar Rule,Causal Link,Early Action,Semantic Action},
+  pages = {549}
+}
+
+
