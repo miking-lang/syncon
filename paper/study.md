@@ -152,3 +152,40 @@ https://stackoverflow.com/questions/537632/should-i-use-semicolons-in-javascript
 Only actually good question on this question, in my personal opinion. The conclusion, as far as I can tell, is that lines starting with `(`, `[`, `+`, `-`, or `/`, except when that leading character is part of `--`, `++`, or `//` are the problematic lines, they must have a semicolon before them.
 389 views, 3 upvotes, answer upvotes (8)
 https://stackoverflow.com/questions/25088708/what-rules-must-i-follow-to-write-valid-javascript-without-semicolons
+
+
+# TypeScript + JSX (TSX)
+
+A single type parameter to an arrow function is parsed as the beginning of a JSX component thing, which then isn't closed, which is a parse error. Our composition should give either correct parsing or an ambiguity error, depending.
+
+```typescript
+const paramArray = <T>(param1: T, param2: T) => [param1, param2];
+```
+
+https://github.com/Microsoft/TypeScript/issues/15713
+https://github.com/microsoft/TypeScript/issues/15785
+https://github.com/microsoft/TypeScript/issues/27595
+
+## Stack Overflow
+
+### What is the syntax for Typescript arrow functions with generics?
+A description of the syntax, plus workarounds for when JSX is enabled (it doesn't appear otherwise). An answer mentions another ambiguity though: `<T>(...) => {...}` could be parsed as arrow function with type parameter, or a type assertion applied to an arrow function without a type parameter. It's parsed as the former, but is "technically" ambiguous.
+
+Suggested workarounds for the JSX thing are: write type parameter as `<T,>`, `<T extends any>`, `<T extends {}>`, `<T extends unknown>`.
+35k views, 108 upvotes, answer upvotes (111, 42, 30, 11, 6, 0)
+https://stackoverflow.com/questions/32308370/what-is-the-syntax-for-typescript-arrow-functions-with-generics#comment99104831_45576880
+
+### Use ts for tsx react files
+Explains that the ambiguity is between type assertion syntax `<T> expr` and JSX component opener `<Component>`. Apparently this is why type assertion additionally has the syntax `expr as T`.
+3k views, 3 upvotes, answer upvotes (8)
+https://stackoverflow.com/questions/41305989/use-ts-for-tsx-react-files
+
+### Is there any downside to using .tsx instead of .ts all the times in typescript?
+Concise explanation of the issue. Type assertions don't work, and arrow functions with a type parameter break (this would fall under "type assertions don't work", except that ambiguity is already special cased, and the special casing breaks here).
+44k views, 73 upvotes, answer upvotes(72, 52, 4, 3, 1)
+https://stackoverflow.com/questions/34224007/is-there-any-downside-to-using-tsx-instead-of-ts-all-the-times-in-typescript?rq=1
+
+### TypeScript type guards and “only refers to a type, but is being used as a value here.”
+Gets different errors (two different, one in editor and one from yarn, neither talking about unclosed JSX components).
+385 views, 0 upvotes, answer upvotes (1, 1)
+https://stackoverflow.com/questions/54634205/typescript-type-guards-and-only-refers-to-a-type-but-is-being-used-as-a-value?noredirect=1&lq=1
