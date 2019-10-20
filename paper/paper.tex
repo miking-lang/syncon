@@ -22,7 +22,7 @@
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \usepackage{tikz}
-\usetikzlibrary{arrows,automata}
+\usetikzlibrary{arrows.meta,automata,calc}
 \usepackage{tikz-qtree} % Used for syntax trees
 \usepackage{tikz-cd} % Used for commutative diagrams
 
@@ -895,7 +895,7 @@ We now divide the possible languages along two axes: whether a language has (non
 \end{tabular}
 \end{center}
 
-\noindent The absence of both non-grouping parentheses and marks mean that every permissible occurrence of a pair of parentheses must permit zero or more pairs. Adding marks adds required pairs for some trees, turning each occurrence to one of $k$ or more pairs, for some non-negative integer $k$ determined by the tree. The left column is more complicated since non-grouping parentheses can introduce occurrences that require an exact number of parentheses, as well as all the complications of marks.
+\noindent The absence of both non-grouping parentheses and marks mean that every occurrence of a pair of parentheses must permit zero or more pairs. Adding marks adds required pairs for some trees, turning each occurrence to one of $k$ or more pairs, for some non-negative integer $k$ determined by the tree. The left column is more complicated since non-grouping parentheses can introduce occurrences that require an exact number of parentheses, as well as all the complications of marks.
 
 The remainder of this section will be devoted to first showing that $\neg \exists t_1, t_2 \in L(T_D).\ \words(t_1) \subseteq \words(t_2)$ implies that $D$ is resolvably ambiguous if $D$ is in the lower-right quadrant, i.e., if it has no marks and no non-grouping parentheses (in Section~\ref{sec:static-proofs}), and then describing the automaton that forms the basis for our algorithm (Section~\ref{sec:lattice-vpl}). Section~\ref{sec:static-proofs} also shows that adding marks to a resolvably ambiguous language in the lower-right quadrant preserves resolvability, which gives us a conservative approach for languages in the top-right quadrant. Intuitively, if a language has marks, but they are just conveniences, then we can still detect that the language is resolvable. For example, most expression languages fall in this category (we can write any expression unambiguously by adding parentheses everywhere, even without any precedence or associativity), while lists in OCaml do not (no amount of parentheses will make \verb|'[1;2]'| look like a list of two elements without a mark).
 
@@ -913,8 +913,8 @@ This section shows that $\neg \exists t_1, t_2 \in L(T_D).\ \words(t_1) \subsete
 Consider an arbitrary $t \in L(T_D)$ with canonical linear encoding $c$. Now replace each pair ``$\posp{}$'' with exactly one pair of parentheses, calling the result $w_\top$. We have $w_\top \in \words(t)$ by construction. Now consider the two possibilities of ambiguity for $w_\top$:
 
 \begin{description}
-  \item[$w_\top$ is ambiguous.] In this case, $\exists t'.\ t \neq t' \land t' \in \parse(w_\top)$. This means that we can take the canonical encoding of $t'$ (call it $c'$) and replace every ``$[]$'' with either one or zero parentheses and produce $w_\top$. But that also means that every word we construct from $c$ (by choosing some non-negative integer of parentheses for each ``$[]$'') we can construct the same word from $c'$ (by choosing the same number for corresponding parentheses, and zero for the others), i.e., $\words(t) \subseteq \words(t')$.
-  \item[$w_\top$ is unambiguous.] In this case $\words(t)$ has at least one unambiguous word ($w_\top$) which thus cannot be part of $\words(t')$ for some other $t' \in L(T_D)$, thus $\neg \exists t'.\ t \neq t' \land \words(t) \subseteq \words(t')$.
+  \item[$w_\top$ is ambiguous.] In this case, $\exists t'.\ t \neq t' \land t' \in \parse(w_\top)$. This means that we can take the canonical encoding of $t'$ (call it $c'$) and replace every ``$[]$'' with either one or zero parentheses and produce $w_\top$. But that also means that every word we construct from $c$ (by choosing some non-negative integer of parentheses for each ``$[]$'') can also be constructed from $c'$ (by choosing the same number for corresponding parentheses, and zero for the others), i.e., $\words(t) \subseteq \words(t')$.
+  \item[$w_\top$ is unambiguous.] In this case $\words(t)$ has at least one unambiguous word ($w_\top$) which thus cannot be part of $\words(t')$ for any other $t' \in L(T_D)$, thus $\neg \exists t'.\ t \neq t' \land \words(t) \subseteq \words(t')$.
 \end{description}
 
 \noindent We thus arrive at the first of two central theorems for our approach:
@@ -923,12 +923,12 @@ Consider an arbitrary $t \in L(T_D)$ with canonical linear encoding $c$. Now rep
   Given a language with productions $D$ and terminals $\T$, where $\T \cap \{\verb|'('|, \verb|')'|\} = \emptyset$ and all non-terminals $N_m$ appearing in a right-hand side of a production in $D$ having $m = \emptyset$, the following holds: $\rho_P(D) <-> \neg \exists t_1, t_2 \in L(T_D).\ t_1 \neq t_2 \land \words(t_1) \subseteq \words(t_2)$.
 \end{theorem}
 
-Adding marks to such a language preserves resolvability:
+Adding marks to such a language preserves resolvability, since:
 
 \begin{itemize}
   \item Marks can introduce at most one required pair of parentheses per node.
   \item Adding marks to a language can only ever shrink $\words(t)$ for any particular $t \in L(T_D)$.
-  \item Given a tree $t$, the word produced by putting one pair of parentheses around each node in $t$ (potentially adding double parentheses), call it $w$, is unambiguous in the language without marks. It cannot be excluded from $\words(t)$ by adding marks (since it already has a pair of parentheses around each node), and it also cannot be ambiguous, since that would require $\words(t')$ for some other tree $t'$ to have grown. Thus, $\parse(w) = \{t\}$ even when we add marks to $D$.
+  \item Given a tree $t$, the word produced by putting one pair of parentheses around each node in $t$ (thus potentially adding double parentheses), call it $w$, is unambiguous in the language without marks. It cannot be excluded from $\words(t)$ by adding marks (since it already has a pair of parentheses around each node), and it also cannot be ambiguous, since that would require $\words(t')$ for some other tree $t'$ to have grown. Thus, $\parse(w) = \{t\}$ even when we add marks to $D$.
 \end{itemize}
 
 \begin{theorem}
@@ -960,47 +960,30 @@ We begin by constructing a visibly pushdown automaton that recognizes \emph{a} l
 \noindent This language has no non-grouping parentheses and no marks and is thus in the language class we consider. We begin by constructing a DFA per production (using standard methods, since the right hand side is a regular expression).
 
 \begin{center}
-\begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
+\begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
     scale = 1,transform shape]
-  \node[state] (1) {$1$};
-  \node[state] (2) [right of=1] {$2$};
+  \node[state,initial] (1) {$1$};
+  \node[state,accepting] (2) [right of=1] {$2$};
+  \node[state,accepting] (3) [right of=2] {$3$};
 
-  \node[state] (3) [below of=1,xshift=-1.2cm] {$3$};
-  \node[state] (4) [right of=3] {$4$};
+  \node[state,initial] (4) [below of=1,yshift=7mm] {$4$};
   \node[state] (5) [right of=4] {$5$};
+  \node[state,accepting] (6) [right of=5] {$6$};
 
-  \node[state] (6) [below of=1,yshift=-2cm] {$6$};
-  \node[state] (7) [right of=6] {$7$};
+  \node[state,initial] (7) [below of=4,yshift=7mm] {$7$};
+  \node[state,accepting] (8) [right of=7] {$8$};
 
-  \node[state] (8) [below of=6] {$8$};
-  \node[state] (9) [right of=8] {$9$};
+  \path (1) edge node{$E$} (2)
+  (2) edge node{$';'$} (3);
 
-  \node[state,initial] (s) [left of=1,xshift=-1cm] {$s$};
-  \node[state,accepting] (f) [right of=2,xshift=1cm] {$f$};
+  \path (4) edge node{$E$} (5)
+  (5) edge node{$'s'$} (6);
 
-  \path (1) edge node[left]{$'\pospl', +(1, 2)$} (3)
-  (5) edge[right] node{$'\pospr', -(1, 2)$} (2);
-  \path (1) edge[out=180,in=180,looseness=2,left] node{$'\pospl', +(1, 2)$} (6)
-  (7) edge[out=0,in=0,looseness=2,right] node{$'\pospr', -(1, 2)$} (2);
-
-  \path (3) edge node{$'+'$} (4);
-  \path (4) edge[bend right,above,out=270,in=225] node[xshift=5mm]{$'\pospl', +(4, 5)$} (3)
-  (5) edge[loop right,below] node[yshift=-3.5mm]{$'\pospr', -(4, 5)$} (5);
-  \path (4) edge[left] node{$'\pospl', +(4, 5)$} (6)
-  (7) edge node{$'\pospr', -(4, 5)$} (5);
-
-  \path (6) edge[left] node{$'\pospl', +(6, 7)$} (8)
-  (9) edge[right] node{$'\pospr', -(6, 7)$} (7);
-
-  \path (8) edge[above] node{$'n'$} (9);
-
-  \path (s) edge[bend left] node{$'\pospl', +(s, f)$} (1)
-  (2) edge[bend left] node{$'\pospr', -(s, f)$} (f);
-
+  \path (7) edge node{$'z'$} (8);
 \end{tikzpicture}
 \end{center}
 
-\noindent We then combine these disparate DFAs to produce a single visibly pushdown automaton in three steps:
+\noindent We then combine these separate DFAs to produce a single visibly pushdown automaton in three steps:
 
 \begin{enumerate}
 \item Introduce two new distinct states (call them $s$ and $f$) and a transition $s \xrightarrow{S} f$, where $S$ is the starting symbol of the language being examined.
@@ -1012,46 +995,49 @@ We begin by constructing a visibly pushdown automaton that recognizes \emph{a} l
 \item Make $s$ the only initial state, and $f$ the only accepting state.
 \end{enumerate}
 
-\noindent To make the figure less cluttered we omit $'\pospl'$ and $'\pospr'$, i.e., we abbreviate $p \xrightarrow{'\pospl', +(p',q')} q$ as $p \xrightarrow{+(p', q')}$ and $p \xrightarrow{'\pospr', -(p',q')} q$ as $p \xrightarrow{-(p', q')}$.
+\noindent To make the figure less cluttered we omit $'\pospl'$ and $'\pospr'$, i.e., we abbreviate $p \xrightarrow{'\pospl', +(p',q')} q$ as $p \xrightarrow{+(p', q')} q$ and $p \xrightarrow{'\pospr', -(p',q')} q$ as $p \xrightarrow{-(p', q')} q$.
 
 \begin{center}
-\begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
+\begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
     scale = 1,transform shape]
   \node[state] (1) {$1$};
   \node[state] (2) [right of=1] {$2$};
+  \node[state] (3) [right of=2] {$3$};
 
-  \node[state] (3) [below of=1,xshift=-1.2cm] {$3$};
-  \node[state] (4) [right of=3] {$4$};
+  \node[state] (4) [below of=1] {$4$};
   \node[state] (5) [right of=4] {$5$};
+  \node[state] (6) [right of=5] {$6$};
 
-  \node[state] (6) [below of=1,yshift=-2cm] {$6$};
-  \node[state] (7) [right of=6] {$7$};
+  \node[state] (7) [below of=4] {$7$};
+  \node[state] (8) [right of=7] {$8$};
 
-  \node[state] (8) [below of=6] {$8$};
-  \node[state] (9) [right of=8] {$9$};
+  \node[state,initial] (s) [left of=1,xshift=-0.9cm] {$s$};
+  \node[state,accepting] (f) [right of=3,xshift=0.9cm] {$f$};
 
-  \node[state,initial] (s) [left of=1,xshift=-1cm] {$s$};
-  \node[state,accepting] (f) [right of=2,xshift=1cm] {$f$};
+  \path (2) edge node{$';'$} (3);
 
-  \path (1) edge node[left]{$'\pospl, +(1, 2)$} (3)
-  (5) edge[right] node{$'\pospr', -(1, 2)$} (2);
-  \path (1) edge[out=180,in=180,looseness=2,left] node{$'\pospl', +(1, 2)$} (6)
-  (7) edge[out=0,in=0,looseness=2,right] node{$'\pospr', -(1, 2)$} (2);
+  \path (5) edge node{$'s'$} (6);
 
-  \path (3) edge node{$'+'$} (4);
-  \path (4) edge[bend right,above,out=270,in=225] node[xshift=5mm]{$'\pospl', +(4, 5)$} (3)
-  (5) edge[loop right,below] node[yshift=-3.5mm]{$'\pospr', -(4, 5)$} (5);
-  \path (4) edge[left] node{$'\pospl', +(4, 5)$} (6)
-  (7) edge node{$'\pospr', -(4, 5)$} (5);
+  \path (7) edge node{$'z'$} (8);
 
-  \path (6) edge[left] node{$'\pospl', +(6, 7)$} (8)
-  (9) edge[right] node{$'\pospr', -(6, 7)$} (7);
+  \path (s) edge node{$+(s, f)$} (1);
+  \draw (2.north) -- ([yshift=4mm]2.north) -| (f.north);
+  \draw (3.north) -- ([yshift=4mm]3.north) -| (f.north);
+  \node at ([yshift=5mm]$(3)!0.5!(f)$) {$-(s,f)$};
 
-  \path (8) edge[above] node{$'n'$} (9);
+  % 1 -E-> 2
+  \draw (1.east) -| ([xshift=4mm]4.east) |- ([xshift=4mm,yshift=10mm]7.east) -- (7);
+  \draw ([xshift=4mm]4.east) -- (4);
+  \draw (6.north) |- ([xshift=-8mm]$(2)!0.5!(5)$) |- (2.west);
+  \draw (8) -- ([xshift=-3.5mm,yshift=10mm]8.west) |- (2.west);
+  \node at ([xshift=2mm,yshift=2mm]$(1)!0.5!(4)$) {$+(1,2)$};
+  \node at ([xshift=-2mm,yshift=2mm]$(2)!0.5!(5)$) {$-(1,2)$};
 
-  \path (s) edge[bend left] node{$'\pospl', +(s, f)$} (1)
-  (2) edge[bend left] node{$'\pospr', -(s, f)$} (f);
-
+  % 4 -E-> 5
+  \draw (4.south) -- (7.north);
+  \path (4) edge[out=270,in=225,looseness=5] node[xshift=4mm]{$+(4,5)$} (4);
+  \draw (6.south) -- ([yshift=-5mm]6.south) -| (5.south);
+  \path (8) edge[right] node[yshift=-3mm]{$-(4,5)$} (5);
 \end{tikzpicture}
 \end{center}
 
@@ -1073,43 +1059,52 @@ Finally, we change step 2 in our construction to the following:
 \end{enumerate}
 
 \begin{center}
-\begin{tikzpicture}[->,>=stealth',shorten >=1pt,auto,node distance=2cm,
+\begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
     scale = 1,transform shape]
   \node[state] (1) {$1$};
   \node[state] (2) [right of=1] {$2$};
+  \node[state] (3) [right of=2] {$3$};
 
-  \node[state] (3) [below of=1,xshift=-1.2cm] {$3$};
-  \node[state] (4) [right of=3] {$4$};
+  \node[state] (4) [below of=1] {$4$};
   \node[state] (5) [right of=4] {$5$};
+  \node[state] (6) [right of=5] {$6$};
 
-  \node[state] (6) [below of=1,yshift=-2cm] {$6$};
-  \node[state] (7) [right of=6] {$7$};
+  \node[state] (7) [below of=4] {$7$};
+  \node[state] (8) [right of=7] {$8$};
 
-  \node[state] (8) [below of=6] {$8$};
-  \node[state] (9) [right of=8] {$9$};
+  \node[state,initial] (s) [left of=1,xshift=-0.9cm] {$s$};
+  \node[state,accepting] (f) [right of=3,xshift=0.9cm] {$f$};
 
-  \node[state,initial] (s) [left of=1,xshift=-1cm] {$s$};
-  \node[state,accepting] (f) [right of=2,xshift=1cm] {$f$};
+  \path (2) edge node{$';'$} (3);
 
-  \path (1) edge node[left]{$'\pospl, +(1, 2)$} (3)
-  (5) edge[right] node{$'\pospr', -(1, 2)$} (2);
-  \path (1) edge[out=180,in=180,looseness=2,left] node{$'\pospl', +(1, 2)$} (6)
-  (7) edge[out=0,in=0,looseness=2,right] node{$'\pospr', -(1, 2)$} (2);
+  \path (5) edge node{$'s'$} (6);
 
-  \path (3) edge node{$'+'$} (4);
-  \path (4) edge[bend right,above,out=270,in=225] node[xshift=5mm]{$'\pospl', +(4, 5)$} (3)
-  (5) edge[loop right,below] node[yshift=-3.5mm]{$'\pospr', -(4, 5)$} (5);
-  \path (4) edge[left] node{$'\pospl', +(4, 5)$} (6)
-  (7) edge node{$'\pospr', -(4, 5)$} (5);
+  \path (7) edge node{$'z'$} (8);
 
-  \path (6) edge[left] node{$'\pospl', +(6, 7)$} (8)
-  (9) edge[right] node{$'\pospr', -(6, 7)$} (7);
+  \path (s) edge node{$+(s, f, \epsilon)$} (1)
+  (3) edge node{$-(s, f, \epsilon)$} (f);
 
-  \path (8) edge[above] node{$'n'$} (9);
+  % 1 -E-> 2
+  \draw (1.east) -| ([xshift=4mm]4.east) |- ([xshift=4mm,yshift=10mm]7.east) -- (7);
+  \draw ([xshift=4mm]4.east) -- (4);
+  \draw (6.north) |- ([xshift=-8mm]$(2)!0.5!(5)$) |- (2.west);
+  \draw (8) -- ([xshift=-3.5mm,yshift=10mm]8.west) |- (2.west);
+  \node at ([xshift=1mm,yshift=2mm]$(1)!0.5!(4)$) {$+(1,2,\epsilon)$};
+  \node at ([xshift=-1mm,yshift=2mm]$(2)!0.5!(5)$) {$-(1,2,\epsilon)$};
 
-  \path (s) edge[bend left] node{$'\pospl', +(s, f)$} (1)
-  (2) edge[bend left] node{$'\pospr', -(s, f)$} (f);
+  % 4 -E-> 5
+  \draw (4.south) -- (7.north);
+  \path (4) edge[out=270,in=225,looseness=5] node[xshift=4mm]{$+(4,5,\epsilon)$} (4);
+  \draw (6.south) -- ([yshift=-5mm]6.south) -| (5.south);
+  \path (8) edge[right] node[yshift=-3mm]{$-(4,5,\epsilon)$} (5);
 
+  % s -E(t)-> f
+  \draw (s.south) |- (7.west);
+  \draw (s.south) |- (4.west);
+  \node at ([xshift=8mm,yshift=-10mm]s) {$+(s, f, a)$};
+  \draw (8.east) -| (f.south);
+  \draw (6.east) -| (f.south);
+  \node at ([xshift=-8mm,yshift=-10mm]f) {$-(s, f, a)$};
 \end{tikzpicture}
 \end{center}
 
@@ -1147,13 +1142,22 @@ We define the translation from production to DFA through a function $\dfa$ from 
     \delta(p, a, \lambda)
     & \multicolumn{2}{@{}l@{}}{\{(\delta_l(p, a), \lambda)\} \qquad \text{ where } p \in Q_l \text{ and } a \in \T} \\
 
+    \delta(s, \text{``}\pospl\text{''}, \lambda)
+    & \{ (s_{l}, (s, f, w))
+    & (S, w, N) \in T, N = \labelnt(l) \} \\
+
     \delta(p, \text{``}\pospl\text{''}, \lambda)
     & \{ (s_{l_3}, (p, q, w))
-    & p \in Q_{l_1}, \delta_{l_1}(p, l_2) = q, (l_2, l_3, w) \in T \} \\
+    & p \in Q_{l_1}, \delta_{l_1}(p, N) = q, (N, w, N') \in T, N' = \labelnt(l_3) \} \\
 
-    \delta(s, \text{``}\pospl\text{''}, \lambda)
-    & \{ (s_{l_2}, (s, f, w))
-    & \labelnt(l_1) = S, (l_1, l_2, w) \in T \} \\
+    \delta(p, \text{``}\pospr\text{''}, (s, f, w))
+    & \{ (f, \lambda)
+    & (S, w, N) \in T, N = \labelnt(l), p \in F_l \} \\
+
+    \delta(q', \text{``}\pospr\text{''}, (p, q, w))
+    & \{ (q, \lambda)
+    & q' \in F_{l_1}, \labelnt(l_1) = N', (N, w, N') \in T, p \in Q_{l_2}, \delta_{l_2}(p, N) = q \} \\
+
   \end{array}
   $$
 \end{itemize}
@@ -1174,11 +1178,9 @@ We define the translation from production to DFA through a function $\dfa$ from 
   $$
 \end{itemize}
 
-\noindent To find two distinct successful runs, one in each automaton, that recognize the same word we construct the product automaton $A_{\posp{}} \times A'_{\posp{}} = (Q \times Q, \T', \Gamma \times (\Gamma \cup \{\gamma\}), \delta_{\times}, (s, s), \{(f, f)\})$, where $\delta_{\times}$ is given in Section~\ref{sec:preliminaries-vpls} (using the partitions $\T_c = \{ \pospl \}$, $\T_i = \T$, and $\T_r = \{\pospr\}$). If the product automaton has a successful run that passes through at least one configuration $((p, p'), (g, g')\cdot w)$ such that $p \neq p' \lor g \neq g'$ (distinct states, or distinct stack symbols, respectively), then that run corresponds to two distinct runs in $A_{\posp{}}$ and $A'_{\posp{}}$. We check for the existence of such a run by trimming the product automaton and looking for a transition that pushes $(g, g')$ where $g \neq g'$, or transitions to $(q, q')$ where $q \neq q'$.
+\noindent To find two distinct successful runs, one in each automaton, that recognize the same word we construct the product automaton $A_{\posp{}} \times A'_{\posp{}} = (Q \times Q, \T', \Gamma \times (\Gamma \cup \{\gamma\}), \delta_{\times}, (s, s), \{(f, f)\})$, where $\delta_{\times}$ is described in \cite{alurVisiblyPushdownLanguages2004} (using the partitions $\T_c = \{ \pospl \}$, $\T_i = \T$, and $\T_r = \{\pospr\}$). If the product automaton has a successful run that passes through at least one configuration $((p, p'), (g, g')\cdot w)$ such that $p \neq p' \lor g \neq g'$ (distinct states, or distinct stack symbols, respectively), then that run corresponds to two distinct successful runs in $A_{\posp{}}$ and $A'_{\posp{}}$. We check for the existence of such a run by trimming the product automaton (as described in \cite{caralpTrimmingVisiblyPushdown2015}) and looking for a transition that pushes $(g, g')$ where $g \neq g'$, or transitions to $(q, q')$ where $q \neq q'$.
 
-Performing this procedure directly on a language definition $D$ gives a sound decision procedure where the presence of two distinct runs implies unresolvably ambiguous. If we instead do it on a modified $D$ with no marks on the right hand side of any production (i.e., all non-terminals have the form $N_\emptyset$) we get a sound decision procedure where the absence of two distinct runs implies resolvably ambiguous.
-
-There are thus cases where we can answer resolvably ambiguous or unresolvably ambiguous with certainty, and cases where we cannot answer either way with certainty.
+Performing this procedure on a language definition $D$ without non-grouping parentheses and marks gives a sound and complete decision procedure for determining if $D$ is resolvably ambiguous. If we instead take a language definition $D$ with marks but no non-grouping parentheses, then remove the marks and perform the procedure, then the absence of two such runs implies that $D$ is resolvably ambiguous, while their presence only implies the possibility of an unresolvable ambiguity; the marks might remove it.
 
 \begin{lemma}
   There is a bijection between successful runs in $A_{\posp{}}$ and trees $t \in L(T_D)$.
@@ -1188,48 +1190,91 @@ There are thus cases where we can answer resolvably ambiguous or unresolvably am
   By defining two functions $\treetorun$ and $\runtotree$, the former from a tree to a run, the latter from run to tree, then showing these two functions to be inverses of each other.
 \end{proof}
 
-\begin{lemma}
-  All words $w \in L(A_{\posp{}})$ are well-formed linear encodings.
-\end{lemma}
-
 We denote the word recognized by a run $R$ by $\runtoword(R)$.
 
 \begin{lemma}
-  $\forall t \in L(T_D).\ \lattice(\runtoword(\treetorun(t))) = \lattice(t)$.
+  $\forall t \in L(T_D).\ \runtoword(\treetorun(t))$ is the canonical linear encoding of $\words(t)$.
 \end{lemma}
 
 \begin{lemma}
-  For all $t \in L(T_D)$ and every well-formed lattice encoding $w$ such that $\lattice(t) \subseteq \lattice(w)$, $w \in L(A'_{\posp{}})$.
+  For all $t \in L(T_D)$ and every linear encoding $c$ such that $\words(t) \subseteq L(c)$, $c \in L(A'_{\posp{}})$.
 \end{lemma}
 
 \begin{lemma}
-  We can define a function $\runprimetorun$ from runs in $A'_{\posp{}}$ to runs in $A_{\posp{}}$ such that $\forall R.\ \lattice(\runtoword(\runprimetorun(R))) \subseteq \lattice(\runtoword(R))$.
+  We can define a function $\runprimetorun$ from runs in $A'_{\posp{}}$ to runs in $A_{\posp{}}$ such that $\forall R.\ L(\runtoword(\runprimetorun(R))) \subseteq L(\runtoword(R))$.
 \end{lemma}
 
 \begin{proof}
-  By removing every transition that pushes or pops $\gamma$ and replacing every used transition $p \xrightarrow{'\pospl', +g} q$ that does not exist in $A_{\posp{}}$ with a transition $p \xrightarrow{'\reqpl', +g} q$.
+  By removing every transition that pushes or pops $\gamma$.
 \end{proof}
 
 \begin{theorem}
-  The existence of two distinct runs $R$ and $R'$, where $R$ is a successful run in $A_{\posp{}}$ and $R'$ in $A'_{\posp{}}$, and $\runtoword(R) = \runtoword(R')$, implies the existence of two distinct trees such that the lattice of one is entirely contained in the other.
+  The existence of two distinct runs $R$ and $R'$ such that $R$ is a successful run in $A_{\posp{}}$ and $R'$ in $A'_{\posp{}}$, and $\runtoword(R) = \runtoword(R')$, implies the existence of two distinct trees such that the word language of one is entirely contained in the other.
 \end{theorem}
 
 \begin{proof}
   Assume $\runprimetorun(R') = R$. $\runprimetorun$ either leaves its argument unchanged, or changes the recognized word. If $R'$ and $R$ recognize the same word, and $\runprimetorun(R') = R$, then $R' = R$, but that is a contradiction.
 
-  Since $\runprimetorun(R') \neq R$ we have two distinct trees $t_1 = \runtotree(\runprimetorun(R'))$ and $t_2 = \runtotree(R)$. Since $\lattice(\runtoword(\runprimetorun(R'))) \subseteq \lattice(\runtoword(R'))$ and $\lattice(\runtoword(R')) = \lattice(\runtoword(R))$ we have that $\lattice(t_1) \subseteq \lattice(t_2)$.
+  Since $\runprimetorun(R') \neq R$ we have two distinct trees $t_1 = \runtotree(\runprimetorun(R'))$ and $t_2 = \runtotree(R)$. Since $L(\runtoword(\runprimetorun(R'))) \subseteq L(\runtoword(R'))$ and $L(\runtoword(R')) = L(\runtoword(R))$ we have that $L(t_1) \subseteq L(t_2)$.
 \end{proof}
+
+We thus have a way to detect the presence or absence of a pair of trees $t_1, t_2 \in L(T_D)$ such that $\words(t_1) \subseteq \words(t_2)$, which completely determines the resolvability of $D$ when $D$ has no non-grouping parentheses or marks.
 
 \section{Dynamic Resolvability Analysis} \label{sec:dynamic}
 
-The dynamic resolvability problem is as follows: for a given $w' \in L(G'_D)$ determine whether $\forall t \in \parse(w').\ \exists w'_2.\ \parse(w'_2) = \{t\}$. Furthermore, for practical reasons, if the word is resolvably ambiguous we wish to produce a (minimal) witness for each tree. Similarly to Section~\ref{sec:static}, we place some restrictions on $D$, though the restrictions are less severe. While Section~\ref{sec:static} requires a language definition $D$ to not contain parentheses, this section merely requires parentheses to be balanced. Concretely, the restrictions are as follows:
+The dynamic resolvability problem is as follows: for a given $w' \in L(G'_D)$ determine whether $\forall t \in \parse(w').\ \exists w'_2.\ \parse(w'_2) = \{t\}$. Furthermore, for practical reasons, if the word is resolvably ambiguous we wish to produce a (minimal) witness for each tree. Similarly to Section~\ref{sec:static}, we place some restrictions on $D$, though the restrictions are less severe. While Section~\ref{sec:static} requires $D$ to have no non-grouping parentheses and no marks, this section has two much less stringent requirements:
 
 \begin{enumerate}
 \item Each right-hand side regular expression must only recognize words with balanced parentheses. For example, ``$\verb|(| \verb|)|$'' is permissible, but ``$\verb|(|^{*} \verb|)|^{*}$'' is not.
 \item $G_D$, but with parentheses removed, must not be infinitely ambiguous.
 \end{enumerate}
 
-\noindent Both of these restrictions can be checked statically.
+\noindent Both of these restrictions can be checked statically. Additionally, if we already know statically that $D$ is resolvably ambiguous\footnote{While the \emph{decision} part of this procedure is uninteresting in this case (it will always answer ``resolvable''), the minimal witness \emph{is} interesting: it shows the user how to resolve the ambiguity.} we can drop the second requirement.
+
+Similarly to Section~\ref{sec:static} the approach centers around the word language $\words(t)$. We can easily construct a visibly pushdown automaton for this language by going via the canonical linear encoding: let every pair ``$\reqp{}$'' push and pop the same stack symbol (call it $\gamma$) and let every ``$\posp{}$'' push and pop a unique stack symbol. For example, ``$\posp{\reqp{a}\posp{b}}$'' produces the following automaton:
+
+\begin{center}
+\begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
+    scale = 1,transform shape]
+  \node[state,initial] (1) {};
+  \node[state] (2) [right of=1] {};
+  \node[state] (3) [right of=2] {};
+  \node[state] (4) [right of=3] {};
+  \node[state,accepting] (5) [right of=4] {};
+
+  \path (1) edge[loop above] node{$'(', +1$} (1)
+  (1) edge node{$'(', +\gamma$} (2)
+  (2) edge node{$'a'$} (3)
+  (3) edge node{$')', -\gamma$} (4)
+  (4) edge[loop above] node{$'(', +2$} (4)
+  (4) edge node{$'b'$} (5)
+  (5) edge[loop above] node{$')', -2$} (5)
+  (5) edge[loop right] node{$')', -1$} (5);
+\end{tikzpicture}
+\end{center}
+
+\noindent This is useful to us since visibly pushdown automata are closed under difference. Given a pair of trees $t_1$ and $t_2$ we can thus produce a pair of automata recognizing $\words(t_1)$ and $\words(t_2)$ respectively, then construct a pair of automata recognizing $\words(t_1) \setminus \words(t_2)$ and $\words(t_2) \setminus \words(t_1)$, respectively. These new automata recognize the words that are not ambiguous between these two particular trees. Our algorithm thus takes the following shape:
+
+\begin{verbatim}
+Proc(T)
+  let R = \emptyset
+  let U = \emptyset
+  for t \in T
+    let T' = T \setminus \{t\}
+    let A = \words(t)
+    loop
+      A = A \setminus \bigcup_{t' \in T'} \words(t')
+      if L(A) = \emptyset
+        U = U \cup \{t\}
+        break loop
+      if \parse(\shortest(A)) = \{t\}
+        R = R \cup \{(t, \shortest(A))\}
+        break loop
+      T' = \parse(\shortest(A)) \setminus \{t\}
+  return (R, U)
+\end{verbatim}
+
+%% TODO: CONTINUE
 
 Our approach centers around $\words(t)$, which, being a set of words, can be considered a language in the classical sense. Given restriction (1), each such language turns out to be a visibly pushdown language. VPLs are closed under difference, which enables us to create a visibly pushdown automaton for the language $\words(t_1) \setminus \words(t_2)$ for any pair of trees $t_1, t_2 \in L(T_D)$. This is useful, since $\words(t_1)$ is the set of possible resolutions for $t_1$ in an ambiguity, and $\words(t_1) \cap \words(t_2)$ is the set of ambiguous words that can parse as both $t_1$ and $t_2$, i.e., words that \emph{cannot} resolve an ambiguity.
 
