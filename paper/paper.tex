@@ -49,6 +49,7 @@
   }
 \newcommand{\ocaml}{\lstinline[language={[objective]caml}]}
 \newcommand{\syncon}{\lstinline[language=syncon]}
+\newcommand{\haskell}{\lstinline[language=haskell]}
 
 %% symbol definitions used throughout the paper
 
@@ -276,7 +277,7 @@ In this paper, we solve the static resolvability problem for certain classes of 
 
 
 
-\section{Motivating Example}
+\section{Motivating Examples}
 \label{sec:motivation}
 In this section, we motivate the need for ambiguous language definitions, where the decision of how to disambiguate a program is taken by the end-user (the programmer) and not the language designer. We motivate our new methodology both for engineering of new domain-specific languages, as well as for the design of existing general-purpose programming languages.
 
@@ -381,6 +382,20 @@ The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may 
 %\end{tabular}
 %\end{center}
 
+\subsection{Language Composition}
+
+% TODO: more language composition references
+The possibility of composing different languages at will is a prevalent idea in research \cite{vanwykSilverExtensibleAttribute2010,lorenzenSoundTypedependentSyntactic2016,danielssonParsingMixfixOperators2011}. Particularly relevant to this paper is the behavior of composed \emph{syntax}; composing unambiguous syntaxes does not necessarily produce an unambiguous composed syntax. Pre-existing systems commonly solve this either by strict requirements on the individual languages \cite{vanwykSilverExtensibleAttribute2010} or by largely ignoring the problem and merely presenting the multiple syntax trees in case of an ambiguity \cite{lorenzenSoundTypedependentSyntactic2016,danielssonParsingMixfixOperators2011}. The former case gives good guarantees for the end-user experience (no ambiguities) while the former gives more freedom to the language designer. Resolvable ambiguity, as presented in this paper, gives a middle ground with more language designer freedom than the former and a better user experience than the latter.
+
+Language composition has limited prevalence outside of research, but it does exist in a simplified form: custom operators in libraries. For example, Haskell allows a programmer to define new operators, with new syntax and custom precedence level and associativity. A user can then import these operators from any number of libraries and use them together in one program. Precedence in Haskell is defined as a number between 0 and 9, meaning that operators from different libraries have a defined relative precedence. If the libraries were designed by different authors this precedence is essentially by accident and it may or may not be sensible. Leaving the relative precedence undefined would not affect expressivity, every possible combination of operators can be written by simply adding parentheses, and would avoid surprising interpretations. This does in fact happen in some cases in Haskell, namely when two operators have the same precedence, but incompatible associativity. Both \haskell{>>=} and \haskell{=<<} have precedence 1, but the former is left associative while the latter is right associative. \haskell{a >>= b =<< c} then produces the following error:
+
+\begin{lstlisting}
+Precedence parsing error
+  cannot mix '>>=' [infixl 1] and '=<<' [infixr 1]
+  in the same infix expression
+\end{lstlisting}
+
+\noindent The error message shows the problem but suggests no solution. Our approach can suggest solutions, allow arbitrary operators to have undefined relative precedence (intransitive precedence), and is general; it handles non-operator ambiguities as well.
 
 \subsection{Resolvable Ambiguity}
 The two motivating examples above motivate briefly why grammar
