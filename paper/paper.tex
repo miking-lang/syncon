@@ -25,6 +25,8 @@
 \usetikzlibrary{arrows.meta,automata,calc}
 \usepackage{tikz-qtree} % Used for syntax trees
 \usepackage{tikz-cd} % Used for commutative diagrams
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
 
 \usepackage{syntax}
 
@@ -85,6 +87,7 @@
 \newcommand{\runtotree}{\mathit{tree}}
 \newcommand{\runtoword}{\mathit{word}}
 \newcommand{\runprimetorun}{\mathit{normalrun}}
+\newcommand{\shortest}{\mathit{shortest}}
 
 \synctex=1
 \begin{document}
@@ -1255,24 +1258,32 @@ Similarly to Section~\ref{sec:static} the approach centers around the word langu
 
 \noindent This is useful to us since visibly pushdown automata are closed under difference. Given a pair of trees $t_1$ and $t_2$ we can thus produce a pair of automata recognizing $\words(t_1)$ and $\words(t_2)$ respectively, then construct a pair of automata recognizing $\words(t_1) \setminus \words(t_2)$ and $\words(t_2) \setminus \words(t_1)$, respectively. These new automata recognize the words that are not ambiguous between these two particular trees. Our algorithm thus takes the following shape:
 
-\begin{verbatim}
-Proc(T)
-  let R = \emptyset
-  let U = \emptyset
-  for t \in T
-    let T' = T \setminus \{t\}
-    let A = \words(t)
-    loop
-      A = A \setminus \bigcup_{t' \in T'} \words(t')
-      if L(A) = \emptyset
-        U = U \cup \{t\}
-        break loop
-      if \parse(\shortest(A)) = \{t\}
-        R = R \cup \{(t, \shortest(A))\}
-        break loop
-      T' = \parse(\shortest(A)) \setminus \{t\}
-  return (R, U)
-\end{verbatim}
+\begin{algorithm}
+\caption{The Dynamic Algorithm}
+\begin{algorithmic}[1]
+\Procedure{Dynamic}{$T$}
+  \State $R <- \emptyset$
+  \State $U <- \emptyset$
+  \ForAll{$t \in T$}
+    \State $T' <- T \setminus \{t\}$
+    \State $A <- \words(t)$ \Comment{$A$ is a visibly pushdown automaton.}
+    \Loop
+      \State $A <- A \setminus \bigcup_{t' \in T'} \words(t')$ \Comment{VPDAs closed under difference and union.}
+      \If{$L(A) = \emptyset$}
+        \State $U <- U \cup \{t\}$
+        \State $\textbf{break loop}$
+      \EndIf
+      \If{$\parse(\shortest(A)) = \{t\}$} \Comment{$\shortest(A)$ denotes a shortest}
+        \State $R <- R \cup \{(t, \shortest(A))\}$ \Comment{word recognized by $A$.}
+        \State $\textbf{break loop}$
+      \EndIf
+      \State $T' <- \parse(\shortest(A)) \setminus \{t\}$
+    \EndLoop
+  \EndFor
+  \State $\textbf{return} (R, U)$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
 
 %% TODO: CONTINUE
 
