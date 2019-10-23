@@ -90,6 +90,8 @@
 \newcommand{\runprimetorun}{\mathit{normalrun}}
 \newcommand{\shortest}{\mathit{shortest}}
 
+\newcommand{\RED}[1]{\textcolor{red}{#1}}
+
 \synctex=1
 \begin{document}
 % Submission may be up to 25 pages, excluding references
@@ -313,10 +315,10 @@ Explicit ambiguity is highly relevant also for the design of new and existing ge
 
 %Consider the following nested match expression (from \cite{palmkvistCreatingDomainSpecificLanguages2019}), and the resulting error message:
 
-Consider the following OCaml example of nested \verb|match| expressions, as stated by \cite{palmkvistCreatingDomainSpecificLanguages2019}).
+Consider this OCaml example of nested \verb|match| expressions, as stated by \cite{palmkvistCreatingDomainSpecificLanguages2019}:
 
-\begin{minipage}{.35\textwidth}
-\begin{lstlisting}[language={[objective]caml},numbers=left]
+\begin{minipage}{.34\textwidth}
+\begin{lstlisting}[language={[objective]caml},numbers=left,basicstyle=\small\tt]
 match 1 with
   | 1 -> match "one" with
          | str -> str
@@ -325,11 +327,11 @@ match 1 with
 \end{minipage}
 \vrule
 \begin{minipage}{\textwidth}
-\begin{lstlisting}
-  File "./nestmatch.ml", line 4, characters 4-5:
-  Error: This pattern matches values of type int
-         but a pattern was expected which
-         matches values of type string
+\begin{lstlisting}[basicstyle=\small\tt]
+ File "./nestmatch.ml", line 4, characters 4-5:
+ Error: This pattern matches values of type int
+        but a pattern was expected which
+        matches values of type string
 \end{lstlisting}
 \end{minipage}
 
@@ -337,7 +339,7 @@ match 1 with
 \noindent The OCaml compiler output is listed to the right. The compiler sees the last line as belonging to the inner \ocaml{match} rather than the outer, as was intended. The solution is simple; we put parentheses around the inner match:
 
 \begin{minipage}{\textwidth}
-\begin{lstlisting}[language={[objective]caml},numbers=left]
+\begin{lstlisting}[language={[objective]caml},numbers=left,basicstyle=\small\tt]
 match 1 with
   | 1 -> (match "one" with
           | str -> str)
@@ -491,14 +493,22 @@ The names of the partitions stem from their original use in program analysis, $c
 This partitioning gives us the following particularly relevant properties:
 
 \begin{itemize}
-\item Visibly pushdown languages with the same input partitions are closed under intersection, complement, and union \cite{alurVisiblyPushdownLanguages2004}. Intersection is given by a product automaton. Given a pair of VPDAs $(Q_1, \T, \delta_1, q_0, F_1)$ and $(Q_2, \T, \delta_2, q'_0, F_2)$ their product automaton has the form $(Q_1 \times Q_2, \T, \delta', (q_0, q'_0), F_1 \times F_2)$ where:
-  $$
-  \begin{array}{r@{\ =\ }ll}
-    \delta'((p_1, p_2), c, \lambda) & \{((q_1, q_2), (g_1, g_2)) \mid (q_1, g_1) \in \delta_1(p_1, c, \lambda), (q_2, g_2) \in \delta_2(p_2, c, \lambda) \} & \!\!\!\!\text{where } c \in \T_c \\
-    \delta'((p_1, p_2), i, \lambda) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, i, \lambda), (q_2, \lambda) \in \delta_2(p_2, i, \lambda) \} & \!\!\!\!\text{where } i \in \T_i \\
-    \delta'((p_1, p_2), r, (g_1, g_2)) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, r, \lambda), (q_2, \lambda) \in \delta_2(p_2, r, \lambda) \} & \!\!\!\!\text{where } r \in \T_r \\
+\item Visibly pushdown languages with the same input partitions
+  are closed under intersection, complement, and union
+  \cite{alurVisiblyPushdownLanguages2004}. Intersection is given
+  by a product automaton. Given a pair of VPDAs
+  $(Q_1, \T, \delta_1, q_0, F_1)$ and
+  $(Q_2, \T, \delta_2, q'_0, F_2)$ their product automaton has the
+  form $(Q_1 \times Q_2, \T, \delta', (q_0, q'_0),$
+  $ F_1 \times F_2)$ where, when $c \in \T_c$, $i \in \T_i$ and
+  $r \in \T_r$:
+  \[
+  \begin{array}{r@{\ =\ }l}
+    \delta'((p_1, p_2), c, \lambda) & \{((q_1, q_2), (g_1, g_2)) \mid (q_1, g_1) \in \delta_1(p_1, c, \lambda), (q_2, g_2) \in \delta_2(p_2, c, \lambda) \}\\
+    \delta'((p_1, p_2), i, \lambda) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, i, \lambda), (q_2, \lambda) \in \delta_2(p_2, i, \lambda) \}\\
+    \delta'((p_1, p_2), r, (g_1, g_2)) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, r, \lambda), (q_2, \lambda) \in \delta_2(p_2, r, \lambda) \}\\
   \end{array}
-  $$
+  \]
 
 \item A VPDA can be trimmed \cite{caralpTrimmingVisiblyPushdown2015}, i.e., modified in such a way that all remaining states and transitions are part of at least one successful run; none are redundant. Furthermore, a successful run in the trimmed automaton corresponds to exactly one successful run in the original automaton, and vice-versa.
 \end{itemize}
@@ -676,6 +686,7 @@ With that in mind, we define a language definition $D$ as a set of labelled prod
 Each non-terminal appearing in the regular expression of a production carries a \emph{mark} $m$ which is a set of labels whose productions may \emph{not} replace that non-terminal. To lessen clutter, we write $E_\emptyset$ as $E$. Consider the language definition shown in Fig.~\ref{fig:running-example-definition} which we use as a running example. In the production describing multiplication ($m$) both non-terminals are marked with $\{a\}$, which thus forbids addition from being a direct child of a multiplication. By ``direct child'' we mean ``without an intermediate node'', most commonly grouping parentheses; thus, this enforces conventional precedence.
 
 \begin{figure}
+
 \centering
 \begin{minipage}{.47\textwidth}
   \centering
@@ -719,6 +730,8 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
 
 \begin{figure}
   \subfloat[$T_D$, the parse trees of $G_D$.\label{fig:running-example-generated:t}]{%
+    \begin{minipage}{0.5\textwidth}
+    \centering
     \begin{tabular}{@{}l@{\quad$->$\quad}c@{$($ }l@{}}
       \toprule
       $E$ & $l$ & \texttt{'['} $(\epsilon + E($\texttt{';'} $E)^{*})$ \texttt{']'} $)$ \\
@@ -727,8 +740,11 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
       $E$ & $n$ & $N$ $)$ \\
       \bottomrule
     \end{tabular}
+    \end{minipage}
   }
   \subfloat[$T'_D$, the parse trees of $G'_D$.\label{fig:running-example-generated:t-prime}]{%
+    \begin{minipage}{0.5\textwidth}
+    \centering
     \begin{tabular}{@{}l@{\quad$->$\quad}c@{$($ }l@{}}
       \toprule
       $E$ & $l$ & \texttt{'['} $(\epsilon + E($\texttt{';'} $E)^{*})$ \texttt{']'} $)$ \\
@@ -743,9 +759,12 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
       $E_{\{a\}}$ & $g$ & \texttt{'('} $E$ \texttt{')'} $)$ \\
       \bottomrule
     \end{tabular}
+    \end{minipage}
   }
 
   \subfloat[$G_D$, the generated abstract syntax.\label{fig:running-example-generated:w}]{%
+    \begin{minipage}{0.5\textwidth}
+    \centering
     \begin{tabular}{@{}l@{\quad$->$\quad}l@{}}
       \toprule
       $E$ & \texttt{'['} $E_{l1}$ \texttt{']'} \\
@@ -760,8 +779,11 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
       $E_{l2}$ & \texttt{';'} $E$ $E_{l2}$ \\
       \bottomrule
     \end{tabular}
+    \end{minipage}
   }
   \subfloat[$G'_D$, the generated concrete syntax.\label{fig:running-example-generated:w-prime}]{%
+    \begin{minipage}{0.5\textwidth}
+    \centering
     \begin{tabular}{@{}l@{\quad$->$\quad}l@{}}
       \toprule
       $E$ & \texttt{'['} $E_{l1}$ \texttt{']'} \\
@@ -782,19 +804,20 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
       $E_{l2}$ & \texttt{';'} $E$ $E_{l2}$ \\
       \bottomrule
     \end{tabular}
+    \end{minipage}
   }
   \caption{The generated grammars.}
   \label{fig:running-example-generated}
 \end{figure}
 
-Examples of elements in each of these four languages can be seen in Fig.~\ref{fig:example-words-in-square}, along with visualizations of the syntax trees. Each element corresponds to the word ``$(1 + 2) * 3$'' in $L(G'_D)$. Note that the word in $L(G_D)$ is ambiguous, and that there are other words in $L(G'_D)$ that correspond to the same element in $L(T_D)$, e.g., ``$((1 + 2)) * 3$'' and ``$(1 + 2) * (3)$''. As a memory aid, the primed versions ($G'_D$ and $T'_D$) contain disambiguation (grouping parentheses, precedence, associativity, etc.) while the unprimed versions ($G_D$ and $T_D$) are the (likely ambiguous) straightforward translations (i.e., ignoring marks) from $D$.
+Examples of elements in each of these four languages can be seen in Fig.~\ref{fig:example-words-in-square}, \RED{along with visualizations of the syntax trees}. Each element corresponds to the word ``$(1 + 2) * 3$'' in $L(G'_D)$. Note that the word in $L(G_D)$ is ambiguous, and that there are other words in $L(G'_D)$ that correspond to the same element in $L(T_D)$, e.g., ``$((1 + 2)) * 3$'' and ``$(1 + 2) * (3)$''. As a memory aid, the primed versions ($G'_D$ and $T'_D$) contain disambiguation (grouping parentheses, precedence, associativity, etc.) while the unprimed versions ($G_D$ and $T_D$) are the (likely ambiguous) straightforward translations (i.e., ignoring marks) from $D$.
 
 {
 \newcommand{\terminal}[1]{\ \underline{#1}\ }
 
 % TODO: (re)make these figures
 \begin{figure}
-  \subfloat[Example tree in $L(T_D)$ and visualization.\label{fig:sum-add-tree}]{%
+  \subfloat[Example tree in $L(T_D)$.\label{fig:sum-add-tree}]{% and visualization.]{%
     %% \begin{center}
     %% \Tree [.{$m$}
     %%     [.{$a$}
@@ -804,9 +827,12 @@ Examples of elements in each of these four languages can be seen in Fig.~\ref{fi
     %%     \terminal{*}
     %%     [.{$n$} \terminal{3} ] ]
     %% \end{center}
-    $m(a(n(\terminal{1}) \terminal{+} n(\terminal{2})) \terminal{*} n(\terminal{3}))$
+    \begin{minipage}{.5\linewidth}
+      \centering
+      $m(a(n(\terminal{1}) \terminal{+} n(\terminal{2})) \terminal{*} n(\terminal{3}))$
+    \end{minipage}
   }
-  \subfloat[Example tree in $L(T'_D)$ and visualization.]{%
+  \subfloat[Example tree in $L(T'_D)$.]{% and visualization.]{%
     %% \begin{center}
     %% \Tree [.{$m$}
     %%     [.{$g$}
@@ -818,15 +844,24 @@ Examples of elements in each of these four languages can be seen in Fig.~\ref{fi
     %%       \terminal{)} ]
     %%     \terminal{*}
     %%     [.{$n$} \terminal{3} ] ]
-    %% \end{center}
-    $m(g( \terminal{(} a(n( \terminal{1} ) \terminal{+} n( \terminal{2} )) \terminal{)} ) \terminal{*} n( \terminal{3} ))$
+    %%   \end{center}
+    \begin{minipage}{.5\linewidth}
+      \centering
+      $m(g( \terminal{(} a(n( \terminal{1} ) \terminal{+} n( \terminal{2} )) \terminal{)} ) \terminal{*} n( \terminal{3} ))$
+    \end{minipage}
   }
 
   \subfloat[Example word in $L(G_D)$.]{%
-    $1 + 2 * 3$
+    \begin{minipage}{.5\linewidth}
+      \centering
+      $1 + 2 * 3$
+    \end{minipage}
   }
   \subfloat[Example word in $L(G'_D)$.]{%
-    $(1 + 2) * 3$
+    \begin{minipage}{.5\linewidth}
+      \centering
+      $(1 + 2) * 3$
+    \end{minipage}
   }
   \caption{Example with elements from each generated language that correspond to each other. The leaf terminals in the tree languages appear underlined to distinguish the two kinds of parentheses.}
   \label{fig:example-words-in-square}
