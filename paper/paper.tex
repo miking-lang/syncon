@@ -1302,69 +1302,69 @@ Similarly to Section~\ref{sec:static} the approach centers around the word langu
 
 %% TODO: CONTINUE
 
-Our approach centers around $\words(t)$, which, being a set of words, can be considered a language in the classical sense. Given restriction (1), each such language turns out to be a visibly pushdown language. VPLs are closed under difference, which enables us to create a visibly pushdown automaton for the language $\words(t_1) \setminus \words(t_2)$ for any pair of trees $t_1, t_2 \in L(T_D)$. This is useful, since $\words(t_1)$ is the set of possible resolutions for $t_1$ in an ambiguity, and $\words(t_1) \cap \words(t_2)$ is the set of ambiguous words that can parse as both $t_1$ and $t_2$, i.e., words that \emph{cannot} resolve an ambiguity.
+%% Our approach centers around $\words(t)$, which, being a set of words, can be considered a language in the classical sense. Given restriction (1), each such language turns out to be a visibly pushdown language. VPLs are closed under difference, which enables us to create a visibly pushdown automaton for the language $\words(t_1) \setminus \words(t_2)$ for any pair of trees $t_1, t_2 \in L(T_D)$. This is useful, since $\words(t_1)$ is the set of possible resolutions for $t_1$ in an ambiguity, and $\words(t_1) \cap \words(t_2)$ is the set of ambiguous words that can parse as both $t_1$ and $t_2$, i.e., words that \emph{cannot} resolve an ambiguity.
 
-Intuitively, we then need to, for each tree $t \in \parse(w)$, determine if $\words(t) \setminus \bigcup_{t' \in L(T_D) \land t' \neq t} \words(t)$ is the empty set. Unfortunately, $L(T_D)$ tends to be infinite. However, for any particular $t$, most trees $t' \in L(T_D)$ are irrelevant: their words do not overlap at all; $\words(t) \cap \words(t') = \emptyset$. Hence we construct a (finite) subset of $L(T_D)$ such that all other trees are irrelevant. As a bonus, this approach constructs a VPDA per tree that recognizes valid resolutions for that tree; a minimal witness is thus a shortest word recognized by a VPDA, and the problem of finding such a word is a known one.
+%% Intuitively, we then need to, for each tree $t \in \parse(w)$, determine if $\words(t) \setminus \bigcup_{t' \in L(T_D) \land t' \neq t} \words(t)$ is the empty set. Unfortunately, $L(T_D)$ tends to be infinite. However, for any particular $t$, most trees $t' \in L(T_D)$ are irrelevant: their words do not overlap at all; $\words(t) \cap \words(t') = \emptyset$. Hence we construct a (finite) subset of $L(T_D)$ such that all other trees are irrelevant. As a bonus, this approach constructs a VPDA per tree that recognizes valid resolutions for that tree; a minimal witness is thus a shortest word recognized by a VPDA, and the problem of finding such a word is a known one.
 
-For this section, we assume the presence of a single language definition $D$ with terminals in $\T$, labels in $\Labels$, and non-terminals in $\NT$.
+%% For this section, we assume the presence of a single language definition $D$ with terminals in $\T$, labels in $\Labels$, and non-terminals in $\NT$.
 
-\begin{lemma}
-  Given a $t \in L(T_D)$, we can construct a visibly pushdown automaton that accepts exactly $\words(t)$.
-  \label{lemma:vpda-from-t}
-\end{lemma}
+%% \begin{lemma}
+%%   Given a $t \in L(T_D)$, we can construct a visibly pushdown automaton that accepts exactly $\words(t)$.
+%%   \label{lemma:vpda-from-t}
+%% \end{lemma}
 
-\noindent We construct this automaton in a bottom-up fashion. A sequence of terminals in $\T$ is easily recognized by a sequence of transitions that do not interact with the stack. Each subtree allows surrounding grouping parentheses, which can be represented by transitions that push and pop stack symbols (one unique stack symbol per subtree), to ensure that they are balanced. With that, there are two remaining complications: a subtree $l(w)$ recognized from a marked non-terminal $N_m$ where $l \in m$ must have one or more surrounding parentheses instead of zero or more, and we must maintain the visibly pushdown property, i.e., all transitions labelled ``$($'' or ``$)$'' must push or pop stack symbols, respectively. The former can be solved by either tracking the subtree's origin when parsing, or reparsing with the right hand side regular expression, while the latter is solved by introducing a new stack symbol $\gamma$ that is pushed and popped by all non-grouping-parenthesis terminals.
+%% \noindent We construct this automaton in a bottom-up fashion. A sequence of terminals in $\T$ is easily recognized by a sequence of transitions that do not interact with the stack. Each subtree allows surrounding grouping parentheses, which can be represented by transitions that push and pop stack symbols (one unique stack symbol per subtree), to ensure that they are balanced. With that, there are two remaining complications: a subtree $l(w)$ recognized from a marked non-terminal $N_m$ where $l \in m$ must have one or more surrounding parentheses instead of zero or more, and we must maintain the visibly pushdown property, i.e., all transitions labelled ``$($'' or ``$)$'' must push or pop stack symbols, respectively. The former can be solved by either tracking the subtree's origin when parsing, or reparsing with the right hand side regular expression, while the latter is solved by introducing a new stack symbol $\gamma$ that is pushed and popped by all non-grouping-parenthesis terminals.
 
-We now present the function $f : L(T_D) -> VPDA$ that performs this construction. Writing the transition function $\delta : Q \times \T \times (\Gamma \cup \{\lambda\}) -> 2^{Q \times (\Gamma \cup \{\lambda\})}$ as a subset of $Q \times \T \times (\Gamma \cup \{\lambda\}) \times Q \times (\Gamma \cup \{\lambda\})$, and using $\sqcup$ for disjoint union:
+%% We now present the function $f : L(T_D) -> VPDA$ that performs this construction. Writing the transition function $\delta : Q \times \T \times (\Gamma \cup \{\lambda\}) -> 2^{Q \times (\Gamma \cup \{\lambda\})}$ as a subset of $Q \times \T \times (\Gamma \cup \{\lambda\}) \times Q \times (\Gamma \cup \{\lambda\})$, and using $\sqcup$ for disjoint union:
 
-$$
-\begin{array}{r@{\;}l}
-  f(a)
-  & = \begin{cases}
-    (\{p, q\}, \T, \emptyset, \{(p, a, \lambda, q, \lambda)\}, p, \{q\})
-    & \text{if } a \notin \{\text{``}(\text{''}, \text{``})\text{''}\} \\
+%% $$
+%% \begin{array}{r@{\;}l}
+%%   f(a)
+%%   & = \begin{cases}
+%%     (\{p, q\}, \T, \emptyset, \{(p, a, \lambda, q, \lambda)\}, p, \{q\})
+%%     & \text{if } a \notin \{\text{``}(\text{''}, \text{``})\text{''}\} \\
 
-    (\{p, q\}, \T, \{\gamma\}, \{(p, \text{``}(\text{''}, \lambda, q, \gamma)\}, p, \{q\})
-    & \text{if } a = \text{``}(\text{''} \\
+%%     (\{p, q\}, \T, \{\gamma\}, \{(p, \text{``}(\text{''}, \lambda, q, \gamma)\}, p, \{q\})
+%%     & \text{if } a = \text{``}(\text{''} \\
 
-    (\{p, q\}, \T, \{\gamma\}, \{(p, \text{``})\text{''}, \lambda, q, \lambda))\}, p, \{q\})
-    & \text{if } $a = \text{``})\text{''}$ \\
-  \end{cases} \\
+%%     (\{p, q\}, \T, \{\gamma\}, \{(p, \text{``})\text{''}, \lambda, q, \lambda))\}, p, \{q\})
+%%     & \text{if } $a = \text{``})\text{''}$ \\
+%%   \end{cases} \\
 
-  f(w_1 \cdot w_2)
-  & = (Q_1 \sqcup Q_2, \T, \Gamma', \delta_1 \cup \delta_2 \cup \{(f_1, \lambda, \lambda, s_2, \lambda)\}, s_1, \{f_2\}) \\
-  & \text{ where } f(w_i) = (Q_i, \T, \Gamma_i, \delta_i, s_i, \{f_i\}) \\
-  & \hphantom{\text{ where }} \Gamma' = (\Gamma_1 \setminus \{\gamma\}) \sqcup (\Gamma_2 \setminus \{\gamma\}) \cup \{\gamma\} \\
+%%   f(w_1 \cdot w_2)
+%%   & = (Q_1 \sqcup Q_2, \T, \Gamma', \delta_1 \cup \delta_2 \cup \{(f_1, \lambda, \lambda, s_2, \lambda)\}, s_1, \{f_2\}) \\
+%%   & \text{ where } f(w_i) = (Q_i, \T, \Gamma_i, \delta_i, s_i, \{f_i\}) \\
+%%   & \hphantom{\text{ where }} \Gamma' = (\Gamma_1 \setminus \{\gamma\}) \sqcup (\Gamma_2 \setminus \{\gamma\}) \cup \{\gamma\} \\
 
-  f(l(w))
-  & = \begin{cases}
-    (Q \sqcup \{p, q\}, \T, \Gamma', \delta \cup \delta_1, p, \{q\}) & \text{if $l$ is marked in the introducing non-terminal.} \\
-    (Q, \T, \Gamma', \delta \cup \delta_2, s, \{f\}) & \text{if $l$ is unmarked in the introducing non-terminal.} \\
-  \end{cases} \\
-  & \text{ where } f(w) = (Q, \T, \Gamma, \delta, s, \{f\}) \\
-  & \hphantom{\text{ where }} \Gamma' = (\Gamma \setminus \{\gamma\}) \sqcup \{g, \gamma\} \\
-  & \hphantom{\text{ where }} \delta_1 = \{(p, \text{``}(\text{''}, \lambda, p, g), (p, \text{``}(\text{''}, \lambda, s, g), (f, \text{``})\text{''}, g, q, \lambda), (q, \text{``})\text{''}, g, q, \lambda)\} \\
-  & \hphantom{\text{ where }} \delta_2 = \{(s, \text{``}(\text{''}, \lambda, s, g), (f, \text{``})\text{''}, g, f, \lambda)\} \\
-\end{array}
-$$
+%%   f(l(w))
+%%   & = \begin{cases}
+%%     (Q \sqcup \{p, q\}, \T, \Gamma', \delta \cup \delta_1, p, \{q\}) & \text{if $l$ is marked in the introducing non-terminal.} \\
+%%     (Q, \T, \Gamma', \delta \cup \delta_2, s, \{f\}) & \text{if $l$ is unmarked in the introducing non-terminal.} \\
+%%   \end{cases} \\
+%%   & \text{ where } f(w) = (Q, \T, \Gamma, \delta, s, \{f\}) \\
+%%   & \hphantom{\text{ where }} \Gamma' = (\Gamma \setminus \{\gamma\}) \sqcup \{g, \gamma\} \\
+%%   & \hphantom{\text{ where }} \delta_1 = \{(p, \text{``}(\text{''}, \lambda, p, g), (p, \text{``}(\text{''}, \lambda, s, g), (f, \text{``})\text{''}, g, q, \lambda), (q, \text{``})\text{''}, g, q, \lambda)\} \\
+%%   & \hphantom{\text{ where }} \delta_2 = \{(s, \text{``}(\text{''}, \lambda, s, g), (f, \text{``})\text{''}, g, f, \lambda)\} \\
+%% \end{array}
+%% $$
 
-\begin{lemma}
-  Given a finite set $\{t_1, t_2, \ldots, t_n\} \subseteq L(T_D)$ we can, in finite time, construct a set of VPDAs $\{A_1, A_2, \ldots, A_n\}$ such that $\forall i.\ L(A_i) \setminus \bigcup_{i \neq i'} \words(t_{i'})$.
-\end{lemma}
+%% \begin{lemma}
+%%   Given a finite set $\{t_1, t_2, \ldots, t_n\} \subseteq L(T_D)$ we can, in finite time, construct a set of VPDAs $\{A_1, A_2, \ldots, A_n\}$ such that $\forall i.\ L(A_i) \setminus \bigcup_{i \neq i'} \words(t_{i'})$.
+%% \end{lemma}
 
-\begin{proof}
-  Follows trivially from Lemma~\ref{lemma:vpda-from-t} and VPDAs being closed under union and difference.
-\end{proof}
+%% \begin{proof}
+%%   Follows trivially from Lemma~\ref{lemma:vpda-from-t} and VPDAs being closed under union and difference.
+%% \end{proof}
 
-\begin{lemma}
-  Given a finite set $\{t_1, t_2, \ldots, t_n\} \subseteq L(T_D)$, the set of trees $t' \in L(T_D)$ such that $\words(t) \cap \words(t') \neq \emptyset$ is finite.
-\end{lemma}
+%% \begin{lemma}
+%%   Given a finite set $\{t_1, t_2, \ldots, t_n\} \subseteq L(T_D)$, the set of trees $t' \in L(T_D)$ such that $\words(t) \cap \words(t') \neq \emptyset$ is finite.
+%% \end{lemma}
 
-\begin{proof}
-  Lemma~\ref{lemma:same-basic}, presented in Section~\ref{sec:word-view}, holds since restriction (1) implies only well-balanced parentheses, thus all $t'$ must share a basic word with all $t_i$. $G_D$ with parentheses removed recognizes these basic words, and has a one-to-one correspondence between leftmost derivations and trees in $L(T_D)$, by construction. Restriction (2) states that $G_D$ without parentheses is not infinitely ambiguous, thus there must be a finite number of trees that have the same basic word as all $t_i$.
-\end{proof}
+%% \begin{proof}
+%%   Lemma~\ref{lemma:same-basic}, presented in Section~\ref{sec:word-view}, holds since restriction (1) implies only well-balanced parentheses, thus all $t'$ must share a basic word with all $t_i$. $G_D$ with parentheses removed recognizes these basic words, and has a one-to-one correspondence between leftmost derivations and trees in $L(T_D)$, by construction. Restriction (2) states that $G_D$ without parentheses is not infinitely ambiguous, thus there must be a finite number of trees that have the same basic word as all $t_i$.
+%% \end{proof}
 
-Restriction (2) also implies that $G'_D$ is not infinitely ambiguous, whereby $\parse(w)$ must be finite. The dynamic analysis thus parses $\basic(w)$ using $G_D$ with parentheses removed to produce a set $R$ of relevant trees. For every $t \in parse(w)$, we construct a VPDA recognizing $\words(t) \setminus \bigcup_{t' \in R, t \neq t'}\words(t')$. If none of these VPDAs recognize the empty language, then the word is resolvably ambiguous, otherwise it is unresolvably ambiguous.
+%% Restriction (2) also implies that $G'_D$ is not infinitely ambiguous, whereby $\parse(w)$ must be finite. The dynamic analysis thus parses $\basic(w)$ using $G_D$ with parentheses removed to produce a set $R$ of relevant trees. For every $t \in parse(w)$, we construct a VPDA recognizing $\words(t) \setminus \bigcup_{t' \in R, t \neq t'}\words(t')$. If none of these VPDAs recognize the empty language, then the word is resolvably ambiguous, otherwise it is unresolvably ambiguous.
 
 \section{Case Studies} \label{sec:evaluation}
 
@@ -1725,7 +1725,9 @@ Silver \cite{vanwykSilverExtensibleAttribute2010}, a system for defining extensi
 
 The detection of classical ambiguity in context-free grammars is undecidable in general \cite{cantorAmbiguityProblemBackus1962}, yet numerous heuristic approaches exist. Examples include linguistic characterizations and regular language approximations \cite{brabrandAnalyzingAmbiguityContextFree2007}, using SAT-solvers \cite{axelssonAnalyzingContextFreeGrammars2008}, and other conservative approaches \cite{schmitzConservativeAmbiguityDetection2007}, For an overview, and additional approaches, see the PhD thesis of Basten~\cite{bastenAmbiguityDetectionProgramming2011}.
 
-Numerous language development frameworks and libraries support syntactic language composition \emph{without} any guarantees on the resulting language (e.g., \cite{heeringSyntaxDefinitionFormalism1989}). These systems tend to have some form of general parser, so that they can handle arbitrary context-free grammars, but also assume that the composed language is unambiguous, which in practice precludes the composition of languages constructed independently of each other.
+Parsing expression grammars \cite{fordParsingExpressionGrammars2004} sidestep the issue of ambiguity by not introducing it in the first place. However, this also loses the potential gains of leaving certain ambiguities. Additionally, since the ordering of productions matter, composition of languages must be ordered, and the interactions between composed languages becomes non-obvious, e.g., merely adding productions may remove previously recognized words from the language, depending on where they are added.
+
+Numerous language development frameworks and libraries support syntactic language composition \emph{without} any guarantees on the resulting language (e.g., \cite{heeringSyntaxDefinitionFormalism1989,lorenzenSoundTypedependentSyntactic2016}). These systems tend to have some form of general parser, so that they can handle arbitrary context-free grammars, but also assume that the composed language is unambiguous, which in practice precludes the composition of languages constructed independently of each other.
 
 % UNFINISHED
 
