@@ -415,9 +415,30 @@ resolvability.
 \section{Notation}
 \label{sec:prel}
 
-This section explains the notations used
-Appendix~\ref{app:prel} contains a more detailed description of
-the preliminaries (for reviewers).
+This section briefly explains the notations used in this paper.
+%
+Given a context-free grammar $G$, we write $L(G)$ to denote the
+set of all words recognized by $G$.
+%
+The standard definition of ambiguity states that a word
+$w \in L(G)$ is ambiguous if there are two distinct leftmost
+derivations of that word.
+%
+An automata is a 5-tuple $(Q,\T,\delta,q_0,F)$, where $Q$ is a
+finite set of states; $\T$ a finite set of terminals; $\delta$ a
+transition function from $Q \times \T$ to finite subsets of $Q$
+(or single states of $Q$ for a deterministic automaton);
+$q_0 \in Q$ an initial state; and $F \subseteq Q$ a set of final
+states.
+%
+A pushdown automata further adds a set of stack symbols $\Gamma$
+and equips the transition function $\delta$ with information on
+which symbols are pushed, popped or just read from the stack.
+
+Appendix~\ref{app:prel} contains a more detailed
+description of the preliminaries (for reviewers).
+
+
 
 %Sections~\ref{sec:preliminaries-cfgs} and \ref{sec:preliminaries-automata} describe context-free grammars and various forms of automata, the latter with some non-standard notation to make later sections easier to read. Section~\ref{sec:preliminaries-vpls} then describes visibly pushdown languages, which enable the analyses described in Sections~\ref{sec:static} and \ref{sec:dynamic}. Finally, Sections~\ref{sec:preliminaries-trees} and \ref{sec:preliminaries-ambiguity} describe trees and ambiguity, the former with some non-standard notation and the latter with a slightly wider definition than normal.
 
