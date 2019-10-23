@@ -783,10 +783,6 @@ Examples of elements in each of these four languages can be seen in Fig.~\ref{fi
 \end{figure}
 }
 
-At this point we also note that the shape of $D$ determines where the final concrete syntax permits grouping parentheses; they are allowed exactly where they would surround a complete production. For example, $G_D$ in Fig.~\ref{fig:running-example-generated:w} can be seen as a valid language definition (if we generate new unique labels for each of the productions). However, starting with that language definition would allow the expression ``$[1(;2)]$'', which makes no intuitive sense; grouping parentheses should only be allowed around complete expressions, but ``$;2$'' is not a valid expression.
-
-Finally, we require a function $\semantic : L(T'_D) -> L(T_D)$ that removes grouping parentheses from a parse tree, i.e., it replaces every subtree $g($ \verb|'('| $t$ \verb|')'| $)$ with $t$. The relation between the four grammars in terms of $\yield$ and $\semantic$ can be seen in Fig.~\ref{fig:grammar-square}. With this we can define $\parse : L(G'_D) -> 2^{L(T_D)}$, along with its inverse $\words : L(T_D) -> 2^{L(G'_D)}$:
-
 \begin{wrapfigure}{l}{0.3\textwidth}
   \begin{tikzcd}
     L(T_D) \arrow[d, "\yield"] & L(T'_D) \arrow[l, "\semantic"'] \arrow[d, "\yield"] \\
@@ -795,6 +791,10 @@ Finally, we require a function $\semantic : L(T'_D) -> L(T_D)$ that removes grou
   \caption{The generated grammars, and their relation to each other.}
   \label{fig:grammar-square}
 \end{wrapfigure}
+
+At this point we also note that the shape of $D$ determines where the final concrete syntax permits grouping parentheses; they are allowed exactly where they would surround a complete production. For example, $G_D$ in Fig.~\ref{fig:running-example-generated:w} can be seen as a valid language definition (if we generate new unique labels for each of the productions). However, starting with that language definition would allow the expression ``$[1(;2)]$'', which makes no intuitive sense; grouping parentheses should only be allowed around complete expressions, but ``$;2$'' is not a valid expression.
+
+Finally, we require a function $\semantic : L(T'_D) -> L(T_D)$ that removes grouping parentheses from a parse tree, i.e., it replaces every subtree $g($ \verb|'('| $t$ \verb|')'| $)$ with $t$. The relation between the four grammars in terms of $\yield$ and $\semantic$ can be seen in Fig.~\ref{fig:grammar-square}. With this we can define $\parse : L(G'_D) -> 2^{L(T_D)}$, along with its inverse $\words : L(T_D) -> 2^{L(G'_D)}$:
 
 $$
 \begin{array}{rcl}
