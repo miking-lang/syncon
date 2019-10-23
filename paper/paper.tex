@@ -19,6 +19,7 @@
 %% \usepackage{subcaption} %% For complex figures with subfigures/subcaptions
 %%                         %% http://ctan.org/pkg/subcaption
 \usepackage{subfig}
+\usepackage{wrapfig}
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \usepackage{tikz}
@@ -872,14 +873,14 @@ At this point we also note that the shape of $D$ determines where the final conc
 
 Finally, we require a function $\semantic : L(T'_D) -> L(T_D)$ that removes grouping parentheses from a parse tree, i.e., it replaces every subtree $g($ \verb|'('| $t$ \verb|')'| $)$ with $t$. The relation between the four grammars in terms of $\yield$ and $\semantic$ can be seen in Fig.~\ref{fig:grammar-square}. With this we can define $\parse : L(G'_D) -> 2^{L(T_D)}$, along with its inverse $\words : L(T_D) -> 2^{L(G'_D)}$:
 
-\begin{figure}
+\begin{wrapfigure}{l}{0.3\textwidth}
   \begin{tikzcd}
     L(T_D) \arrow[d, "\yield"] & L(T'_D) \arrow[l, "\semantic"'] \arrow[d, "\yield"] \\
     L(G_D) & L(G'_D)
   \end{tikzcd}
   \caption{The generated grammars, and their relation to each other.}
   \label{fig:grammar-square}
-\end{figure}
+\end{wrapfigure}
 
 $$
 \begin{array}{rcl}
