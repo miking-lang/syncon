@@ -416,14 +416,19 @@ resolvability.
 \label{sec:prel}
 
 This section briefly explains the notations used in this paper.
-%
+Appendix~\ref{app:prel} contains a more detailed description of
+the preliminaries (for reviewers).
+
+
+\paragraph{Grammars}
 Given a context-free grammar $G$, we write $L(G)$ to denote the
 set of all words recognized by $G$.
 %
 The standard definition of ambiguity states that a word
 $w \in L(G)$ is ambiguous if there are two distinct leftmost
 derivations of that word.
-%
+
+\paragraph{Automata}
 An automata is a 5-tuple $(Q,\T,\delta,q_0,F)$, where $Q$ is a
 finite set of states; $\T$ a finite set of terminals; $\delta$ a
 transition function from $Q \times \T$ to finite subsets of $Q$
@@ -434,9 +439,6 @@ states.
 A pushdown automata further adds a set of stack symbols $\Gamma$
 and equips the transition function $\delta$ with information on
 which symbols are pushed, popped or just read from the stack.
-
-Appendix~\ref{app:prel} contains a more detailed
-description of the preliminaries (for reviewers).
 
 
 
@@ -1719,6 +1721,7 @@ found through dynamic analysis.
 
 \bibliography{All}
 
+\pagebreak
 \appendix
 
 \section{Preliminaries}
