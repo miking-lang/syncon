@@ -296,9 +296,9 @@ match 1 with
 \vrule
 \begin{minipage}{\textwidth}
 \begin{lstlisting}[basicstyle=\small\tt]
- File "./nestmatch.ml", line 4, characters 4-5:
- Error: This pattern matches values of type int
-        but a pattern was expected which
+ File "./nest.ml", line 4, characters 4-5:
+ Error: This pattern matches values of type
+        int but a pattern was expected which
         matches values of type string
 \end{lstlisting}
 \end{minipage}
@@ -811,7 +811,7 @@ $$
   \end{tabular}
 \end{center}
 
-\noindent This is a resolvable ambiguity, since $\parse($\verb|'1 + (2 + 3)'|$) = \{t_1\}$ and $\parse($\verb|'(1 + 2) + 3'|$) = \{t_2\}$. To demonstrate the unresolvable case, we add the production $E -> s: E$ \verb|';'| $E$, at which point we find that the word \verb|'[1 ; 2]'| is unresolvably ambiguous; $\parse($\verb|'[1 ; 2]'|$) = \{t_3, t_4\}$ where:
+\noindent This is a resolvable ambiguity, since $\parse($\verb|'1 + (2 + 3)'|$) = \{t_1\}$ and \\$\parse($\verb|'(1 + 2) + 3'|$) = \{t_2\}$. To demonstrate the unresolvable case, we add the production $E -> s: E$ \verb|';'| $E$, at which point we find that the word \verb|'[1 ; 2]'| is unresolvably ambiguous; $\parse($\verb|'[1 ; 2]'|$) = \{t_3, t_4\}$ where:
 
 \begin{center}
   \begin{tabular}{l}
@@ -1152,26 +1152,26 @@ We define the translation from production to DFA through a function $\dfa$ from 
 \item $\T' = \T \cup \{'\pospl', '\pospr'\}$.
 \item $\Gamma = Q \times Q \times \Labels^{*}$.
 \item $\delta$ is defined by the following equations (unspecified cases produce $\emptyset$):
+  % TODO: This could be made prettier and more aligned
   $$
-  \begin{array}{r@{\;=\;}l@{\;\mid\;}l}
-    \delta(p, a, \lambda)
-    & \multicolumn{2}{@{}l@{}}{\{(\delta_l(p, a), \lambda)\} \qquad \text{ where } p \in Q_l \text{ and } a \in \T} \\
+  \begin{array}{l}
+    \delta(p, a, \lambda) = \{(\delta_l(p, a), \lambda)\} \qquad \text{ where } p \in Q_l \text{ and } a \in \T \\
 
-    \delta(s, \text{``}\pospl\text{''}, \lambda)
-    & \{ (s_{l}, (s, f, w))
-    & (S, w, N) \in T, N = \labelnt(l) \} \\
+    \delta(s, \text{``}\pospl\text{''}, \lambda) =
+    \{ (s_{l}, (s, f, w)) \mid
+    (S, w, N) \in T, N = \labelnt(l) \} \\
 
-    \delta(p, \text{``}\pospl\text{''}, \lambda)
-    & \{ (s_{l_3}, (p, q, w))
-    & p \in Q_{l_1}, \delta_{l_1}(p, N) = q, (N, w, N') \in T, N' = \labelnt(l_3) \} \\
+    \delta(p, \text{``}\pospl\text{''}, \lambda) = \\
+    \qquad\{ (s_{l_3}, (p, q, w)) \mid
+    p \in Q_{l_1}, \delta_{l_1}(p, N) = q, (N, w, N') \in T, N' = \labelnt(l_3) \} \\
 
-    \delta(p, \text{``}\pospr\text{''}, (s, f, w))
-    & \{ (f, \lambda)
-    & (S, w, N) \in T, N = \labelnt(l), p \in F_l \} \\
+    \delta(p, \text{``}\pospr\text{''}, (s, f, w)) =
+    \{ (f, \lambda) \mid
+    (S, w, N) \in T, N = \labelnt(l), p \in F_l \} \\
 
-    \delta(q', \text{``}\pospr\text{''}, (p, q, w))
-    & \{ (q, \lambda)
-    & q' \in F_{l_1}, \labelnt(l_1) = N', (N, w, N') \in T, p \in Q_{l_2}, \delta_{l_2}(p, N) = q \} \\
+    \delta(q', \text{``}\pospr\text{''}, (p, q, w)) = \\
+    \qquad \{ (q, \lambda) \mid
+    q' \in F_{l_1}, \labelnt(l_1) = N', (N, w, N') \in T, p \in Q_{l_2}, \delta_{l_2}(p, N) = q \} \\
 
   \end{array}
   $$
@@ -1355,8 +1355,8 @@ follows:
 type Exp
 grouping "(" Exp ")"
 precedence {
-  mul; // higher in precedence list
-  add; // means higher precedence
+  mul; // higher in list means
+  add; // higher precedence
 }
 \end{lstlisting}
 &
@@ -1538,10 +1538,10 @@ choices to make as language designers:
   \syncon{forbid gt.right = gt} (where \syncon{gt} is the syncon
   for the greater-than operator).
 \item We could change the definition of the parallel combinators
-  and define separate lexical tokens for the combinators, e.g.,
-  \syncon{token Seq = ">[[:lower:]][[:word:]]*>"}. This would add
-  just enough whitespace sensitivity to allow separating the
-  different cases.
+  and define separate lexical tokens for the combinators, e.g,
+  \syncon{token Seq = ">[[:lower:]]}\\\syncon{[[:word:]]*>"}. This
+  would add just enough whitespace sensitivity to allow separating
+  the different cases.
 \item We could change the syntax of the combinators to avoid
   clashes with other operators.
 \end{itemize}
@@ -1649,7 +1649,7 @@ functions as a prefix operator in OCaml), and thus
 the expression as ambiguous, additionally suggesting the
 alternative interpretation
 %
-``\ocaml{(1 + (let x = 1 in x)) + 2}''.
+``\ocaml{(1 + (let x}\\\ocaml{= 1 in x)) + 2}''.
 %
 This interpretation is indeed valid if we only look at the direct
 children of each operator, since ``\ocaml{(_ + _) + 2}'',
@@ -1773,12 +1773,13 @@ This partitioning gives us the following particularly relevant properties:
   $(Q_2, \T, \delta_2, q'_0, F_2)$ their product automaton has the
   form $(Q_1 \times Q_2, \T, \delta', (q_0, q'_0),$
   $ F_1 \times F_2)$ where, when $c \in \T_c$, $i \in \T_i$ and
-  $r \in \T_r$:
+  $r \in \T_r$: \RED{TODO: Is this definition correct? $g_1$ and
+    $g_2$ are not used in the third case}
   \[
-  \begin{array}{r@{\ =\ }l}
-    \delta'((p_1, p_2), c, \lambda) & \{((q_1, q_2), (g_1, g_2)) \mid (q_1, g_1) \in \delta_1(p_1, c, \lambda), (q_2, g_2) \in \delta_2(p_2, c, \lambda) \}\\
-    \delta'((p_1, p_2), i, \lambda) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, i, \lambda), (q_2, \lambda) \in \delta_2(p_2, i, \lambda) \}\\
-    \delta'((p_1, p_2), r, (g_1, g_2)) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, r, \lambda), (q_2, \lambda) \in \delta_2(p_2, r, \lambda) \}\\
+  \begin{array}{l}
+    \delta'((p_1, p_2), c, \lambda) =\\ \qquad\{((q_1, q_2), (g_1, g_2)) \mid (q_1, g_1) \in \delta_1(p_1, c, \lambda), (q_2, g_2) \in \delta_2(p_2, c, \lambda) \}\\
+    \delta'((p_1, p_2), i, \lambda) =\\ \qquad \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, i, \lambda), (q_2, \lambda) \in \delta_2(p_2, i, \lambda) \}\\
+    \delta'((p_1, p_2), r, (g_1, g_2)) =\\ \qquad \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, r, \lambda), (q_2, \lambda) \in \delta_2(p_2, r, \lambda) \}\\
   \end{array}
   \]
 
