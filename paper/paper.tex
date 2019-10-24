@@ -397,7 +397,25 @@ states.
 A pushdown automata further adds a set of stack symbols $\Gamma$
 and equips the transition function $\delta$ with information on
 which symbols are pushed, popped or just read from the stack.
+%
+% TODO: Something on VPDAs?
 
+\paragraph{Unranked Regular Tree Grammars}
+Trees generalize words by allowing each terminal to have multiple
+ordered successors, instead of just zero or one. In this paper, we
+are only concerned with \emph{unranked} trees, where the arity of
+a terminal is not fixed.
+%
+Each terminal with a non-zero rank has a label, allowing a
+\emph{horizontal}
+representation~\cite{comonTreeAutomataTechniques2007}. For
+example, $a(n(\verb|'1'|) \;\verb|'+'|\; n(\verb|'2'|))$ represents
+the parse tree of the string ``$1+2$''.
+%
+Finally, $yield : L(T) -> \T^{*}$ is the sequence of terminals
+obtained by a left-to-right traversal of a tree. Informally, it is
+the flattening of a tree after all internal nodes have been
+removed.
 
 
 %Sections~\ref{sec:preliminaries-cfgs} and \ref{sec:preliminaries-automata} describe context-free grammars and various forms of automata, the latter with some non-standard notation to make later sections easier to read. Section~\ref{sec:preliminaries-vpls} then describes visibly pushdown languages, which enable the analyses described in Sections~\ref{sec:static} and \ref{sec:dynamic}. Finally, Sections~\ref{sec:preliminaries-trees} and \ref{sec:preliminaries-ambiguity} describe trees and ambiguity, the former with some non-standard notation and the latter with a slightly wider definition than normal.
@@ -1762,7 +1780,7 @@ This partitioning gives us the following particularly relevant properties:
 
 Trees generalize words by allowing each terminal to have multiple ordered successors, instead of just zero or one. Most literature considers \emph{ranked} tree languages, where each terminal has a fixed arity, i.e., the same terminal must always have the same number of successors. This is as opposed to \emph{unranked} tree languages, where the arity of a terminal is not fixed. The sequence of successors to a single terminal in an unranked tree tends to be described by a word language (referred to as a horizontal language in \cite{comonTreeAutomataTechniques2007}), often a regular language.
 
-The results and properties presented in this paper are more naturally described through unranked trees, thus all further references to trees are to unranked trees, despite ranked being more common in the literature. We further distinguish terminals used solely as leaves from terminals that may be either nodes or leaves. Since we will use unranked trees to represent parse trees, the former will represent terminals from the parsed word, while the latter represent terminals introduced as internal nodes.
+The results and properties presented in this paper are more naturally described through unranked trees, thus all references to trees here are to unranked trees, despite ranked being more common in the literature. We further distinguish terminals used solely as leaves from terminals that may be either nodes or leaves. Since we will use unranked trees to represent parse trees, the former will represent terminals from the parsed word, while the latter represent terminals introduced as internal nodes.
 
 An unranked tree grammar $T$ is a tuple $(\NT, \T, X, P, S)$ where:
 
