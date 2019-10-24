@@ -215,9 +215,9 @@ be selected using different modifications.
 %
 We can divide the problem of resolvable ambiguity into two
 different decision problems.
-For a particular language, the \emph{dynamic resolvable ambiguity problem} asks the following question: can every parse tree of \emph{one particular} program be written unambiguously, while the \emph{static resolvability problem} asks if every parse tree of \emph{every} program can be written unambiguously. Furthermore we must be able to produce an unambiguous program for a given parse tree to be able to give good error messages to an end-user encountering an ambiguity.
+For a particular language, the \emph{dynamic resolvable ambiguity problem} asks the following question: can every parse tree of \emph{one particular} program be written unambiguously, while the \emph{static resolvability problem} asks if every parse tree of \emph{every} program can be written unambiguously. The latter problem in particular is difficult, since it in general involves examining an infinite set (one per parse tree) of infinite sets (words that can parse as that parse tree) to find one without a unique element (i.e., an unambiguous word). Furthermore we must be able to produce an unambiguous program for a given parse tree to be able to give good error messages to an end-user encountering an ambiguity.
 
-In this paper we describe a syntax definition formalism where ambiguities can be resolved by grouping parentheses, and precedence and associativity is specified through \emph{marks} (c.f. Section~\ref{sec:parse-time-disambiguation}). As a delimitation we only consider languages with balanced parentheses. Our approach centers around the idea of the language of a parse tree; since a parse tree can be written in multiple ways we can usefully describe it as a language. This language turns out to be visibly pushdown \cite{alurVisiblyPushdownLanguages2004}, which gives us the tools solve the dynamic problem and present unambiguous programs. For the static problem we divide languages along two axes: whether they have non-grouping parentheses, and whether they have marks. We then present a novel encoding of the language of a tree that allows us to create an automaton that recognizes the language of languages of trees. Examining this automaton solves the static problem for a language subclass: languages with neither non-grouping parentheses nor marks. We also show that adding marks to a resolvably ambiguous language in this subclass preserves resolvability.
+In this paper we describe a syntax definition formalism where ambiguities can be resolved by grouping parentheses, and precedence and associativity is specified through \emph{marks} (c.f. Section~\ref{sec:parse-time-disambiguation}). As a delimitation we only consider languages with balanced parentheses. Our approach builds on the following key insights: i) the language of a parse tree is visibly pushdown \cite{alurVisiblyPushdownLanguages2004}, ii) these languages can be encoded as words, and iii) the language of the word encodings of all trees for a language is also visibly pushdown. The last point allows the construction of a visibly pushdown automaton (VPDA) that we examine to solve the static problem for a particular language subclass. Our solution to the dynamic problem, which builds on the first point, is general.
 
 A language designer can thus either use our solution to the static problem (if their language is in the appropriate subclass) or use an approach similar to unit testing through our solution to the dynamic problem. Our solution to the dynamic problem also gives suggested fixes to end-users encountering ambiguities.
 
@@ -355,9 +355,9 @@ The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may 
 \subsection{Language Composition}
 
 % TODO: more language composition references
-The possibility of composing different languages at will is a prevalent idea in research \cite{vanwykSilverExtensibleAttribute2010,lorenzenSoundTypedependentSyntactic2016,danielssonParsingMixfixOperators2011}. Particularly relevant to this paper is the behavior of composed \emph{syntax}; composing unambiguous syntaxes does not necessarily produce an unambiguous composed syntax. Pre-existing systems commonly solve this either by strict requirements on the individual languages \cite{vanwykSilverExtensibleAttribute2010} or by largely ignoring the problem and merely presenting the multiple syntax trees in case of an ambiguity \cite{lorenzenSoundTypedependentSyntactic2016,danielssonParsingMixfixOperators2011}. The former case gives good guarantees for the end-user experience (no ambiguities) while the former gives more freedom to the language designer. Resolvable ambiguity, as presented in this paper, provides a middle ground with more language designer freedom than the former and a better user experience than the latter.
+The possibility of composing different languages at will is a prevalent idea in research \cite{vanwykSilverExtensibleAttribute2010,lorenzenSoundTypedependentSyntactic2016,danielssonParsingMixfixOperators2011}. Particularly relevant to this paper is the behavior of composed \emph{syntax}; composing unambiguous syntaxes does not necessarily produce an unambiguous composed syntax. Pre-existing systems commonly solve this either by strict requirements on the individual languages \cite{vanwykSilverExtensibleAttribute2010} or by largely ignoring the problem and merely presenting the multiple syntax trees in case of an ambiguity \cite{lorenzenSoundTypedependentSyntactic2016,danielssonParsingMixfixOperators2011}. The former case gives good guarantees for the end-user experience (no ambiguities) while the latter gives more freedom to the language designer. Resolvable ambiguity, as presented in this paper, provides a middle ground with more language designer freedom than the former and a better user experience than the latter.
 
-Language composition has limited prevalence outside of research, but it does exist in a simplified form: custom operators in libraries. For example, Haskell allows a programmer to define new operators, with new syntax and custom precedence level and associativity. A user can then import these operators from any number of libraries and use them together in one program. Precedence in Haskell is defined as a number between 0 and 9, meaning that operators from different libraries have a defined relative precedence. If the libraries were designed by different authors this precedence is essentially by accident and it may or may not be sensible. Leaving the relative precedence undefined would not affect expressivity, every possible combination of operators can be written by simply adding parentheses, and would avoid surprising interpretations. This does in fact happen in some cases in Haskell, namely when two operators have the same precedence but incompatible associativity. Both \haskell{>>=} and \haskell{=<<} have precedence 1, but the former is left-associative while the latter is right-associative. \haskell{a >>= b =<< c} then produces the following error:
+Language composition has limited prevalence outside of research, but it does exist in a simplified form: custom operators in libraries. For example, Haskell allows a programmer to define new operators, with new syntax and custom precedence level and associativity. A user can then import these operators from any number of libraries and use them together in one program. Precedence in Haskell is defined as a number between 0 and 9, meaning that operators from different libraries have a defined relative precedence. If the libraries are designed by different authors this precedence is essentially by accident and it may or may not be sensible. Leaving the relative precedence undefined would not affect expressivity, every possible combination of operators can be written by simply adding parentheses, and would avoid surprising interpretations. This does in fact happen in some cases in Haskell, namely when two operators have the same precedence but incompatible associativity. Both \haskell{>>=} and \haskell{=<<} have precedence 1, but the former is left-associative while the latter is right-associative. \haskell{a >>= b =<< c} then produces the following error:
 
 \begin{lstlisting}
 Precedence parsing error
@@ -513,14 +513,14 @@ Additionally, we define an \emph{abstract parser} to be resolvably ambiguous if 
   $\forall w \in L(P).\ \rho_P(w)$.
 \end{definition}
 
-\noindent We can now state a few things:
+\noindent We can now make the following observations:
 
 \begin{itemize}
 \item An unambigous word $w$ is trivially resolvably ambiguous, since its only parse tree $t$ can be written unambiguously with $w$ itself ($\parse(w) = \{t\}$). The set of resolvably ambiguous words is thus a superset of the unambiguous words.
 \item If a given parse tree $t$ has only one word $w$ such that $t \in \parse(w)$, then $w$ is resolvably ambiguous iff it is unambiguous. In general, $\forall t \in T.\ \lvert\{w \mid t \in \parse(w)\}\rvert = 1$ implies that the set of resolvably ambiguous words is exactly the set of unambiguous words.
 \end{itemize}
 
-\noindent The second point suggests that resolvable ambiguity is only an interesting property if an element of $T$ does not uniquely identify an element of $\T^{*}$. Intuitively, this only happens if $\parse$ discards some information present in its argument when constructing an individual parse tree. Fortunately, this is generally true for parsing in commonly used programming languages; they tend to discard, e.g., grouping parentheses and whitespace. In general, whatever information $\parse$ discards can be used by an end-user to disambiguate an ambiguity encountered at parse-time, without changing the parse tree.
+\noindent The second point suggests that resolvable ambiguity is only an interesting property if an element of $T$ does not uniquely identify an element of $\T^{*}$. Intuitively, this only happens if $\parse$ discards some information present in its argument when constructing an individual parse tree. Fortunately, this is generally true for parsing in commonly used programming languages; they tend to discard, e.g., grouping parentheses and whitespace. In general, whatever information $\parse$ discards can be used by an end-user to disambiguate an ambiguous program.
 
 We thus propose to loosen the common ``no ambiguity'' restriction on programming language grammars, and instead only require them to be resolvably ambiguous. However, merely having an arbitrary function $\parse$ gives us very little to work with, and no way to decide whether the language it defines is resolvably ambiguous or not. The remainder of this paper will thus consider $\parse$ functions defined using a particular formalism, introduced in Section~\ref{sec:parse-time-disambiguation}, which gives us some decidable properties.
 
@@ -808,19 +808,78 @@ We are now ready to construct decision procedures for the static and dynamic res
 
 \section{The Word Language of a Parse Tree} \label{sec:linear-encoding}
 
+Central to our approach is the shape of $\words(t)$. Consider the tree corresponding to \verb|'(1 + 2) * 3'| (visualized in Figure~\ref{fig:sum-add-tree}). Each node in the tree may be surrounded by zero or more parentheses, except \verb|'1 + 2'|, which requires at least one pair. Its language is thus represented by $\{(^{n_1}(^{n_2}(^{n_3}1)^{n_3} + (^{n_4}2)^{n_4})^{n_2} * (^{n_5}2)^{n_5})^{n_1} \mid n_i \in \{0, 1, \ldots\}, n_2 \geq 1\}$. To have something more manageable we introduce an alternative representation: a linear encoding as a word. This representation is convenient for Section~\ref{sec:dynamic} and essential for Section~\ref{sec:static}.
+
+Continuing with the example above, we can encode this language as a word, if we take ``$\reqp{}$'' to mean ``exactly one pair of parentheses'' and ``$\posp{}$'' to mean ``zero or more pairs of parentheses'': ``$\posp{\posp{\reqp{\posp{1} + \posp{2}}} * \posp{3}}$''. This encoding lets us reduce comparisons between languages to comparisons between words, with one caveat: the encoding is not unique. For example, ``$\reqp{\posp{}}$'' encodes the same language as ``$\posp{\reqp{}}$'', and ``$\posp{\posp{}}$'' encodes the same language as ``$\posp{}$''. We rectify this by repeatedly swapping ``$\reqp{\posp{\ldots}}$'' with ``$\posp{\reqp{\ldots}}$'' and ``$\posp{\posp{\ldots}}$'' with ``$\posp{\ldots}$'' until we reach a fixpoint. We call the result the \emph{canonical linear encoding} of the (word) language of a tree in $L(T_D)$, which \emph{is} unique.
+
+\section{Dynamic Resolvability Analysis} \label{sec:dynamic}
+
+The dynamic resolvability problem is as follows: for a given $w' \in L(G'_D)$ determine whether $\forall t \in \parse(w').\ \exists w'_2.\ \parse(w'_2) = \{t\}$. Furthermore, for practical reasons, if the word is resolvably ambiguous we wish to produce a (minimal) witness for each tree. We place two restriction on languages $D$ we consider:
+
+\begin{enumerate}
+\item Stemming from our initial delimitation, each right-hand side regular expression must only recognize words with balanced parentheses. For example, ``$\verb|(| \verb|)|$'' is permissible, but ``$\verb|(|^{*} \verb|)|^{*}$'' is not.
+\item $G_D$, but with parentheses removed, must not be infinitely ambiguous.
+\end{enumerate}
+
+\noindent Both of these restrictions can be checked statically. Additionally, if we already know statically that $D$ is resolvably ambiguous\footnote{While the \emph{decision} part of this procedure is uninteresting in this case (it will always answer ``resolvable''), the minimal witness \emph{is} interesting: it shows the user how to resolve the ambiguity.} we can drop the second requirement.
+
+Our approach centers around the construction of a visibly pushdown automaton recognizing $\words(t)$ for any particular $t \in L(T_D)$. We can easily construct this automaton via the canonical linear encoding: let every pair ``$\reqp{}$'' push and pop the same stack symbol (call it $\gamma$) and let every ``$\posp{}$'' push and pop a unique stack symbol. For example, ``$\posp{\reqp{a}\posp{b}}$'' produces the following automaton:
+
+\begin{center}
+\begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
+    scale = 1,transform shape]
+  \node[state,initial] (1) {};
+  \node[state] (2) [right of=1] {};
+  \node[state] (3) [right of=2] {};
+  \node[state] (4) [right of=3] {};
+  \node[state,accepting] (5) [right of=4] {};
+
+  \path (1) edge[loop above] node{$'(', +1$} (1)
+  (1) edge node{$'(', +\gamma$} (2)
+  (2) edge node{$'a'$} (3)
+  (3) edge node{$')', -\gamma$} (4)
+  (4) edge[loop above] node{$'(', +2$} (4)
+  (4) edge node{$'b'$} (5)
+  (5) edge[loop above] node{$')', -2$} (5)
+  (5) edge[loop right] node{$')', -1$} (5);
+\end{tikzpicture}
+\end{center}
+
+\noindent This is useful to us since visibly pushdown automata are closed under difference. Given a pair of trees $t_1$ and $t_2$ we can thus produce a pair of automata recognizing $\words(t_1)$ and $\words(t_2)$ respectively, then construct a pair of automata recognizing $\words(t_1) \setminus \words(t_2)$ and $\words(t_2) \setminus \words(t_1)$, respectively. These new automata recognize the words that are not ambiguous between these two particular trees. Our algorithm can thus be seen as Algorithm~\ref{alg:dynamic}.
+
+\begin{algorithm}
+\caption{The Dynamic Algorithm}
+\label{alg:dynamic}
+\begin{algorithmic}[1]
+\Procedure{Dynamic}{$T$}
+  \State $R <- \emptyset$
+  \State $U <- \emptyset$
+  \ForAll{$t \in T$}
+    \State $T' <- T \setminus \{t\}$
+    \State $A <- \words(t)$ \Comment{$A$ is a visibly pushdown automaton.}
+    \Loop
+      \State $A <- A \setminus \bigcup_{t' \in T'} \words(t')$ \Comment{VPDAs closed under difference and union.}
+      \If{$L(A) = \emptyset$}
+        \State $U <- U \cup \{t\}$
+        \State $\textbf{break loop}$
+      \EndIf
+      \If{$\parse(\shortest(A)) = \{t\}$} \Comment{$\shortest(A)$ denotes a shortest}
+        \State $R <- R \cup \{(t, \shortest(A))\}$ \Comment{word recognized by $A$.}
+        \State $\textbf{break loop}$
+      \EndIf
+      \State $T' <- \parse(\shortest(A)) \setminus \{t\}$
+    \EndLoop
+  \EndFor
+  \State $\textbf{return} (R, U)$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
 \section{Static Resolvability Analysis} \label{sec:static}
 
-For this section, we will use an alternative formulation of resolvable ambiguity for languages, stated in terms of parse trees instead of words:
-
-\begin{lemma}
-  Given an abstract parser $P = (\T, T, \parse)$, the language $L(P)$ is resolvably ambiguous iff $\quad\forall t \in T.\ \exists w \in \T^{*}.\ \parse(w) = \{t\}$.
-\end{lemma}
-
-\noindent To determine if a given language definition $D$ is resolvably ambiguous we attempt to find a counterexample: a tree $t \in L(T_D)$ such that there is no $w \in L(G'_D)$ for which $\parse(w) = \{t\}$, or prove that no such tree exists. Or, more briefly put: find a tree that has only ambiguous words or show that no such tree exists.
+To determine if a given language definition $D$ is resolvably ambiguous we attempt to find a counterexample: a tree $t \in L(T_D)$ such that there is no $w \in L(G'_D)$ for which $\parse(w) = \{t\}$, or prove that no such tree exists. Or, more briefly put: find a tree that has only ambiguous words or show that no such tree exists.
 
 Our approach finds this counterexample by finding a pair of trees $t_1$ and $t_2$ such that $\words(t_1) \subseteq \words(t_2)$. Such a pair trivially implies that $t_1$ has no unambiguous words, since $\forall w.\ t_1 \in \parse(w) -> t_2 \in \parse(w)$, which thus implies that the examined language is unresolvably ambiguous. The converse is less obvious, in fact, the absence of such a pair does not guarantee a resolvably ambiguous language in general. We shall however show it to be sufficient for a limited class of languages.
-
-Central to our approach is the shape of $\words(t)$. Consider the tree corresponding to \verb|'(1 + 2) * 3'| (visualized in Figure~\ref{fig:sum-add-tree}). Each node in the tree may be surrounded by zero or more parentheses, except \verb|'1 + 2'|, which requires at least one pair. Its language is thus represented by $\{(^{n_1}(^{n_2}(^{n_3}1)^{n_3} + (^{n_4}2)^{n_4})^{n_2} * (^{n_5}2)^{n_5})^{n_1} \mid n_i \in \{0, 1, \ldots\}, n_2 \geq 1\}$. We can encode this language as a word, if we take ``$\reqp{}$'' to mean ``exactly one pair of parentheses'' and ``$\posp{}$'' to mean ``zero or more pairs of parentheses'': ``$\posp{\posp{\reqp{\posp{1} + \posp{2}}} * \posp{3}}$''. This encoding lets us reduce comparisons between languages to comparisons between words, with one caveat: the encoding is not unique. For example, ``$\reqp{\posp{}}$'' encodes the same language as ``$\posp{\reqp{}}$'', and ``$\posp{\posp{}}$'' encodes the same language as ``$\posp{}$''. We rectify this by repeatedly swapping ``$\reqp{\posp{\ldots}}$'' with ``$\posp{\reqp{\ldots}}$'' and ``$\posp{\posp{\ldots}}$'' with ``$\posp{\ldots}$'' until we get stuck. We call the result the canonical linear encoding of the (word) language of a tree in $L(T_D)$, which \emph{is} unique.
 
 We now divide the possible languages along two axes: whether a language has (non-grouping) parentheses, and whether a language has marks. The parentheses present in the canonical encoding will have the following shapes:
 
@@ -828,7 +887,6 @@ We now divide the possible languages along two axes: whether a language has (non
 \begin{tabular}{r@{\quad}c@{\quad}c}
   & Parentheses & No parentheses \\
   \addlinespace
-  %% \midrule
   Marks & $\pospl^1\reqpl^{\mathbb{N}}$ or $\pospl^0\reqpl^{\mathbb{Z}_{+}}$ & $\pospl^1\reqpl^{\mathbb{N}}$ \\
   No marks & $\pospl^1\reqpl^{\mathbb{N}}$ or $\pospl^0\reqpl^{\mathbb{Z}_{+}}$ & $\pospl^1\reqpl^0$ \\
 \end{tabular}
@@ -836,7 +894,7 @@ We now divide the possible languages along two axes: whether a language has (non
 
 \noindent The absence of both non-grouping parentheses and marks mean that every occurrence of a pair of parentheses must permit zero or more pairs. Adding marks adds required pairs for some trees, turning each occurrence to one of $k$ or more pairs, for some non-negative integer $k$ determined by the tree. The left column is more complicated since non-grouping parentheses can introduce occurrences that require an exact number of parentheses, as well as all the complications of marks.
 
-The remainder of this section will be devoted to first showing that $\neg \exists t_1, t_2 \in L(T_D).\ \words(t_1) \subseteq \words(t_2)$ implies that $D$ is resolvably ambiguous if $D$ is in the lower-right quadrant, i.e., if it has no marks and no non-grouping parentheses (in Section~\ref{sec:static-proofs}), and then describing the automaton that forms the basis for our algorithm (Section~\ref{sec:lattice-vpl}). Section~\ref{sec:static-proofs} also shows that adding marks to a resolvably ambiguous language in the lower-right quadrant preserves resolvability, which gives us a conservative approach for languages in the top-right quadrant. Intuitively, if a language has marks, but they are just conveniences, then we can still detect that the language is resolvable. For example, most expression languages fall in this category (we can write any expression unambiguously by adding parentheses everywhere, even without any precedence or associativity), while lists in OCaml do not (no amount of parentheses will make \verb|'[1;2]'| look like a list of two elements without a mark).
+The remainder of this section will be devoted to first showing that $\neg \exists t_1, t_2 \in L(T_D).\ \words(t_1) \subseteq \words(t_2)$ implies that $D$ is resolvably ambiguous if $D$ is in the lower-right quadrant, i.e., if it has no marks and no non-grouping parentheses (in Section~\ref{sec:static-proofs}), and then describing the automaton that forms the basis for our algorithm (Section~\ref{sec:lattice-vpl}). Section~\ref{sec:static-proofs} additionally shows that adding marks to a resolvably ambiguous language in the lower-right quadrant preserves resolvability, which gives us a conservative approach for languages in the top-right quadrant. Intuitively, if a language has marks, but they are just conveniences, then we can still detect that the language is resolvable. For example, most expression languages fall in this category (we can write any expression unambiguously by adding parentheses everywhere, even without any precedence or associativity), while lists in OCaml do not (no amount of parentheses will make \verb|'[1;2]'| look like a list of two elements without a mark).
 
 \subsection{The Road to Correctness} \label{sec:static-proofs} % TODO: probably want a better title here
 
@@ -1159,68 +1217,6 @@ We denote the word recognized by a run $R$ by $\runtoword(R)$.
 
 We thus have a way to detect the presence or absence of a pair of trees $t_1, t_2 \in L(T_D)$ such that $\words(t_1) \subseteq \words(t_2)$, which completely determines the resolvability of $D$ when $D$ has no non-grouping parentheses or marks.
 
-\section{Dynamic Resolvability Analysis} \label{sec:dynamic}
-
-The dynamic resolvability problem is as follows: for a given $w' \in L(G'_D)$ determine whether $\forall t \in \parse(w').\ \exists w'_2.\ \parse(w'_2) = \{t\}$. Furthermore, for practical reasons, if the word is resolvably ambiguous we wish to produce a (minimal) witness for each tree. Similarly to Section~\ref{sec:static}, we place some restrictions on $D$, though the restrictions are less severe. While Section~\ref{sec:static} requires $D$ to have no non-grouping parentheses and no marks, this section has two much less stringent requirements:
-
-\begin{enumerate}
-\item Each right-hand side regular expression must only recognize words with balanced parentheses. For example, ``$\verb|(| \verb|)|$'' is permissible, but ``$\verb|(|^{*} \verb|)|^{*}$'' is not.
-\item $G_D$, but with parentheses removed, must not be infinitely ambiguous.
-\end{enumerate}
-
-\noindent Both of these restrictions can be checked statically. Additionally, if we already know statically that $D$ is resolvably ambiguous\footnote{While the \emph{decision} part of this procedure is uninteresting in this case (it will always answer ``resolvable''), the minimal witness \emph{is} interesting: it shows the user how to resolve the ambiguity.} we can drop the second requirement.
-
-Similarly to Section~\ref{sec:static} the approach centers around the word language $\words(t)$. We can easily construct a visibly pushdown automaton for this language by going via the canonical linear encoding: let every pair ``$\reqp{}$'' push and pop the same stack symbol (call it $\gamma$) and let every ``$\posp{}$'' push and pop a unique stack symbol. For example, ``$\posp{\reqp{a}\posp{b}}$'' produces the following automaton:
-
-\begin{center}
-\begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
-    scale = 1,transform shape]
-  \node[state,initial] (1) {};
-  \node[state] (2) [right of=1] {};
-  \node[state] (3) [right of=2] {};
-  \node[state] (4) [right of=3] {};
-  \node[state,accepting] (5) [right of=4] {};
-
-  \path (1) edge[loop above] node{$'(', +1$} (1)
-  (1) edge node{$'(', +\gamma$} (2)
-  (2) edge node{$'a'$} (3)
-  (3) edge node{$')', -\gamma$} (4)
-  (4) edge[loop above] node{$'(', +2$} (4)
-  (4) edge node{$'b'$} (5)
-  (5) edge[loop above] node{$')', -2$} (5)
-  (5) edge[loop right] node{$')', -1$} (5);
-\end{tikzpicture}
-\end{center}
-
-\noindent This is useful to us since visibly pushdown automata are closed under difference. Given a pair of trees $t_1$ and $t_2$ we can thus produce a pair of automata recognizing $\words(t_1)$ and $\words(t_2)$ respectively, then construct a pair of automata recognizing $\words(t_1) \setminus \words(t_2)$ and $\words(t_2) \setminus \words(t_1)$, respectively. These new automata recognize the words that are not ambiguous between these two particular trees. Our algorithm can thus be seen as Algorithm~\ref{alg:dynamic}.
-
-\begin{algorithm}
-\caption{The Dynamic Algorithm}
-\label{alg:dynamic}
-\begin{algorithmic}[1]
-\Procedure{Dynamic}{$T$}
-  \State $R <- \emptyset$
-  \State $U <- \emptyset$
-  \ForAll{$t \in T$}
-    \State $T' <- T \setminus \{t\}$
-    \State $A <- \words(t)$ \Comment{$A$ is a visibly pushdown automaton.}
-    \Loop
-      \State $A <- A \setminus \bigcup_{t' \in T'} \words(t')$ \Comment{VPDAs closed under difference and union.}
-      \If{$L(A) = \emptyset$}
-        \State $U <- U \cup \{t\}$
-        \State $\textbf{break loop}$
-      \EndIf
-      \If{$\parse(\shortest(A)) = \{t\}$} \Comment{$\shortest(A)$ denotes a shortest}
-        \State $R <- R \cup \{(t, \shortest(A))\}$ \Comment{word recognized by $A$.}
-        \State $\textbf{break loop}$
-      \EndIf
-      \State $T' <- \parse(\shortest(A)) \setminus \{t\}$
-    \EndLoop
-  \EndFor
-  \State $\textbf{return} (R, U)$
-\EndProcedure
-\end{algorithmic}
-\end{algorithm}
 
 %% TODO: CONTINUE
 
