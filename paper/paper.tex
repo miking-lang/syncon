@@ -19,6 +19,8 @@
 %% \usepackage{subcaption} %% For complex figures with subfigures/subcaptions
 %%                         %% http://ctan.org/pkg/subcaption
 \usepackage{subfig}
+\usepackage{wrapfig}
+\usepackage{multicol}
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \usepackage{tikz}
@@ -89,6 +91,8 @@
 \newcommand{\runtoword}{\mathit{word}}
 \newcommand{\runprimetorun}{\mathit{normalrun}}
 \newcommand{\shortest}{\mathit{shortest}}
+
+\newcommand{\RED}[1]{\textcolor{red}{#1}}
 
 \synctex=1
 \begin{document}
@@ -313,10 +317,10 @@ Explicit ambiguity is highly relevant also for the design of new and existing ge
 
 %Consider the following nested match expression (from \cite{palmkvistCreatingDomainSpecificLanguages2019}), and the resulting error message:
 
-Consider the following OCaml example of nested \verb|match| expressions, as stated by \cite{palmkvistCreatingDomainSpecificLanguages2019}).
+Consider this OCaml example of nested \verb|match| expressions, as stated by \cite{palmkvistCreatingDomainSpecificLanguages2019}:
 
-\begin{minipage}{.35\textwidth}
-\begin{lstlisting}[language={[objective]caml},numbers=left]
+\begin{minipage}{.34\textwidth}
+\begin{lstlisting}[language={[objective]caml},numbers=left,basicstyle=\small\tt]
 match 1 with
   | 1 -> match "one" with
          | str -> str
@@ -325,11 +329,11 @@ match 1 with
 \end{minipage}
 \vrule
 \begin{minipage}{\textwidth}
-\begin{lstlisting}
-  File "./nestmatch.ml", line 4, characters 4-5:
-  Error: This pattern matches values of type int
-         but a pattern was expected which
-         matches values of type string
+\begin{lstlisting}[basicstyle=\small\tt]
+ File "./nestmatch.ml", line 4, characters 4-5:
+ Error: This pattern matches values of type int
+        but a pattern was expected which
+        matches values of type string
 \end{lstlisting}
 \end{minipage}
 
@@ -337,7 +341,7 @@ match 1 with
 \noindent The OCaml compiler output is listed to the right. The compiler sees the last line as belonging to the inner \ocaml{match} rather than the outer, as was intended. The solution is simple; we put parentheses around the inner match:
 
 \begin{minipage}{\textwidth}
-\begin{lstlisting}[language={[objective]caml},numbers=left]
+\begin{lstlisting}[language={[objective]caml},numbers=left,basicstyle=\small\tt]
 match 1 with
   | 1 -> (match "one" with
           | str -> str)
@@ -408,10 +412,35 @@ resolvability.
 
 
 
-\section{Preliminaries}
+\section{Notation}
 \label{sec:prel}
 
-This section briefly describes the theoretical foundations we build upon.
+This section briefly explains the notations used in this paper.
+Appendix~\ref{app:prel} contains a more detailed description of
+the preliminaries (for reviewers).
+
+
+\paragraph{Grammars}
+Given a context-free grammar $G$, we write $L(G)$ to denote the
+set of all words recognized by $G$.
+%
+The standard definition of ambiguity states that a word
+$w \in L(G)$ is ambiguous if there are two distinct leftmost
+derivations of that word.
+
+\paragraph{Automata}
+An automata is a 5-tuple $(Q,\T,\delta,q_0,F)$, where $Q$ is a
+finite set of states; $\T$ a finite set of terminals; $\delta$ a
+transition function from $Q \times \T$ to finite subsets of $Q$
+(or single states of $Q$ for a deterministic automaton);
+$q_0 \in Q$ an initial state; and $F \subseteq Q$ a set of final
+states.
+%
+A pushdown automata further adds a set of stack symbols $\Gamma$
+and equips the transition function $\delta$ with information on
+which symbols are pushed, popped or just read from the stack.
+
+
 
 %Sections~\ref{sec:preliminaries-cfgs} and \ref{sec:preliminaries-automata} describe context-free grammars and various forms of automata, the latter with some non-standard notation to make later sections easier to read. Section~\ref{sec:preliminaries-vpls} then describes visibly pushdown languages, which enable the analyses described in Sections~\ref{sec:static} and \ref{sec:dynamic}. Finally, Sections~\ref{sec:preliminaries-trees} and \ref{sec:preliminaries-ambiguity} describe trees and ambiguity, the former with some non-standard notation and the latter with a slightly wider definition than normal.
 
@@ -438,87 +467,6 @@ This section briefly describes the theoretical foundations we build upon.
 %$$
 
 %\noindent We denote the set of regular expressions with alphabet $\T$ as $\regex(\T)$.
-
-\subsection{Context-Free Grammars} \label{sec:preliminaries-cfgs}
-
-A context-free grammar (CFG) $G$ is a 4-tuple $(\NT, \T, P, S)$ where $\NT$ is a set of non-terminals; $\T$ a set of terminals, disjoint from $\NT$; $P$ a finite subset of $\NT \times (\NT \cup \T)^{*}$, i.e., a set of productions; and $S \in \NT$ the starting non-terminal.
-
-%\footnote{Where $^{*}$ is the Kleene star.}
-%
-A word $w \in \T^{*}$ is recognized by $G$ if there is a sequence of steps starting with $S$ and ending with $w$, where each step replaces a single non-terminal using a production in $P$. Such a sequence is called a \emph{derivation}. The set of words recognized by $G$ is written $L(G)$
-%\footnote{We will always name a regular expression $r$ (possibly with a subscript) and a CFG $G$ (possibly with a subscript), to lessen the risk of confusion}.
-
-%\subsection{Ambiguity} \label{sec:preliminaries-ambiguity}
-
-The standard definition of ambiguity, given a context-free grammar $G$, is expressed in terms of \emph{leftmost derivations}. A leftmost derivation is a derivation where the non-terminal being replaced is always the leftmost one.
-
-\begin{definition}
-A word $w \in L(G)$ is ambiguous if there are two distinct leftmost derivations of $w$.
-\end{definition}
-
-\subsection{Automata} \label{sec:preliminaries-automata}
-
-A nondeterministic finite automaton (NFA) is a 5-tuple $(Q, \T, \delta, q_0, F)$ where $Q$ is a finite set of states; $\T$ a finite set of terminals; $\delta$ a transition function from $Q \times \T$ to finite subsets of $Q$; $q_0 \in Q$ an initial state; and $F \subseteq Q$ a set of final states. A successful run is a sequence of states $r_0, \ldots, r_n$ and a word $a_0\cdots a_n$ such that $r_0 = q_0$, $\forall i \in \{0, 1, \ldots, n-1\}.\ r_{i+1} \in \delta(r_i, a_i)$ and $r_n \in F$. We say that the automaton accepts the word $a_0a_1\cdots a_n$ iff there is such a successful run.
-
-A deterministic finite automaton (DFA) has the same definition, except $\delta : Q \times \Sigma -> Q$, i.e., given a state and a symbol there is always a single state we can transition to. NFAs and DFAs have the same expressive power as regular expressions, i.e., for every regular expression there is an NFA and a DFA both reconizing the same language, and vice-versa. % TODO: probably reference for this
-
-A pushdown automaton extends a finite automaton with a stack to/from which transitions can push/pop symbols. Formally, a nondeterministic pushdown automaton is a 6-tuple $(Q, \T, \Gamma, \delta, q_0, F)$ where $Q$ is a finite set of states; $\T$ a finite set of input symbols, i.e., an input alphabet; $\Gamma$ a finite set of stack symbols, i.e., a stack alphabet; $\delta$ a transition function from $Q \times (\T \cup \{\lambda\}) \times (\Gamma \cup \{\lambda\}$ to finite subsets of $Q \times (\Gamma \cup \{\lambda\}$; $q_0 \in Q$ the initial state; and $F \subseteq Q$ a set of final states. $\lambda$ essentially means ``ignore'', i.e., $\delta(q_1, \lambda, \lambda) = \{(q_2, \lambda)\}$ means: transition from state $q_1$ without consuming an input symbol (the first $\lambda$) and without examining or popping from the current stack (the second $\lambda$), to state $q_2$ without pushing a new symbol on the stack (the third $\lambda$).
-
-A successful run is now a sequence of \emph{configurations}, elements of $Q \times \Gamma^{*}$, starting with $(q_0, \epsilon)$, ending with $(f, \gamma)$ for some $f \in F$ and $\gamma \in \Gamma^{*}$.
-
-However, in this paper we only consider pushdown automata with relatively limited stack manipulation, and thus use some convenient shorthands:
-
-\begin{itemize}
-\item $p \xrightarrow{a} q$, a transition that recognizes the terminal $a$ and does not interact with the stack at all, i.e., $\delta(p, a, \lambda) \supseteq \{(q, \lambda)\}$.
-\item $p \xrightarrow{a, +g} q$, a transition that recognizes the terminal $a$ and pushes the symbol $g$ on the stack, i.e., $\delta(p, a, \lambda) \supseteq \{(q, g)\}$.
-\item $p \xrightarrow{a, -g} q$, a transition that recognizes the terminal $a$ and pops the symbol $g$ from the stack, i.e., $\delta(p, a, g) \supseteq \{(q, \lambda)\}$.
-\end{itemize}
-
-\subsection{Visibly Pushdown Languages} \label{sec:preliminaries-vpls}
-
-A visibly pushdown language \cite{alurVisiblyPushdownLanguages2004} is a language that can be recognized by a visibly pushdown automaton. A visibly pushdown automaton (VPDA) is a pushdown automaton where the input alphabet $\T$ can be partitioned into three disjoint sets $\T_c$, $\T_i$, and $\T_r$, such that all transitions in the automaton have one of the following three forms:
-
-\begin{itemize}
-\item $p \xrightarrow{c, +s} q$, where $c \in \T_c$ and $s \in \Gamma$; or
-\item $p \xrightarrow{i} q$, where $i \in \T_i$; or
-\item $p \xrightarrow{r, -s} q$, where $r \in \T_r$ and $s \in \Gamma$,
-\end{itemize}
-
-\noindent i.e., the terminal recognized by a transition fully determines the change to the stack height.
-%
-The names of the partitions stem from their original use in program analysis, $c$ is for \emph{call}, $i$ for \emph{internal}, and $r$ for \emph{return}.
-%
-This partitioning gives us the following particularly relevant properties:
-
-\begin{itemize}
-\item Visibly pushdown languages with the same input partitions are closed under intersection, complement, and union \cite{alurVisiblyPushdownLanguages2004}. Intersection is given by a product automaton. Given a pair of VPDAs $(Q_1, \T, \delta_1, q_0, F_1)$ and $(Q_2, \T, \delta_2, q'_0, F_2)$ their product automaton has the form $(Q_1 \times Q_2, \T, \delta', (q_0, q'_0), F_1 \times F_2)$ where:
-  $$
-  \begin{array}{r@{\ =\ }ll}
-    \delta'((p_1, p_2), c, \lambda) & \{((q_1, q_2), (g_1, g_2)) \mid (q_1, g_1) \in \delta_1(p_1, c, \lambda), (q_2, g_2) \in \delta_2(p_2, c, \lambda) \} & \!\!\!\!\text{where } c \in \T_c \\
-    \delta'((p_1, p_2), i, \lambda) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, i, \lambda), (q_2, \lambda) \in \delta_2(p_2, i, \lambda) \} & \!\!\!\!\text{where } i \in \T_i \\
-    \delta'((p_1, p_2), r, (g_1, g_2)) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, r, \lambda), (q_2, \lambda) \in \delta_2(p_2, r, \lambda) \} & \!\!\!\!\text{where } r \in \T_r \\
-  \end{array}
-  $$
-
-\item A VPDA can be trimmed \cite{caralpTrimmingVisiblyPushdown2015}, i.e., modified in such a way that all remaining states and transitions are part of at least one successful run; none are redundant. Furthermore, a successful run in the trimmed automaton corresponds to exactly one successful run in the original automaton, and vice-versa.
-\end{itemize}
-
-\subsection{Unranked Regular Tree Grammars} \label{sec:preliminaries-trees}
-
-Trees generalize words by allowing each terminal to have multiple ordered successors, instead of just zero or one. Most literature considers \emph{ranked} tree languages, where each terminal has a fixed arity, i.e., the same terminal must always have the same number of successors. This is as opposed to \emph{unranked} tree languages, where the arity of a terminal is not fixed. The sequence of successors to a single terminal in an unranked tree tends to be described by a word language (referred to as a horizontal language in \cite{comonTreeAutomataTechniques2007}), often a regular language.
-
-The results and properties presented in this paper are more naturally described through unranked trees, thus all further references to trees are to unranked trees, despite ranked being more common in the literature. We further distinguish terminals used solely as leaves from terminals that may be either nodes or leaves. Since we will use unranked trees to represent parse trees, the former will represent terminals from the parsed word, while the latter represent terminals introduced as internal nodes.
-
-An unranked tree grammar $T$ is a tuple $(\NT, \T, X, P, S)$ where:
-
-\begin{itemize}
-\item $\NT$ is a set of (zero-arity) non-terminals.
-\item $\T$ is a set of zero-arity terminals, used as leaves.
-\item $X$ is a set of terminals without fixed arity, used as inner nodes or leaves.
-\item $P$ is a set of productions, a finite subset of $\NT \times X \times \regex(\T \cup X)$. We will write a production $(N, x, r)$ as $N -> x(r)$.
-\end{itemize}
-
-\noindent A tree $t$ (containing only terminals from $\T$ and $X$) is recognized by $T$ if there is a sequence of steps starting with $S$ and ending with $t$, where each step either replaces a single non-terminal using a production in $P$, or replaces a regular expression $r$ with a sequence in $L(r)$. The set of trees recognized by $T$ is written $L(T)$\footnote{Again, to distinguish from regular expressions and context-free languages, all trees will be named $T$, possibly with a subscript.}. Finally, $yield : L(T) -> \T^{*}$ is the sequence of terminals $a \in \T$ obtained by a left-to-right\footnote{Preorder, postorder, or inorder does not matter since terminals in $\T$ only appear as leaves} traversal of a tree. Informally, it is the flattening of a tree after all internal nodes have been removed.
 
 \section{Resolvable Ambiguity} \label{sec:resolvable-definition}
 
@@ -676,6 +624,7 @@ With that in mind, we define a language definition $D$ as a set of labelled prod
 Each non-terminal appearing in the regular expression of a production carries a \emph{mark} $m$ which is a set of labels whose productions may \emph{not} replace that non-terminal. To lessen clutter, we write $E_\emptyset$ as $E$. Consider the language definition shown in Fig.~\ref{fig:running-example-definition} which we use as a running example. In the production describing multiplication ($m$) both non-terminals are marked with $\{a\}$, which thus forbids addition from being a direct child of a multiplication. By ``direct child'' we mean ``without an intermediate node'', most commonly grouping parentheses; thus, this enforces conventional precedence.
 
 \begin{figure}
+
 \centering
 \begin{minipage}{.47\textwidth}
   \centering
@@ -719,6 +668,8 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
 
 \begin{figure}
   \subfloat[$T_D$, the parse trees of $G_D$.\label{fig:running-example-generated:t}]{%
+    \begin{minipage}{0.5\textwidth}
+    \centering
     \begin{tabular}{@{}l@{\quad$->$\quad}c@{$($ }l@{}}
       \toprule
       $E$ & $l$ & \texttt{'['} $(\epsilon + E($\texttt{';'} $E)^{*})$ \texttt{']'} $)$ \\
@@ -727,8 +678,11 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
       $E$ & $n$ & $N$ $)$ \\
       \bottomrule
     \end{tabular}
+    \end{minipage}
   }
   \subfloat[$T'_D$, the parse trees of $G'_D$.\label{fig:running-example-generated:t-prime}]{%
+    \begin{minipage}{0.5\textwidth}
+    \centering
     \begin{tabular}{@{}l@{\quad$->$\quad}c@{$($ }l@{}}
       \toprule
       $E$ & $l$ & \texttt{'['} $(\epsilon + E($\texttt{';'} $E)^{*})$ \texttt{']'} $)$ \\
@@ -743,9 +697,12 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
       $E_{\{a\}}$ & $g$ & \texttt{'('} $E$ \texttt{')'} $)$ \\
       \bottomrule
     \end{tabular}
+    \end{minipage}
   }
 
   \subfloat[$G_D$, the generated abstract syntax.\label{fig:running-example-generated:w}]{%
+    \begin{minipage}{0.5\textwidth}
+    \centering
     \begin{tabular}{@{}l@{\quad$->$\quad}l@{}}
       \toprule
       $E$ & \texttt{'['} $E_{l1}$ \texttt{']'} \\
@@ -760,8 +717,11 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
       $E_{l2}$ & \texttt{';'} $E$ $E_{l2}$ \\
       \bottomrule
     \end{tabular}
+    \end{minipage}
   }
   \subfloat[$G'_D$, the generated concrete syntax.\label{fig:running-example-generated:w-prime}]{%
+    \begin{minipage}{0.5\textwidth}
+    \centering
     \begin{tabular}{@{}l@{\quad$->$\quad}l@{}}
       \toprule
       $E$ & \texttt{'['} $E_{l1}$ \texttt{']'} \\
@@ -782,19 +742,20 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
       $E_{l2}$ & \texttt{';'} $E$ $E_{l2}$ \\
       \bottomrule
     \end{tabular}
+    \end{minipage}
   }
   \caption{The generated grammars.}
   \label{fig:running-example-generated}
 \end{figure}
 
-Examples of elements in each of these four languages can be seen in Fig.~\ref{fig:example-words-in-square}, along with visualizations of the syntax trees. Each element corresponds to the word ``$(1 + 2) * 3$'' in $L(G'_D)$. Note that the word in $L(G_D)$ is ambiguous, and that there are other words in $L(G'_D)$ that correspond to the same element in $L(T_D)$, e.g., ``$((1 + 2)) * 3$'' and ``$(1 + 2) * (3)$''. As a memory aid, the primed versions ($G'_D$ and $T'_D$) contain disambiguation (grouping parentheses, precedence, associativity, etc.) while the unprimed versions ($G_D$ and $T_D$) are the (likely ambiguous) straightforward translations (i.e., ignoring marks) from $D$.
+Examples of elements in each of these four languages can be seen in Fig.~\ref{fig:example-words-in-square}, \RED{along with visualizations of the syntax trees}. Each element corresponds to the word ``$(1 + 2) * 3$'' in $L(G'_D)$. Note that the word in $L(G_D)$ is ambiguous, and that there are other words in $L(G'_D)$ that correspond to the same element in $L(T_D)$, e.g., ``$((1 + 2)) * 3$'' and ``$(1 + 2) * (3)$''. As a memory aid, the primed versions ($G'_D$ and $T'_D$) contain disambiguation (grouping parentheses, precedence, associativity, etc.) while the unprimed versions ($G_D$ and $T_D$) are the (likely ambiguous) straightforward translations (i.e., ignoring marks) from $D$.
 
 {
 \newcommand{\terminal}[1]{\ \underline{#1}\ }
 
 % TODO: (re)make these figures
 \begin{figure}
-  \subfloat[Example tree in $L(T_D)$ and visualization.\label{fig:sum-add-tree}]{%
+  \subfloat[Example tree in $L(T_D)$.\label{fig:sum-add-tree}]{% and visualization.]{%
     %% \begin{center}
     %% \Tree [.{$m$}
     %%     [.{$a$}
@@ -804,9 +765,12 @@ Examples of elements in each of these four languages can be seen in Fig.~\ref{fi
     %%     \terminal{*}
     %%     [.{$n$} \terminal{3} ] ]
     %% \end{center}
-    $m(a(n(\terminal{1}) \terminal{+} n(\terminal{2})) \terminal{*} n(\terminal{3}))$
+    \begin{minipage}{.5\linewidth}
+      \centering
+      $m(a(n(\terminal{1}) \terminal{+} n(\terminal{2})) \terminal{*} n(\terminal{3}))$
+    \end{minipage}
   }
-  \subfloat[Example tree in $L(T'_D)$ and visualization.]{%
+  \subfloat[Example tree in $L(T'_D)$.]{% and visualization.]{%
     %% \begin{center}
     %% \Tree [.{$m$}
     %%     [.{$g$}
@@ -818,33 +782,42 @@ Examples of elements in each of these four languages can be seen in Fig.~\ref{fi
     %%       \terminal{)} ]
     %%     \terminal{*}
     %%     [.{$n$} \terminal{3} ] ]
-    %% \end{center}
-    $m(g( \terminal{(} a(n( \terminal{1} ) \terminal{+} n( \terminal{2} )) \terminal{)} ) \terminal{*} n( \terminal{3} ))$
+    %%   \end{center}
+    \begin{minipage}{.5\linewidth}
+      \centering
+      $m(g( \terminal{(} a(n( \terminal{1} ) \terminal{+} n( \terminal{2} )) \terminal{)} ) \terminal{*} n( \terminal{3} ))$
+    \end{minipage}
   }
 
   \subfloat[Example word in $L(G_D)$.]{%
-    $1 + 2 * 3$
+    \begin{minipage}{.5\linewidth}
+      \centering
+      $1 + 2 * 3$
+    \end{minipage}
   }
   \subfloat[Example word in $L(G'_D)$.]{%
-    $(1 + 2) * 3$
+    \begin{minipage}{.5\linewidth}
+      \centering
+      $(1 + 2) * 3$
+    \end{minipage}
   }
   \caption{Example with elements from each generated language that correspond to each other. The leaf terminals in the tree languages appear underlined to distinguish the two kinds of parentheses.}
   \label{fig:example-words-in-square}
 \end{figure}
 }
 
-At this point we also note that the shape of $D$ determines where the final concrete syntax permits grouping parentheses; they are allowed exactly where they would surround a complete production. For example, $G_D$ in Fig.~\ref{fig:running-example-generated:w} can be seen as a valid language definition (if we generate new unique labels for each of the productions). However, starting with that language definition would allow the expression ``$[1(;2)]$'', which makes no intuitive sense; grouping parentheses should only be allowed around complete expressions, but ``$;2$'' is not a valid expression.
-
-Finally, we require a function $\semantic : L(T'_D) -> L(T_D)$ that removes grouping parentheses from a parse tree, i.e., it replaces every subtree $g($ \verb|'('| $t$ \verb|')'| $)$ with $t$. The relation between the four grammars in terms of $\yield$ and $\semantic$ can be seen in Fig.~\ref{fig:grammar-square}. With this we can define $\parse : L(G'_D) -> 2^{L(T_D)}$, along with its inverse $\words : L(T_D) -> 2^{L(G'_D)}$:
-
-\begin{figure}
+\begin{wrapfigure}{l}{0.3\textwidth}
   \begin{tikzcd}
     L(T_D) \arrow[d, "\yield"] & L(T'_D) \arrow[l, "\semantic"'] \arrow[d, "\yield"] \\
     L(G_D) & L(G'_D)
   \end{tikzcd}
   \caption{The generated grammars, and their relation to each other.}
   \label{fig:grammar-square}
-\end{figure}
+\end{wrapfigure}
+
+At this point we also note that the shape of $D$ determines where the final concrete syntax permits grouping parentheses; they are allowed exactly where they would surround a complete production. For example, $G_D$ in Fig.~\ref{fig:running-example-generated:w} can be seen as a valid language definition (if we generate new unique labels for each of the productions). However, starting with that language definition would allow the expression ``$[1(;2)]$'', which makes no intuitive sense; grouping parentheses should only be allowed around complete expressions, but ``$;2$'' is not a valid expression.
+
+Finally, we require a function $\semantic : L(T'_D) -> L(T_D)$ that removes grouping parentheses from a parse tree, i.e., it replaces every subtree $g($ \verb|'('| $t$ \verb|')'| $)$ with $t$. The relation between the four grammars in terms of $\yield$ and $\semantic$ can be seen in Fig.~\ref{fig:grammar-square}. With this we can define $\parse : L(G'_D) -> 2^{L(T_D)}$, along with its inverse $\words : L(T_D) -> 2^{L(G'_D)}$:
 
 $$
 \begin{array}{rcl}
@@ -1747,5 +1720,105 @@ found through dynamic analysis.
 \bibliographystyle{splncs04}
 
 \bibliography{All}
+
+\pagebreak
+\appendix
+
+\section{Preliminaries}
+\label{app:prel}
+
+This appendix briefly describes some of the theoretical
+foundations we build upon.
+
+\subsection{Context-Free Grammars} \label{sec:preliminaries-cfgs}
+
+A context-free grammar (CFG) $G$ is a 4-tuple $(\NT, \T, P, S)$ where $\NT$ is a set of non-terminals; $\T$ a set of terminals, disjoint from $\NT$; $P$ a finite subset of $\NT \times (\NT \cup \T)^{*}$, i.e., a set of productions; and $S \in \NT$ the starting non-terminal.
+
+%\footnote{Where $^{*}$ is the Kleene star.}
+%
+A word $w \in \T^{*}$ is recognized by $G$ if there is a sequence of steps starting with $S$ and ending with $w$, where each step replaces a single non-terminal using a production in $P$. Such a sequence is called a \emph{derivation}. The set of words recognized by $G$ is written $L(G)$
+%\footnote{We will always name a regular expression $r$ (possibly with a subscript) and a CFG $G$ (possibly with a subscript), to lessen the risk of confusion}.
+
+%\subsection{Ambiguity} \label{sec:preliminaries-ambiguity}
+
+The standard definition of ambiguity, given a context-free grammar $G$, is expressed in terms of \emph{leftmost derivations}. A leftmost derivation is a derivation where the non-terminal being replaced is always the leftmost one.
+
+\begin{definition}
+A word $w \in L(G)$ is ambiguous if there are two distinct leftmost derivations of $w$.
+\end{definition}
+
+\subsection{Automata} \label{sec:preliminaries-automata}
+
+A nondeterministic finite automaton (NFA) is a 5-tuple $(Q, \T, \delta, q_0, F)$ where $Q$ is a finite set of states; $\T$ a finite set of terminals; $\delta$ a transition function from $Q \times \T$ to finite subsets of $Q$; $q_0 \in Q$ an initial state; and $F \subseteq Q$ a set of final states. A successful run is a sequence of states $r_0, \ldots, r_n$ and a word $a_0\cdots a_n$ such that $r_0 = q_0$, $\forall i \in \{0, 1, \ldots, n-1\}.\ r_{i+1} \in \delta(r_i, a_i)$ and $r_n \in F$. We say that the automaton accepts the word $a_0a_1\cdots a_n$ iff there is such a successful run.
+
+A deterministic finite automaton (DFA) has the same definition, except $\delta : Q \times \Sigma -> Q$, i.e., given a state and a symbol there is always a single state we can transition to. NFAs and DFAs have the same expressive power as regular expressions, i.e., for every regular expression there is an NFA and a DFA both reconizing the same language, and vice-versa. % TODO: probably reference for this
+
+A pushdown automaton extends a finite automaton with a stack to/from which transitions can push/pop symbols. Formally, a nondeterministic pushdown automaton is a 6-tuple $(Q, \T, \Gamma, \delta, q_0, F)$ where $Q$ is a finite set of states; $\T$ a finite set of input symbols, i.e., an input alphabet; $\Gamma$ a finite set of stack symbols, i.e., a stack alphabet; $\delta$ a transition function from $Q \times (\T \cup \{\lambda\}) \times (\Gamma \cup \{\lambda\}$ to finite subsets of $Q \times (\Gamma \cup \{\lambda\}$; $q_0 \in Q$ the initial state; and $F \subseteq Q$ a set of final states. $\lambda$ essentially means ``ignore'', i.e., $\delta(q_1, \lambda, \lambda) = \{(q_2, \lambda)\}$ means: transition from state $q_1$ without consuming an input symbol (the first $\lambda$) and without examining or popping from the current stack (the second $\lambda$), to state $q_2$ without pushing a new symbol on the stack (the third $\lambda$).
+
+A successful run is now a sequence of \emph{configurations}, elements of $Q \times \Gamma^{*}$, starting with $(q_0, \epsilon)$, ending with $(f, \gamma)$ for some $f \in F$ and $\gamma \in \Gamma^{*}$.
+
+However, in this paper we only consider pushdown automata with relatively limited stack manipulation, and thus use some convenient shorthands:
+
+\begin{itemize}
+\item $p \xrightarrow{a} q$, a transition that recognizes the terminal $a$ and does not interact with the stack at all, i.e., $\delta(p, a, \lambda) \supseteq \{(q, \lambda)\}$.
+\item $p \xrightarrow{a, +g} q$, a transition that recognizes the terminal $a$ and pushes the symbol $g$ on the stack, i.e., $\delta(p, a, \lambda) \supseteq \{(q, g)\}$.
+\item $p \xrightarrow{a, -g} q$, a transition that recognizes the terminal $a$ and pops the symbol $g$ from the stack, i.e., $\delta(p, a, g) \supseteq \{(q, \lambda)\}$.
+\end{itemize}
+
+\subsection{Visibly Pushdown Languages} \label{sec:preliminaries-vpls}
+
+A visibly pushdown language \cite{alurVisiblyPushdownLanguages2004} is a language that can be recognized by a visibly pushdown automaton. A visibly pushdown automaton (VPDA) is a pushdown automaton where the input alphabet $\T$ can be partitioned into three disjoint sets $\T_c$, $\T_i$, and $\T_r$, such that all transitions in the automaton have one of the following three forms:
+
+\begin{itemize}
+\item $p \xrightarrow{c, +s} q$, where $c \in \T_c$ and $s \in \Gamma$; or
+\item $p \xrightarrow{i} q$, where $i \in \T_i$; or
+\item $p \xrightarrow{r, -s} q$, where $r \in \T_r$ and $s \in \Gamma$,
+\end{itemize}
+
+\noindent i.e., the terminal recognized by a transition fully determines the change to the stack height.
+%
+The names of the partitions stem from their original use in program analysis, $c$ is for \emph{call}, $i$ for \emph{internal}, and $r$ for \emph{return}.
+%
+This partitioning gives us the following particularly relevant properties:
+
+\begin{itemize}
+\item Visibly pushdown languages with the same input partitions
+  are closed under intersection, complement, and union
+  \cite{alurVisiblyPushdownLanguages2004}. Intersection is given
+  by a product automaton. Given a pair of VPDAs
+  $(Q_1, \T, \delta_1, q_0, F_1)$ and
+  $(Q_2, \T, \delta_2, q'_0, F_2)$ their product automaton has the
+  form $(Q_1 \times Q_2, \T, \delta', (q_0, q'_0),$
+  $ F_1 \times F_2)$ where, when $c \in \T_c$, $i \in \T_i$ and
+  $r \in \T_r$:
+  \[
+  \begin{array}{r@{\ =\ }l}
+    \delta'((p_1, p_2), c, \lambda) & \{((q_1, q_2), (g_1, g_2)) \mid (q_1, g_1) \in \delta_1(p_1, c, \lambda), (q_2, g_2) \in \delta_2(p_2, c, \lambda) \}\\
+    \delta'((p_1, p_2), i, \lambda) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, i, \lambda), (q_2, \lambda) \in \delta_2(p_2, i, \lambda) \}\\
+    \delta'((p_1, p_2), r, (g_1, g_2)) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, r, \lambda), (q_2, \lambda) \in \delta_2(p_2, r, \lambda) \}\\
+  \end{array}
+  \]
+
+\item A VPDA can be trimmed \cite{caralpTrimmingVisiblyPushdown2015}, i.e., modified in such a way that all remaining states and transitions are part of at least one successful run; none are redundant. Furthermore, a successful run in the trimmed automaton corresponds to exactly one successful run in the original automaton, and vice-versa.
+\end{itemize}
+
+\subsection{Unranked Regular Tree Grammars} \label{sec:preliminaries-trees}
+
+Trees generalize words by allowing each terminal to have multiple ordered successors, instead of just zero or one. Most literature considers \emph{ranked} tree languages, where each terminal has a fixed arity, i.e., the same terminal must always have the same number of successors. This is as opposed to \emph{unranked} tree languages, where the arity of a terminal is not fixed. The sequence of successors to a single terminal in an unranked tree tends to be described by a word language (referred to as a horizontal language in \cite{comonTreeAutomataTechniques2007}), often a regular language.
+
+The results and properties presented in this paper are more naturally described through unranked trees, thus all further references to trees are to unranked trees, despite ranked being more common in the literature. We further distinguish terminals used solely as leaves from terminals that may be either nodes or leaves. Since we will use unranked trees to represent parse trees, the former will represent terminals from the parsed word, while the latter represent terminals introduced as internal nodes.
+
+An unranked tree grammar $T$ is a tuple $(\NT, \T, X, P, S)$ where:
+
+\begin{itemize}
+\item $\NT$ is a set of (zero-arity) non-terminals.
+\item $\T$ is a set of zero-arity terminals, used as leaves.
+\item $X$ is a set of terminals without fixed arity, used as inner nodes or leaves.
+\item $P$ is a set of productions, a finite subset of $\NT \times X \times \regex(\T \cup X)$. We will write a production $(N, x, r)$ as $N -> x(r)$.
+\end{itemize}
+
+\noindent A tree $t$ (containing only terminals from $\T$ and $X$) is recognized by $T$ if there is a sequence of steps starting with $S$ and ending with $t$, where each step either replaces a single non-terminal using a production in $P$, or replaces a regular expression $r$ with a sequence in $L(r)$. The set of trees recognized by $T$ is written $L(T)$\footnote{Again, to distinguish from regular expressions and context-free languages, all trees will be named $T$, possibly with a subscript.}. Finally, $yield : L(T) -> \T^{*}$ is the sequence of terminals $a \in \T$ obtained by a left-to-right\footnote{Preorder, postorder, or inorder does not matter since terminals in $\T$ only appear as leaves} traversal of a tree. Informally, it is the flattening of a tree after all internal nodes have been removed.
+
+
 
 \end{document}
