@@ -252,7 +252,7 @@ In this paper, we solve the static resolvability problem for certain classes of 
   provide precise formalizations of the static and dynamic
   \emph{resolvable ambiguity problems}
   (Section~\ref{sec:resolvable-definition}).
-\item As part of the formalization of the dynamic and static resolvability problems, we define a syntax definition formalism based on Extended Backus–Naur Form (EBNF), where ambiguities can be resolved with grouping parentheses (Section~\ref{sec:parse-time-disambiguation}).
+\item As part of the formalization of the dynamic and static resolvability problems, we define a syntax definition formalism based on Extended Backus–Naur Form (EBNF) where ambiguities can be resolved with grouping parentheses (Section~\ref{sec:parse-time-disambiguation}).
 \item We consider versions of the \emph{static resolvability
     problem} with increasing difficulty by considering two
   differently restricted classes of languages. We formalize a
@@ -272,7 +272,7 @@ In this paper, we solve the static resolvability problem for certain classes of 
   implementing an under-specified language definition.
 \end{itemize}
 
-\noindent Before presenting the above contributions, the paper starts with motivating examples (Section~\ref{sec:motivation}), as well as preliminaries (Section~\ref{sec:prel}).
+\noindent Before presenting the above contributions, the paper starts with motivating examples (Section~\ref{sec:motivation}), as well as preliminaries (Section~\ref{sec:prel}). Finally, following a discussion of related work (Section~\ref{sec:related-work}), the paper provides some conclusions (Section~\ref{sec:conclusion}).
 
 
 
@@ -287,14 +287,14 @@ Suppose we are defining a new textual modeling language, where components are co
   C1 -- C2 || C3 || C4
 \end{verbatim}
 
-\noindent Are there natural associativity and precedence rules for these new operators? If there are no predefined rules of how to disambiguate this expression within the language definition, it is an ambiguous expression, and a parser generates a set of parse trees. Consider Fig~\ref{fig:circuits}, which depicts four different alternatives, each with a different meaning, depending on how the ambiguity has been resolved. Clearly, the expression has totally different meanings depending on how the end-user places the parenthesis. However, if a language designer is forced to make the grammar of the syntax definition unambiguous, a specific choice has to be made for precedence and associativity. For instance, assume that the designer makes the arbitrary choice that serial composition has higher precedence than parallel composition, and that both operators are left associative. In such a case, the expression without parenthesis is parsed as Figure~\ref{fig:circuits}(d). The question is why such an arbitrary choice---which is forced by the traditional design of unambiguous grammars---is the correct way to interpret a domain-specific expression. The alternative, as argued for in this paper, is to postpone the decision, and instead give an error message to the end-user (programmer or modeler), and expose different alternatives that disambiguate the expression.
+\noindent Are there natural associativity and precedence rules for these new operators? If there are no predefined rules of how to disambiguate this expression within the language definition, it is an ambiguous expression, and a parser generates a set of parse trees. Consider Figure~\ref{fig:circuits} which depicts four different alternatives, each with a different meaning, depending on how the ambiguity has been resolved. Clearly, the expression has totally different meanings depending on how the end-user places the parentheses. However, if a language designer is forced to make the grammar of the syntax definition unambiguous, a specific choice has to be made for precedence and associativity. For instance, assume that the designer makes the arbitrary choice that serial composition has higher precedence than parallel composition, and that both operators are left-associative. In such a case, the expression without parentheses is parsed as Figure~\ref{fig:circuits}(d). The question is why such an arbitrary choice---which is forced by the traditional design of unambiguous grammars---is the correct way to interpret a domain-specific expression. The alternative, as argued for in this paper, is to postpone the decision, and instead give an error message to the end-user (programmer or modeler), and expose different alternatives that disambiguate the expression.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%&
 \begin{figure*}[!t]
 \center
 \includegraphics[width=1.0\textwidth]{circuits.pdf}
-\caption{The figure shows four different alternatives for disambiguating the expression $\texttt{C1 -- C2 || C3 || C4}$. Note that there is a fifth alternative $\texttt{C1 -- ((C2 || C3) || C4)}$. However, the meaning of this expression is the same as (c), presupposed that the parallel operator is associative. In such a case, this expression and the expression in (c) both means that components $\texttt{C2}$, $\texttt{C3}$, and $\texttt{C4}$ are composed in parallel. }
+\caption{The figure shows four different alternatives for disambiguating the expression $\texttt{C1 -- C2 || C3 || C4}$. Note that there is a fifth alternative $\texttt{C1 -- ((C2 || C3) || C4)}$. However, the meaning of this expression is the same as (c) assuming the parallel operator is associative. In such a case, this expression and the expression in (c) both mean that components $\texttt{C2}$, $\texttt{C3}$, and $\texttt{C4}$ are composed in parallel. }
 \label{fig:circuits}
 \end{figure*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%&
@@ -308,7 +308,7 @@ Suppose we are defining a new textual modeling language, where components are co
 
 \subsection{Match Cases in OCaml}
 
-Explicit ambiguity is highly relevant also for the design of new and existing general purpose programming languages. The following example shows how an ambiguity error can be clearer than what an existing compiler produces today with the traditional approach.
+Explicit ambiguity is highly relevant also for the design of new and existing general-purpose programming languages. The following example shows how an ambiguity error can be clearer than what an existing compiler produces today with the traditional approach.
 
 
 %Consider the following nested match expression (from \cite{palmkvistCreatingDomainSpecificLanguages2019}), and the resulting error message:
@@ -385,9 +385,9 @@ The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may 
 \subsection{Language Composition}
 
 % TODO: more language composition references
-The possibility of composing different languages at will is a prevalent idea in research \cite{vanwykSilverExtensibleAttribute2010,lorenzenSoundTypedependentSyntactic2016,danielssonParsingMixfixOperators2011}. Particularly relevant to this paper is the behavior of composed \emph{syntax}; composing unambiguous syntaxes does not necessarily produce an unambiguous composed syntax. Pre-existing systems commonly solve this either by strict requirements on the individual languages \cite{vanwykSilverExtensibleAttribute2010} or by largely ignoring the problem and merely presenting the multiple syntax trees in case of an ambiguity \cite{lorenzenSoundTypedependentSyntactic2016,danielssonParsingMixfixOperators2011}. The former case gives good guarantees for the end-user experience (no ambiguities) while the former gives more freedom to the language designer. Resolvable ambiguity, as presented in this paper, gives a middle ground with more language designer freedom than the former and a better user experience than the latter.
+The possibility of composing different languages at will is a prevalent idea in research \cite{vanwykSilverExtensibleAttribute2010,lorenzenSoundTypedependentSyntactic2016,danielssonParsingMixfixOperators2011}. Particularly relevant to this paper is the behavior of composed \emph{syntax}; composing unambiguous syntaxes does not necessarily produce an unambiguous composed syntax. Pre-existing systems commonly solve this either by strict requirements on the individual languages \cite{vanwykSilverExtensibleAttribute2010} or by largely ignoring the problem and merely presenting the multiple syntax trees in case of an ambiguity \cite{lorenzenSoundTypedependentSyntactic2016,danielssonParsingMixfixOperators2011}. The former case gives good guarantees for the end-user experience (no ambiguities) while the former gives more freedom to the language designer. Resolvable ambiguity, as presented in this paper, provides a middle ground with more language designer freedom than the former and a better user experience than the latter.
 
-Language composition has limited prevalence outside of research, but it does exist in a simplified form: custom operators in libraries. For example, Haskell allows a programmer to define new operators, with new syntax and custom precedence level and associativity. A user can then import these operators from any number of libraries and use them together in one program. Precedence in Haskell is defined as a number between 0 and 9, meaning that operators from different libraries have a defined relative precedence. If the libraries were designed by different authors this precedence is essentially by accident and it may or may not be sensible. Leaving the relative precedence undefined would not affect expressivity, every possible combination of operators can be written by simply adding parentheses, and would avoid surprising interpretations. This does in fact happen in some cases in Haskell, namely when two operators have the same precedence, but incompatible associativity. Both \haskell{>>=} and \haskell{=<<} have precedence 1, but the former is left associative while the latter is right associative. \haskell{a >>= b =<< c} then produces the following error:
+Language composition has limited prevalence outside of research, but it does exist in a simplified form: custom operators in libraries. For example, Haskell allows a programmer to define new operators, with new syntax and custom precedence level and associativity. A user can then import these operators from any number of libraries and use them together in one program. Precedence in Haskell is defined as a number between 0 and 9, meaning that operators from different libraries have a defined relative precedence. If the libraries were designed by different authors this precedence is essentially by accident and it may or may not be sensible. Leaving the relative precedence undefined would not affect expressivity, every possible combination of operators can be written by simply adding parentheses, and would avoid surprising interpretations. This does in fact happen in some cases in Haskell, namely when two operators have the same precedence but incompatible associativity. Both \haskell{>>=} and \haskell{=<<} have precedence 1, but the former is left-associative while the latter is right-associative. \haskell{a >>= b =<< c} then produces the following error:
 
 \begin{lstlisting}
 Precedence parsing error
@@ -453,30 +453,20 @@ A word $w \in \T^{*}$ is recognized by $G$ if there is a sequence of steps start
 The standard definition of ambiguity, given a context-free grammar $G$, is expressed in terms of \emph{leftmost derivations}. A leftmost derivation is a derivation where the non-terminal being replaced is always the leftmost one.
 
 \begin{definition}
-A word $w \in L(G)$ is ambiguous if there are two distinct leftmost derivations of that word.
+A word $w \in L(G)$ is ambiguous if there are two distinct leftmost derivations of $w$.
 \end{definition}
 
 \subsection{Automata} \label{sec:preliminaries-automata}
 
-A nondeterministic finite automaton (NFA) is a 5-tuple $(Q, \T, \delta, q_0, F)$ where $Q$ is a finite set of states; $\T$ a finite set of terminals; $\delta$ a transition function from $Q \times \T$ to finite subsets of $Q$ ; $q_0 \in Q$ an initial state; and $F \subseteq Q$ a set of final states.
-
-A successful run is a sequence of states $r_0, \ldots, r_n$ and a word $a_0\cdots a_n$ such that:
-
-\begin{itemize}
-\item $r_0 = q_0$.
-\item $\forall i \in \{0, 1, \ldots, n-1\}.\ r_{i+1} \in \delta(r_i, a_i)$.
-\item $r_n \in F$.
-\end{itemize}
-
-\noindent We say that the automaton accepts the word $a_0a_1\cdots a_n$ iff there is such a succesful run.
+A nondeterministic finite automaton (NFA) is a 5-tuple $(Q, \T, \delta, q_0, F)$ where $Q$ is a finite set of states; $\T$ a finite set of terminals; $\delta$ a transition function from $Q \times \T$ to finite subsets of $Q$; $q_0 \in Q$ an initial state; and $F \subseteq Q$ a set of final states. A successful run is a sequence of states $r_0, \ldots, r_n$ and a word $a_0\cdots a_n$ such that $r_0 = q_0$, $\forall i \in \{0, 1, \ldots, n-1\}.\ r_{i+1} \in \delta(r_i, a_i)$ and $r_n \in F$. We say that the automaton accepts the word $a_0a_1\cdots a_n$ iff there is such a successful run.
 
 A deterministic finite automaton (DFA) has the same definition, except $\delta : Q \times \Sigma -> Q$, i.e., given a state and a symbol there is always a single state we can transition to. NFAs and DFAs have the same expressive power as regular expressions, i.e., for every regular expression there is an NFA and a DFA both reconizing the same language, and vice-versa. % TODO: probably reference for this
 
-A pushdown automaton extends a finite automaton with a stack from which transitions can push or pop symbols. Formally, a nondeterministic pushdown automaton is a 6-tuple $(Q, \T, \Gamma, \delta, q_0, F)$ where $Q$ is a finite set of states; $\T$ a finite set of input symbols, i.e., an input alphabet; $\Gamma$ a finite set of stack symbols, i.e., a stack alphabet; $\delta$ a transition function from $Q \times (\T \cup \{\lambda\}) \times (\Gamma \cup \{\lambda\}$ to finite subsets of $Q \times (\Gamma \cup \{\lambda\}$; $q_0 \in Q$ the initial state; and $F \subseteq Q$ a set of final states. $\lambda$ essentially means ``ignore'', i.e., $\delta(q_1, \lambda, \lambda) = \{(q_2, \lambda)\}$ means: transition from state $q_1$ without consuming an input symbol (the first $\lambda$) and without examining or popping from the current stack (the second $\lambda$), to state $q_2$ without pushing a new symbol on the stack (the third $\lambda$).
+A pushdown automaton extends a finite automaton with a stack to/from which transitions can push/pop symbols. Formally, a nondeterministic pushdown automaton is a 6-tuple $(Q, \T, \Gamma, \delta, q_0, F)$ where $Q$ is a finite set of states; $\T$ a finite set of input symbols, i.e., an input alphabet; $\Gamma$ a finite set of stack symbols, i.e., a stack alphabet; $\delta$ a transition function from $Q \times (\T \cup \{\lambda\}) \times (\Gamma \cup \{\lambda\}$ to finite subsets of $Q \times (\Gamma \cup \{\lambda\}$; $q_0 \in Q$ the initial state; and $F \subseteq Q$ a set of final states. $\lambda$ essentially means ``ignore'', i.e., $\delta(q_1, \lambda, \lambda) = \{(q_2, \lambda)\}$ means: transition from state $q_1$ without consuming an input symbol (the first $\lambda$) and without examining or popping from the current stack (the second $\lambda$), to state $q_2$ without pushing a new symbol on the stack (the third $\lambda$).
 
 A successful run is now a sequence of \emph{configurations}, elements of $Q \times \Gamma^{*}$, starting with $(q_0, \epsilon)$, ending with $(f, \gamma)$ for some $f \in F$ and $\gamma \in \Gamma^{*}$.
 
-However, in this paper we will only consider pushdown automata with relatively limited stack manipulation, and will thus use some convenient shorthand:
+However, in this paper we only consider pushdown automata with relatively limited stack manipulation, and thus use some convenient shorthands:
 
 \begin{itemize}
 \item $p \xrightarrow{a} q$, a transition that recognizes the terminal $a$ and does not interact with the stack at all, i.e., $\delta(p, a, \lambda) \supseteq \{(q, \lambda)\}$.
@@ -486,7 +476,7 @@ However, in this paper we will only consider pushdown automata with relatively l
 
 \subsection{Visibly Pushdown Languages} \label{sec:preliminaries-vpls}
 
-A visibly pushdown language \cite{alurVisiblyPushdownLanguages2004} is a language that can be recognized by a visibly pushdown automaton. A visibly pushdown automaton is a pushdown automaton where the input alphabet $\T$ can be partitioned into three disjoint sets $\T_c$, $\T_i$, and $\T_r$, such that all transitions in the automaton have one of the following three forms:
+A visibly pushdown language \cite{alurVisiblyPushdownLanguages2004} is a language that can be recognized by a visibly pushdown automaton. A visibly pushdown automaton (VPDA) is a pushdown automaton where the input alphabet $\T$ can be partitioned into three disjoint sets $\T_c$, $\T_i$, and $\T_r$, such that all transitions in the automaton have one of the following three forms:
 
 \begin{itemize}
 \item $p \xrightarrow{c, +s} q$, where $c \in \T_c$ and $s \in \Gamma$; or
@@ -498,10 +488,10 @@ A visibly pushdown language \cite{alurVisiblyPushdownLanguages2004} is a languag
 %
 The names of the partitions stem from their original use in program analysis, $c$ is for \emph{call}, $i$ for \emph{internal}, and $r$ for \emph{return}.
 %
-This partitioning gives us some useful properties. Of particular relevance to this paper are the following two points:
+This partitioning gives us the following particularly relevant properties:
 
 \begin{itemize}
-\item Visibly pushdown languages with the same input partitions are closed under intersection, complement, and union \cite{alurVisiblyPushdownLanguages2004}. Intersection in particular is given by a product automaton, i.e., given a pair of VPDAs $(Q_1, \T, \delta_1, q_0, F_1)$ and $(Q_2, \T, \delta_2, q'_0, F_2)$ their product automaton has the form $(Q_1 \times Q_2, \T, \delta', (q_0, q'_0), F_1 \times F_2)$ where:
+\item Visibly pushdown languages with the same input partitions are closed under intersection, complement, and union \cite{alurVisiblyPushdownLanguages2004}. Intersection is given by a product automaton. Given a pair of VPDAs $(Q_1, \T, \delta_1, q_0, F_1)$ and $(Q_2, \T, \delta_2, q'_0, F_2)$ their product automaton has the form $(Q_1 \times Q_2, \T, \delta', (q_0, q'_0), F_1 \times F_2)$ where:
   $$
   \begin{array}{r@{\ =\ }ll}
     \delta'((p_1, p_2), c, \lambda) & \{((q_1, q_2), (g_1, g_2)) \mid (q_1, g_1) \in \delta_1(p_1, c, \lambda), (q_2, g_2) \in \delta_2(p_2, c, \lambda) \} & \!\!\!\!\text{where } c \in \T_c \\
@@ -510,7 +500,7 @@ This partitioning gives us some useful properties. Of particular relevance to th
   \end{array}
   $$
 
-\item A visibly pushdown automaton can be trimmed \cite{caralpTrimmingVisiblyPushdown2015}, i.e., modified in such a way that all remaining states and transitions are part of at least one successful run; none are redundant. Furthermore, a successful run in the trimmed automaton corresponds to exactly one successful run in the original automaton, and vice-versa.
+\item A VPDA can be trimmed \cite{caralpTrimmingVisiblyPushdown2015}, i.e., modified in such a way that all remaining states and transitions are part of at least one successful run; none are redundant. Furthermore, a successful run in the trimmed automaton corresponds to exactly one successful run in the original automaton, and vice-versa.
 \end{itemize}
 
 \subsection{Unranked Regular Tree Grammars} \label{sec:preliminaries-trees}
@@ -528,9 +518,7 @@ An unranked tree grammar $T$ is a tuple $(\NT, \T, X, P, S)$ where:
 \item $P$ is a set of productions, a finite subset of $\NT \times X \times \regex(\T \cup X)$. We will write a production $(N, x, r)$ as $N -> x(r)$.
 \end{itemize}
 
-\noindent A tree $t$ (containing only terminals from $\T$ and $X$) is recognized by $T$ if there is a sequence of steps starting with $S$ and ending with $t$, where each step either replaces a single non-terminal using a production in $P$, or replaces a regular expression $r$ with a sequence in $L(r)$. The set of trees recognized by $T$ is written $L(T)$\footnote{Again, to distinguish from regular expressions and context-free languages, all trees will be named $T$, possibly with a subscript.}.
-
-Finally, $yield : L(T) -> \T^{*}$ is the sequence of terminals $a \in \T$ obtained by a left-to-right\footnote{Preorder, postorder, or inorder does not matter since terminals in $\T$ only appear as leaves} traversal of a tree. Informally, it is the flattening of a tree after all internal nodes have been removed.
+\noindent A tree $t$ (containing only terminals from $\T$ and $X$) is recognized by $T$ if there is a sequence of steps starting with $S$ and ending with $t$, where each step either replaces a single non-terminal using a production in $P$, or replaces a regular expression $r$ with a sequence in $L(r)$. The set of trees recognized by $T$ is written $L(T)$\footnote{Again, to distinguish from regular expressions and context-free languages, all trees will be named $T$, possibly with a subscript.}. Finally, $yield : L(T) -> \T^{*}$ is the sequence of terminals $a \in \T$ obtained by a left-to-right\footnote{Preorder, postorder, or inorder does not matter since terminals in $\T$ only appear as leaves} traversal of a tree. Informally, it is the flattening of a tree after all internal nodes have been removed.
 
 \section{Resolvable Ambiguity} \label{sec:resolvable-definition}
 
@@ -1716,7 +1704,7 @@ individually correct with regards to precedence.
 
 % \subsection{Cyphym} \label{sec:evaluation-cyphym}
 
-\section{Related Work}
+\section{Related Work}\label{sec:related-work}
 
 Afroozeh et al.~\cite{afroozehSafeSpecificationOperator2013}'s operator ambiguity removal patterns bear a striking resemblance to the marks presented in this paper. However, in special-casing (what in this paper would be) marks on left and right-recursions in productions they correctly cover the edge case involving deep precedence discussed in Section~\ref{sec:evaluation-ocaml}. This approach thus suggests an interesting direction for future work: to integrate it into a system designed around resolvable ambiguity, and extending the algorithms presented in this paper to cover it.
 
@@ -1732,7 +1720,7 @@ Numerous language development frameworks and libraries support syntactic languag
 
 % UNFINISHED
 
-\section{Conclusion}
+\section{Conclusion}\label{sec:conclusion}
 In this paper, we introduce the concept of \emph{resolvable
   ambiguity}. A language grammar is resolvably ambiguous if all
 ambiguities can be resolved by the end-user at parse time. This
