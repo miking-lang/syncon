@@ -98,26 +98,29 @@
 \begin{document}
 % Submission may be up to 25 pages, excluding references
 
-\title{Contribution Title\thanks{Supported by organization x.}}
+\title{Resolvable Ambiguity\thanks{Supported by organization x.}}
 %
 %\titlerunning{Abbreviated paper title}
 % If the paper title is too long for the running head, you can set
 % an abbreviated paper title here
 %
-\author{First Author\inst{1}\orcidID{0000-1111-2222-3333} \and
-Second Author\inst{2,3}\orcidID{1111-2222-3333-4444} \and
-Third Author\inst{3}\orcidID{2222--3333-4444-5555}}
+\author{Viktor Palmkvist\inst{1}\orcidID{0000-0003-0669-4085} \and
+Elias Castegren\inst{1}\orcidID{0000-0003-4918-6582} \and
+Philipp Haller\inst{1}\orcidID{0000-0002-2659-5271} \and
+David Broman\inst{1}\orcidID{0000-0001-8457-4105}}
 %
-\authorrunning{F. Author et al.}
+\authorrunning{V. Palmkvist et al.}
 % First names are abbreviated in the running head.
 % If there are more than two authors, 'et al.' is used.
 %
-\institute{Princeton University, Princeton NJ 08544, USA \and
-Springer Heidelberg, Tiergartenstr. 17, 69121 Heidelberg, Germany
-\email{lncs@springer.com}\\
-\url{http://www.springer.com/gp/computer-science/lncs} \and
-ABC Institute, Rupert-Karls-University Heidelberg, Heidelberg, Germany\\
-\email{\{abc,lncs\}@uni-heidelberg.de}}
+\institute{KTH Royal Institute of Technology, 100 44 Stockholm, Sweden
+\email{\{vipa,eliasca,dbro,phaller\}@kth.se}%\and
+%% Springer Heidelberg, Tiergartenstr. 17, 69121 Heidelberg, Germany
+%% \email{lncs@springer.com}\\
+%% \url{http://www.springer.com/gp/computer-science/lncs} \and
+%% ABC Institute, Rupert-Karls-University Heidelberg, Heidelberg, Germany\\
+%% \email{\{abc,lncs\}@uni-heidelberg.de}
+}
 %
 \maketitle              % typeset the header of the contribution
 %
@@ -141,7 +144,7 @@ restricted class of languages.
 The approach is evaluated through two separate case studies,
 covering both a large existing programming language, and the
 composability of domain-specific languages.
-\keywords{First keyword  \and Second keyword \and Another keyword.}
+\keywords{Syntax \and Ambiguity \and Grammars \and Parsing \and Domain-specific languages}
 \end{abstract}
 %
 %
@@ -355,9 +358,9 @@ The OCaml compiler makes an arbitrary choice to remove the ambiguity, which may 
 \subsection{Language Composition}
 
 % TODO: more language composition references
-The possibility of composing different languages at will is a prevalent idea in research \cite{vanwykSilverExtensibleAttribute2010,lorenzenSoundTypedependentSyntactic2016,danielssonParsingMixfixOperators2011}. Particularly relevant to this paper is the behavior of composed \emph{syntax}; composing unambiguous syntaxes does not necessarily produce an unambiguous composed syntax. Pre-existing systems commonly solve this either by strict requirements on the individual languages \cite{vanwykSilverExtensibleAttribute2010} or by largely ignoring the problem and merely presenting the multiple syntax trees in case of an ambiguity \cite{lorenzenSoundTypedependentSyntactic2016,danielssonParsingMixfixOperators2011}. The former case gives good guarantees for the end-user experience (no ambiguities) while the latter gives more freedom to the language designer. Resolvable ambiguity, as presented in this paper, provides a middle ground with more language designer freedom than the former and a better user experience than the latter.
+The possibility of composing different languages is a prevalent idea in research \cite{vanwykSilverExtensibleAttribute2010,lorenzenSoundTypedependentSyntactic2016,danielssonParsingMixfixOperators2011}. Particularly relevant to this paper is the behavior of composed \emph{syntax}; composing unambiguous syntaxes does not necessarily produce an unambiguous composed syntax. Pre-existing systems commonly solve this either by strict requirements on the individual languages \cite{vanwykSilverExtensibleAttribute2010} or by largely ignoring the problem and merely presenting the multiple syntax trees in case of an ambiguity \cite{lorenzenSoundTypedependentSyntactic2016,danielssonParsingMixfixOperators2011}. The former case gives good guarantees for the end-user experience (no ambiguities) while the latter gives more freedom to the language designer. Resolvable ambiguity, as presented in this paper, provides a middle ground with more language designer freedom than the former and a different guarantee for the end-user: no \emph{unresolvable} ambiguities.
 
-Language composition has limited prevalence outside of research, but it does exist in a simplified form: custom operators in libraries. For example, Haskell allows a programmer to define new operators, with new syntax and custom precedence level and associativity. A user can then import these operators from any number of libraries and use them together in one program. Precedence in Haskell is defined as a number between 0 and 9, meaning that operators from different libraries have a defined relative precedence. If the libraries are designed by different authors this precedence is essentially by accident and it may or may not be sensible. Leaving the relative precedence undefined would not affect expressivity, every possible combination of operators can be written by simply adding parentheses, and would avoid surprising interpretations. This does in fact happen in some cases in Haskell, namely when two operators have the same precedence but incompatible associativity. Both \haskell{>>=} and \haskell{=<<} have precedence 1, but the former is left-associative while the latter is right-associative. \haskell{a >>= b =<< c} then produces the following error:
+Language composition has limited prevalence outside of research, but it does exist in a simplified form: custom operators in libraries. For example, Haskell allows a programmer to define new operators, with new syntax and custom precedence level and associativity. A user can then import these operators from any number of libraries and use them together in one program. Precedence in Haskell is defined as a number between 0 and 9, meaning that operators from different libraries have a defined relative precedence. If the libraries are designed by different authors then this precedence is unlikely to have been considered and may or may not be sensible. Leaving the relative precedence undefined would not affect expressivity, every possible combination of operators can be written by simply adding parentheses, and would avoid surprising interpretations. This does in fact happen in some cases in Haskell, namely when two operators have the same precedence but incompatible associativity. Both \haskell{>>=} and \haskell{=<<} have precedence 1, but the former is left-associative while the latter is right-associative. \haskell{a >>= b =<< c} then produces the following error:
 
 \begin{lstlisting}
 Precedence parsing error
@@ -406,14 +409,12 @@ ordered successors, instead of just zero or one. In this paper, we
 are only concerned with \emph{unranked} trees, where the arity of
 a terminal is not fixed.
 %
-Each terminal with a non-zero rank has a label, allowing a
-\emph{horizontal}
-representation~\cite{comonTreeAutomataTechniques2007}. For
+The allowed sequence of ordered successors is described by a regular language~\cite{comonTreeAutomataTechniques2007}. For
 example, $a(n(\verb|'1'|) \;\verb|'+'|\; n(\verb|'2'|))$ represents
 the parse tree of the string ``$1+2$''.
 %
 Finally, $yield : L(T) -> \T^{*}$ is the sequence of terminals
-obtained by a left-to-right traversal of a tree. Informally, it is
+obtained by a left-to-right traversal of the leaves of a tree. Informally, it is
 the flattening of a tree after all internal nodes have been
 removed.
 
@@ -510,25 +511,28 @@ classical definition of a (formal) language as follows:
 \item If we select a $\parse$ function that relates words to their leftmost derivations in a given context-free grammar, then our definition of ambiguity corresponds exactly to the classical definition of ambiguity.
 \end{itemize}
 
-\noindent A \emph{resolvably ambiguous} word is a word where all its parse trees can be written in an unambiguous way, formally:
+\noindent For \emph{resolvable ambiguity} the definition instead centers around parse trees:
+
+\begin{definition}\label{def:resolvable-tree}
+  Given an abstract parser $P = (\T, T, \parse)$, a tree $t \in T$ is \emph{resolvably ambiguous}, written $\rho_P(t)$, iff
+
+  $\exists w \in \T^{*}.\ \parse(w') = \{t\}$.
+\end{definition}
+
+\noindent A word is then resolvably ambiguous if all its parse trees are resolvably ambiguous:
 
 \begin{definition}\label{def:resolvable-word}
   Given an abstract parser $P = (\T, T, \parse)$, a word $w \in L(P)$ is \emph{resolvably ambiguous}, written $\rho_P(w)$, iff
 
-  $\forall t \in \parse(w).\ \exists w' \in \T^{*}.\ \parse(w') = \{t\}$.
+  $\forall t \in \parse(w).\ \rho_P(t)$.
 \end{definition}
 
-The words $w$ and $w'$ will typically be related, e.g., $w'$ has a few added pairs of parentheses but is otherwise identical.
-The example $1 + 2 \cdot 3$
-%in Fig.~\ref{fig:arith-example}
-is not resolvably ambiguous, since neither of the two resulting trees can be written in any other way. However, if we add grouping parentheses to the language, we find that $1 + (2 \cdot 3)$ and $(1 + 2) \cdot 3$ are unambiguously parsed as the first and second tree, respectively.
-
-Additionally, we define an \emph{abstract parser} to be resolvably ambiguous if all words in its corresponding parse language $L(P)$ are resolvably ambiguous, formally:
+\noindent Additionally, we define an \emph{abstract parser} to be resolvably ambiguous if all its parse trees are resolvably ambiguous, formally:
 
 \begin{definition}\label{def:resolvable-language}
   An abstract parser $P$ is resolvably ambiguous, written $\rho(P)$, iff
 
-  $\forall w \in L(P).\ \rho_P(w)$.
+  $\forall t \in T.\ \rho_P(t)$.
 \end{definition}
 
 \noindent We can now make the following observations:
@@ -593,9 +597,9 @@ that $g(\parse, w) \implies \lnot \rho_P(w) \text{ for all } w \in
 
 This section describes our chosen language definition formalism, and motivates its design.
 
-The primary purpose of this formalism is, as described in the previous section, to produce a $\parse$ function, i.e., to describe a word language and assign one or more parse trees to each word. Parse trees are unranked trees; Section~\ref{sec:resolvable-definition} suggests that $\parse$ discards some information, to enable the resolution of some ambiguities; here, we choose to discard grouping parentheses.
+The primary purpose of this formalism is, as described in the previous section, to produce a $\parse$ function, i.e., to describe a word language and assign one or more parse trees to each word. Furthermore, Section~\ref{sec:resolvable-definition} suggests that disambiguation is made possible by letting $\parse$ discard information. We use unranked trees as parse trees and have $\parse$ discard grouping parentheses.
 
-With that in mind, we define a language definition $D$ as a set of labelled productions, as described in Fig.~\ref{fig:input-language-definition}. Note that we require the labels to uniquely identify the production, i.e., there can be no two distinct productions in $D$ that share the same label. Also note that the right-hand side of a production is a regular expression, rather than the theoretically simpler sequence used in a context-free grammar. For proof-technical reasons (see Section~\ref{sec:lattice-vpl}) we require each regular expression to be unambiguous, in the classical sense, when marks are removed. This can be checked using, e.g., the approach described by Brabrand and Thomsen~\cite{brabrandTypedUnambiguousPattern2010}. In practice, this is likely desirable regardless, since a user is likely to attach different semantic meanings to each occurrence of a non-terminal.
+With that in mind, we define a language definition $D$ as a set of labelled productions, as described in Fig.~\ref{fig:input-language-definition}. Note that we require the labels to uniquely identify the production, i.e., there can be no two distinct productions in $D$ that share the same label. Also note that the right-hand side of a production is a regular expression, rather than the theoretically simpler sequence used in a context-free grammar.
 
 Each non-terminal appearing in the regular expression of a production carries a \emph{mark} $m$ which is a set of labels whose productions may \emph{not} replace that non-terminal. To lessen clutter, we write $E_\emptyset$ as $E$. Consider the language definition shown in Fig.~\ref{fig:running-example-definition} which we use as a running example. In the production describing multiplication ($m$) both non-terminals are marked with $\{a\}$, which thus forbids addition from being a direct child of a multiplication. By ``direct child'' we mean ``without an intermediate node'', most commonly grouping parentheses; thus, this enforces conventional precedence.
 
@@ -624,9 +628,9 @@ Each non-terminal appearing in the regular expression of a production carries a 
     $E$ & $l$ & \verb|'['| ($E$ (\verb|';'| $E$)$^{*}$ $+$ $\epsilon$) \verb|']'| \\
     $E$ & $a$ & $E$ \verb|'+'| $E$ \\
     $E$ & $m$ & $E_{\{a\}}$ \verb|'*'| $E_{\{a\}}$ \\
-    $E$ & $n$ & $N$ \\
+    $E$ & $n$ & $I$ \\
   \end{tabular}
-  \captionof{figure}{The input language definition used as a running example, an expression language with lists, addition, and multiplication, with precedence defined, but not associativity. Assumes that $N$ matches a numeric terminal.}
+  \captionof{figure}{The input language definition used as a running example, an expression language with lists, addition, and multiplication, with precedence defined, but not associativity. Assumes that $I$ matches a numeric terminal.}
   \label{fig:running-example-definition}
 \end{minipage}
 \end{figure}
@@ -651,7 +655,7 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
       $E$ & $l$ & \texttt{'['} $(\epsilon + E($\texttt{';'} $E)^{*})$ \texttt{']'} $)$ \\
       $E$ & $a$ & $E$ \texttt{'+'} $E$ $)$ \\
       $E$ & $m$ & $E$ \texttt{'*'} $E$ $)$ \\
-      $E$ & $n$ & $N$ $)$ \\
+      $E$ & $n$ & $I$ $)$ \\
       \bottomrule
     \end{tabular}
     \end{minipage}
@@ -664,12 +668,12 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
       $E$ & $l$ & \texttt{'['} $(\epsilon + E($\texttt{';'} $E)^{*})$ \texttt{']'} $)$ \\
       $E$ & $a$ & $E$ \texttt{'+'} $E$ $)$ \\
       $E$ & $m$ & $E_{\{a\}}$ \texttt{'*'} $E_{\{a\}}$ $)$ \\
-      $E$ & $n$ & $N$ $)$ \\
+      $E$ & $n$ & $I$ $)$ \\
       $E$ & $g$ & \texttt{'('} $E$ \texttt{')'} $)$ \\
       \midrule
       $E_{\{a\}}$ & $l$ & \texttt{'['} $(\epsilon + E($\texttt{';'} $E)^{*})$ \texttt{']'} $)$ \\
       $E_{\{a\}}$ & $m$ & $E_{\{a\}}$ \texttt{'*'} $E_{\{a\}}$ $)$ \\
-      $E_{\{a\}}$ & $n$ & $N$ $)$ \\
+      $E_{\{a\}}$ & $n$ & $I$ $)$ \\
       $E_{\{a\}}$ & $g$ & \texttt{'('} $E$ \texttt{')'} $)$ \\
       \bottomrule
     \end{tabular}
@@ -684,7 +688,7 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
       $E$ & \texttt{'['} $E_{l1}$ \texttt{']'} \\
       $E$ & $E$ \texttt{'+'} $E$ \\
       $E$ & $E$ \texttt{'*'} $E$ \\
-      $E$ & $N$ \\
+      $E$ & $I$ \\
       \midrule
       $E_{l1}$ & $\epsilon$ \\
       $E_{l1}$ & $E$ $E_{l2}$ \\
@@ -703,12 +707,12 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
       $E$ & \texttt{'['} $E_{l1}$ \texttt{']'} \\
       $E$ & $E$ \texttt{'+'} $E$ \\
       $E$ & $E_{\{a\}}$ \texttt{'*'} $E_{\{a\}}$ \\
-      $E$ & $N$ \\
+      $E$ & $I$ \\
       $E$ & \texttt{'('} $E$ \texttt{')'} \\
       \midrule
       $E_{\{a\}}$ & \texttt{'['} $E_{l1}$ \texttt{']'} \\
       $E_{\{a\}}$ & $E_{\{a\}}$ \texttt{'*'} $E_{\{a\}}$ \\
-      $E_{\{a\}}$ & $N$ \\
+      $E_{\{a\}}$ & $I$ \\
       $E_{\{a\}}$ & \texttt{'('} $E$ \texttt{')'} \\
       \midrule
       $E_{l1}$ & $\epsilon$ \\
@@ -822,13 +826,13 @@ $$
 
 \noindent In this case, $t_4$ has an unambigous word (namely \verb|'[(1 ; 2)]'|), but $t_3$ does not. The solution is to forbid list elements from being sequences by modifying the language definition in Fig.~\ref{fig:running-example-definition} so that both non-terminals in the production $l$ are marked with $s$ (i.e., they look like $E_{\{s\}}$), at which point $\parse($\verb|'[1 ; 2]'|$) = \{t_3\}$.
 
-We are now ready to construct decision procedures for the static and dynamic resolvability problems, as given in Definitions~\ref{def:static-procedure-sound}, \ref{def:static-procedure-complete}, \ref{def:dynamic-procedure-sound}, and \ref{def:dynamic-procedure-complete}. Section~\ref{sec:static} gives a partial solution to the static problem, while Section~\ref{sec:dynamic} fully solves the dynamic problem, with one caveat: we only consider languages with balanced parentheses.
-
-\section{The Word Language of a Parse Tree} \label{sec:linear-encoding}
+\subsection{The Word Language of a Parse Tree} \label{sec:linear-encoding}
 
 Central to our approach is the shape of $\words(t)$. Consider the tree corresponding to \verb|'(1 + 2) * 3'| (visualized in Figure~\ref{fig:sum-add-tree}). Each node in the tree may be surrounded by zero or more parentheses, except \verb|'1 + 2'|, which requires at least one pair. Its language is thus represented by $\{(^{n_1}(^{n_2}(^{n_3}1)^{n_3} + (^{n_4}2)^{n_4})^{n_2} * (^{n_5}2)^{n_5})^{n_1} \mid n_i \in \{0, 1, \ldots\}, n_2 \geq 1\}$. To have something more manageable we introduce an alternative representation: a linear encoding as a word. This representation is convenient for Section~\ref{sec:dynamic} and essential for Section~\ref{sec:static}.
 
 Continuing with the example above, we can encode this language as a word, if we take ``$\reqp{}$'' to mean ``exactly one pair of parentheses'' and ``$\posp{}$'' to mean ``zero or more pairs of parentheses'': ``$\posp{\posp{\reqp{\posp{1} + \posp{2}}} * \posp{3}}$''. This encoding lets us reduce comparisons between languages to comparisons between words, with one caveat: the encoding is not unique. For example, ``$\reqp{\posp{}}$'' encodes the same language as ``$\posp{\reqp{}}$'', and ``$\posp{\posp{}}$'' encodes the same language as ``$\posp{}$''. We rectify this by repeatedly swapping ``$\reqp{\posp{\ldots}}$'' with ``$\posp{\reqp{\ldots}}$'' and ``$\posp{\posp{\ldots}}$'' with ``$\posp{\ldots}$'' until we reach a fixpoint. We call the result the \emph{canonical linear encoding} of the (word) language of a tree in $L(T_D)$, which \emph{is} unique.
+
+We are now ready to construct decision procedures for the static and dynamic resolvability problems, as given in Definitions~\ref{def:static-procedure-sound}, \ref{def:static-procedure-complete}, \ref{def:dynamic-procedure-sound}, and \ref{def:dynamic-procedure-complete}. Section~\ref{sec:static} solves the static problem for a language subclass, while Section~\ref{sec:dynamic} fully solves the dynamic problem.
 
 \section{Dynamic Resolvability Analysis} \label{sec:dynamic}
 
@@ -841,7 +845,7 @@ The dynamic resolvability problem is as follows: for a given $w' \in L(G'_D)$ de
 
 \noindent Both of these restrictions can be checked statically. Additionally, if we already know statically that $D$ is resolvably ambiguous\footnote{While the \emph{decision} part of this procedure is uninteresting in this case (it will always answer ``resolvable''), the minimal witness \emph{is} interesting: it shows the user how to resolve the ambiguity.} we can drop the second requirement.
 
-Our approach centers around the construction of a visibly pushdown automaton recognizing $\words(t)$ for any particular $t \in L(T_D)$. We can easily construct this automaton via the canonical linear encoding: let every pair ``$\reqp{}$'' push and pop the same stack symbol (call it $\gamma$) and let every ``$\posp{}$'' push and pop a unique stack symbol. For example, ``$\posp{\reqp{a}\posp{b}}$'' produces the following automaton:
+Our approach centers around the construction of a VPDA recognizing $\words(t)$ for any particular $t \in L(T_D)$. We can easily construct this automaton via the canonical linear encoding: let every pair ``$\reqp{}$'' push and pop the same stack symbol (call it $\gamma$) and let every ``$\posp{}$'' push and pop a unique stack symbol. For example, ``$\posp{\reqp{a}\posp{b}}$'' produces the following automaton:
 
 \begin{center}
 \begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
@@ -863,7 +867,7 @@ Our approach centers around the construction of a visibly pushdown automaton rec
 \end{tikzpicture}
 \end{center}
 
-\noindent This is useful to us since visibly pushdown automata are closed under difference. Given a pair of trees $t_1$ and $t_2$ we can thus produce a pair of automata recognizing $\words(t_1)$ and $\words(t_2)$ respectively, then construct a pair of automata recognizing $\words(t_1) \setminus \words(t_2)$ and $\words(t_2) \setminus \words(t_1)$, respectively. These new automata recognize the words that are not ambiguous between these two particular trees. Our algorithm can thus be seen as Algorithm~\ref{alg:dynamic}.
+\noindent This is useful to us since VPDAs are closed under difference. Given a pair of trees $t_1$ and $t_2$ we can thus produce a pair of automata recognizing $\words(t_1)$ and $\words(t_2)$ respectively, then construct a pair of automata recognizing $\words(t_1) \setminus \words(t_2)$ and $\words(t_2) \setminus \words(t_1)$, respectively. These new automata recognize the words that are not ambiguous between these two particular trees. Our algorithm can thus be seen as Algorithm~\ref{alg:dynamic}.
 
 \begin{algorithm}
 \caption{The Dynamic Algorithm}
@@ -874,7 +878,7 @@ Our approach centers around the construction of a visibly pushdown automaton rec
   \State $U <- \emptyset$
   \ForAll{$t \in T$}
     \State $T' <- T \setminus \{t\}$
-    \State $A <- \words(t)$ \Comment{$A$ is a visibly pushdown automaton.}
+    \State $A <- \words(t)$ \Comment{$A$ is a VPDA.}
     \Loop
       \State $A <- A \setminus \bigcup_{t' \in T'} \words(t')$ \Comment{VPDAs closed under difference and union.}
       \If{$L(A) = \emptyset$}
@@ -892,6 +896,10 @@ Our approach centers around the construction of a visibly pushdown automaton rec
 \EndProcedure
 \end{algorithmic}
 \end{algorithm}
+
+Note that the shortest word we produce might not be unique, in the general case there may be more than one shortest word that disambiguates a tree.
+
+We require two things to ensure termination: that $T'$ is finite, and that the inner loop terminates. $T'$ is finite if no words are infinitely ambiguous, which is ensured by requirement 2. It is also ensured if $D$ is resolvably ambiguous, since an infinite ambiguity requires that $G_D$ contains a cycle $N =>^{+} N$, which would imply that any parse tree containing a production from $N$ only has (infinitely) ambiguous words, i.e., contradiction. Requirement 2 also ensures that the number of trees that share an ambiguous word with $t$ is finite (since each tree corresponds to a left-most derivation in $G_D$ and must share exactly the same non-parenthesis terminals).
 
 \section{Static Resolvability Analysis} \label{sec:static}
 
@@ -952,15 +960,15 @@ Adding marks to such a language preserves resolvability, since:
 
 \subsection{The Algorithm} \label{sec:lattice-vpl}
 
-This section describes the construction of a visibly pushdown automaton that we examine to determine if a language has a pair of trees where the language of one entirely contains the other. We begin by outlining the approach and then describe it in more detail.
+This section describes the construction of a VPDA that we examine to determine if a language has a pair of trees where the language of one entirely contains the other. We begin by outlining the approach and then describe it in more detail.
 
-The automaton we examine recognizes canonical linear encodings and has a one-to-one correspondence between runs and trees. Two distinct runs that recognize the same word thus corresponds to two distinct trees that have the \emph{same} word language. This is essentially the question of whether a visibly pushdown automaton is ambiguous, which we can detect by constructing a product automaton and trimming it.
+The automaton we examine recognizes canonical linear encodings and has a one-to-one correspondence between runs and trees. Two distinct runs that recognize the same word thus corresponds to two distinct trees that have the \emph{same} word language. This is essentially the question of whether a VPDA is ambiguous, which we can detect by constructing a product automaton and trimming it.
 
 To detect subsumption we make the following observation: given two trees $t_1$ and $t_2$ with canonical encodings $c_1$ and $c_2$, respectively, we have $\words(t_1) \subset \words(t_2)$ iff we can add arbitrary well-nested ``$\posp{}$'' pairs to $c_1$, producing a $c_1'$ such that $c_1' = c_2$ (Note that we do not need to consider ``$\reqp{}$'' since no such pairs appear in this language class). We thus make a product automaton of two slightly different automata, where the second may add arbitrary ``$\posp{}$'', but is otherwise identical.
 
 \subsubsection{Illustration by Example}
 
-We begin by constructing a visibly pushdown automaton that recognizes \emph{a} linear encoding for each tree, then modify it to only recognize the \emph{canonical} linear encoding. To illustrate the approach we consider the following language:
+We begin by constructing a VPDA that recognizes \emph{a} linear encoding for each tree, then modify it to only recognize the \emph{canonical} linear encoding. To illustrate the approach we consider the following language:
 
 \begin{center}
   \begin{tabular}{@{}r@{$\;->\;$}c@{\,:\;}l}
@@ -998,7 +1006,7 @@ We begin by constructing a visibly pushdown automaton that recognizes \emph{a} l
 \end{tikzpicture}
 \end{center}
 
-\noindent We then combine these separate DFAs to produce a single visibly pushdown automaton in three steps:
+\noindent We then combine these separate DFAs to produce a single VPDA in three steps:
 
 \begin{enumerate}
 \item Introduce two new distinct states (call them $s$ and $f$) and a transition $s \xrightarrow{S} f$, where $S$ is the starting symbol of the language being examined.
@@ -1010,7 +1018,7 @@ We begin by constructing a visibly pushdown automaton that recognizes \emph{a} l
 \item Make $s$ the only initial state, and $f$ the only accepting state.
 \end{enumerate}
 
-\noindent To make the figure less cluttered we omit $'\pospl'$ and $'\pospr'$, i.e., we abbreviate $p \xrightarrow{'\pospl', +(p',q')} q$ as $p \xrightarrow{+(p', q')} q$ and $p \xrightarrow{'\pospr', -(p',q')} q$ as $p \xrightarrow{-(p', q')} q$.
+\noindent To reduce clutter we omit $'\pospl'$ and $'\pospr'$, i.e., we abbreviate $p \xrightarrow{'\pospl', +(p',q')} q$ as $p \xrightarrow{+(p', q')} q$ and $p \xrightarrow{'\pospr', -(p',q')} q$ as $p \xrightarrow{-(p', q')} q$.
 
 \begin{center}
 \begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
@@ -1136,7 +1144,7 @@ Given a language definition $D$, with terminals $\T$, non-terminals $\NT$, label
 \end{itemize}
 
 % TODO: footnote should probably be removed
-\noindent $T$ is finite if $D$ has no cycles $N =>^{+} N$\footnote{This is notation from CFGs, which is semi-obvious what it means, but technically not defined here.}. Such a cycle is easy to detect (depth-first search), and means that any tree that contains a production from the non-terminal $N$ only ever produces (infinitely) ambiguous words, i.e., all words for such a tree are unresolvably ambiguous.
+\noindent $T$ is finite if $D$ has no cycles $N =>^{+} N$. Such a cycle is easy to detect (depth-first search), and means that any tree that contains a production from the non-terminal $N$ only ever produces (infinitely) ambiguous words, i.e., all words for such a tree are unresolvably ambiguous.
 
 We define the translation from production to DFA through a function $\dfa$ from a label to a DFA with the alphabet $\T \cup \Labels$:
 
@@ -1144,7 +1152,7 @@ We define the translation from production to DFA through a function $\dfa$ from 
 \item[$\dfa(l)$:] Compute the regular language $L' := L(\labelregex(l)) \setminus \NT$, then construct a DFA for this language.
 \end{description}
 
-\noindent We now define the visibly pushdown automaton $A_{\posp{}}$. Given $\dfa(l) = (Q_l, \T \cup \NT, \delta_l, s_l, F_l)$ for all $l \in Labels$, $A_{\posp{}} = (Q, \T', \Gamma, \delta, s, \{f\})$ where:
+\noindent We now define the VPDA $A_{\posp{}}$. Given $\dfa(l) = (Q_l, \T \cup \NT, \delta_l, s_l, F_l)$ for all $l \in Labels$, $A_{\posp{}} = (Q, \T', \Gamma, \delta, s, \{f\})$ where:
 
 \begin{itemize}
 \item $s$ and $f$ are two new distinct states.
@@ -1772,13 +1780,12 @@ This partitioning gives us the following particularly relevant properties:
   $(Q_2, \T, \delta_2, q'_0, F_2)$ their product automaton has the
   form $(Q_1 \times Q_2, \T, \delta', (q_0, q'_0),$
   $ F_1 \times F_2)$ where, when $c \in \T_c$, $i \in \T_i$ and
-  $r \in \T_r$: \RED{TODO: Is this definition correct? $g_1$ and
-    $g_2$ are not used in the third case}
+  $r \in \T_r$:
   \[
   \begin{array}{l}
     \delta'((p_1, p_2), c, \lambda) =\\ \qquad\{((q_1, q_2), (g_1, g_2)) \mid (q_1, g_1) \in \delta_1(p_1, c, \lambda), (q_2, g_2) \in \delta_2(p_2, c, \lambda) \}\\
     \delta'((p_1, p_2), i, \lambda) =\\ \qquad \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, i, \lambda), (q_2, \lambda) \in \delta_2(p_2, i, \lambda) \}\\
-    \delta'((p_1, p_2), r, (g_1, g_2)) =\\ \qquad \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, r, \lambda), (q_2, \lambda) \in \delta_2(p_2, r, \lambda) \}\\
+    \delta'((p_1, p_2), r, (g_1, g_2)) =\\ \qquad \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, r, g_1), (q_2, \lambda) \in \delta_2(p_2, r, g_2) \}\\
   \end{array}
   \]
 
