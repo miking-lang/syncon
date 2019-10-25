@@ -1107,4 +1107,36 @@ After introducing CAGs by way of an example, we provide a formal definition of C
   pages = {111--122}
 }
 
+@inproceedings{parrAdaptiveLLParsing2014,
+  address = {{New York, NY, USA}},
+  series = {{{OOPSLA}} '14},
+  title = {Adaptive {{LL}}(*) {{Parsing}}: {{The Power}} of {{Dynamic Analysis}}},
+  isbn = {978-1-4503-2585-1},
+  shorttitle = {Adaptive {{LL}}(*) {{Parsing}}},
+  abstract = {Despite the advances made by modern parsing strategies such as PEG, LL(*), GLR, and GLL, parsing is not a solved problem. Existing approaches suffer from a number of weaknesses, including difficulties supporting side-effecting embedded actions, slow and/or unpredictable performance, and counter-intuitive matching strategies. This paper introduces the ALL(*) parsing strategy that combines the simplicity, efficiency, and predictability of conventional top-down LL(k) parsers with the power of a GLR-like mechanism to make parsing decisions. The critical innovation is to move grammar analysis to parse-time, which lets ALL(*) handle any non-left-recursive context-free grammar. ALL(*) is O(n4) in theory but consistently performs linearly on grammars used in practice, outperforming general strategies such as GLL and GLR by orders of magnitude. ANTLR 4 generates ALL(*) parsers and supports direct left-recursion through grammar rewriting. Widespread ANTLR 4 use (5000 downloads/month in 2013) provides evidence that ALL(*) is effective for a wide variety of applications.},
+  booktitle = {Proceedings of the 2014 {{ACM International Conference}} on {{Object Oriented Programming Systems Languages}} \& {{Applications}}},
+  publisher = {{ACM}},
+  doi = {10.1145/2660193.2660202},
+  author = {Parr, Terence and Harwell, Sam and Fisher, Kathleen},
+  year = {2014},
+  keywords = {all(*),augmented transition networks,dfa,gll,glr,grammar,ll(*),nondeterministic parsing,peg},
+  pages = {579--598}
+}
+
+@inproceedings{langDeterministicTechniquesEfficient1974a,
+  address = {{Berlin, Heidelberg}},
+  series = {Lecture {{Notes}} in {{Computer Science}}},
+  title = {Deterministic {{Techniques}} for {{Efficient Non}}-{{Deterministic Parsers}}},
+  isbn = {978-3-662-21545-6},
+  abstract = {A general study of parallel non-deterministic parsing and translation {\`a} la Earley is developped formally, based on non-deterministic pushdown acceptor-transducers. Several results (camplexity and efficiency) are established, same new and other previously proved only in special cases. As an application, we show that for every family of deterministic context-free pushdown parsers (e.g. precedence, LR(k), LL(k), ...) there is a family of general context-free parallel parsers that have the same efficiency in most practical cases (e.g. analysis of programming languages).},
+  language = {en},
+  booktitle = {Automata, {{Languages}} and {{Programming}}},
+  publisher = {{Springer}},
+  doi = {10.1007/978-3-662-21545-6_18},
+  author = {Lang, Bernard},
+  editor = {Loeckx, Jacques},
+  year = {1974},
+  pages = {255-269}
+}
+
 

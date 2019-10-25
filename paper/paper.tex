@@ -98,16 +98,20 @@
 \begin{document}
 % Submission may be up to 25 pages, excluding references
 
-\title{Resolvable Ambiguity\thanks{Supported by organization x.}}
+\title{Resolvable Ambiguity\thanks{This project is financially supported by the Swedish Foundation for Strategic Research (FFL15-0032)}}
 %
 %\titlerunning{Abbreviated paper title}
 % If the paper title is too long for the running head, you can set
 % an abbreviated paper title here
 %
-\author{Viktor Palmkvist\inst{1}\orcidID{0000-0003-0669-4085} \and
-Elias Castegren\inst{1}\orcidID{0000-0003-4918-6582} \and
-Philipp Haller\inst{1}\orcidID{0000-0002-2659-5271} \and
-David Broman\inst{1}\orcidID{0000-0001-8457-4105}}
+\author{Viktor Palmkvist\inst{1} \and
+Elias Castegren\inst{1} \and
+Philipp Haller\inst{1} \and
+David Broman\inst{1}}
+%% \author{Viktor Palmkvist\inst{1}\orcidID{0000-0003-0669-4085} \and
+%% Elias Castegren\inst{1}\orcidID{0000-0003-4918-6582} \and
+%% Philipp Haller\inst{1}\orcidID{0000-0002-2659-5271} \and
+%% David Broman\inst{1}\orcidID{0000-0001-8457-4105}}
 %
 \authorrunning{V. Palmkvist et al.}
 % First names are abbreviated in the running head.
@@ -815,7 +819,7 @@ $$
   \end{tabular}
 \end{center}
 
-\noindent This is a resolvable ambiguity, since $\parse($\verb|'1 + (2 + 3)'|$) = \{t_1\}$ and \\$\parse($\verb|'(1 + 2) + 3'|$) = \{t_2\}$. To demonstrate the unresolvable case, we add the production $E -> s: E$ \verb|';'| $E$, at which point we find that the word \verb|'[1 ; 2]'| is unresolvably ambiguous; $\parse($\verb|'[1 ; 2]'|$) = \{t_3, t_4\}$ where:
+\noindent This is a resolvable ambiguity, since $\parse($\verb|'1 + (2 + 3)'|$) = \{t_1\}$ and \\$\parse($\verb|'(1 + 2) + 3'|$) = \{t_2\}$. To demonstrate an unresolvable case, we add the production $E -> s: E$ \verb|';'| $E$ (common syntax for sequential composition), at which point we find that the word \verb|'[1 ; 2]'| is unresolvably ambiguous; $\parse($\verb|'[1 ; 2]'|$) = \{t_3, t_4\}$ where:
 
 \begin{center}
   \begin{tabular}{l}
@@ -828,7 +832,7 @@ $$
 
 \subsection{The Word Language of a Parse Tree} \label{sec:linear-encoding}
 
-Central to our approach is the shape of $\words(t)$. Consider the tree corresponding to \verb|'(1 + 2) * 3'| (visualized in Figure~\ref{fig:sum-add-tree}). Each node in the tree may be surrounded by zero or more parentheses, except \verb|'1 + 2'|, which requires at least one pair. Its language is thus represented by $\{(^{n_1}(^{n_2}(^{n_3}1)^{n_3} + (^{n_4}2)^{n_4})^{n_2} * (^{n_5}2)^{n_5})^{n_1} \mid n_i \in \{0, 1, \ldots\}, n_2 \geq 1\}$. To have something more manageable we introduce an alternative representation: a linear encoding as a word. This representation is convenient for Section~\ref{sec:dynamic} and essential for Section~\ref{sec:static}.
+Central to our approach is the shape of $\words(t)$. Consider the tree corresponding to \verb|'(1 + 2) * 3'|. Each node in the tree may be surrounded by zero or more parentheses, except \verb|'1 + 2'|, which requires at least one pair. Its language is thus represented by $\{(^{n_1}(^{n_2}(^{n_3}1)^{n_3} + (^{n_4}2)^{n_4})^{n_2} * (^{n_5}2)^{n_5})^{n_1} \mid n_i \in \{0, 1, \ldots\}, n_2 \geq 1\}$. To have something more manageable we introduce an alternative representation: a linear encoding as a word. This representation is convenient for Section~\ref{sec:dynamic} and essential for Section~\ref{sec:static}.
 
 Continuing with the example above, we can encode this language as a word, if we take ``$\reqp{}$'' to mean ``exactly one pair of parentheses'' and ``$\posp{}$'' to mean ``zero or more pairs of parentheses'': ``$\posp{\posp{\reqp{\posp{1} + \posp{2}}} * \posp{3}}$''. This encoding lets us reduce comparisons between languages to comparisons between words, with one caveat: the encoding is not unique. For example, ``$\reqp{\posp{}}$'' encodes the same language as ``$\posp{\reqp{}}$'', and ``$\posp{\posp{}}$'' encodes the same language as ``$\posp{}$''. We rectify this by repeatedly swapping ``$\reqp{\posp{\ldots}}$'' with ``$\posp{\reqp{\ldots}}$'' and ``$\posp{\posp{\ldots}}$'' with ``$\posp{\ldots}$'' until we reach a fixpoint. We call the result the \emph{canonical linear encoding} of the (word) language of a tree in $L(T_D)$, which \emph{is} unique.
 
@@ -907,7 +911,7 @@ To determine if a given language definition $D$ is resolvably ambiguous we attem
 
 Our approach finds this counterexample by finding a pair of trees $t_1$ and $t_2$ such that $\words(t_1) \subseteq \words(t_2)$. Such a pair trivially implies that $t_1$ has no unambiguous words, since $\forall w.\ t_1 \in \parse(w) -> t_2 \in \parse(w)$, which thus implies that the examined language is unresolvably ambiguous. The converse is less obvious, in fact, the absence of such a pair does not guarantee a resolvably ambiguous language in general. We shall however show it to be sufficient for a limited class of languages.
 
-We now divide the possible languages along two axes: whether a language has (non-grouping) parentheses, and whether a language has marks. The parentheses present in the canonical encoding will have the following shapes:
+We now divide the possible languages along two axes: whether a language has (non-grouping) parentheses, and whether a language has marks. The parentheses present in the canonical encoding will have the following shapes ($\mathbb{N} = \{0,1,\ldots\}$):
 
 \begin{center}
 \begin{tabular}{r@{\quad}c@{\quad}c}
@@ -920,7 +924,7 @@ We now divide the possible languages along two axes: whether a language has (non
 
 \noindent The absence of both non-grouping parentheses and marks mean that every occurrence of a pair of parentheses must permit zero or more pairs. Adding marks adds required pairs for some trees, turning each occurrence to one of $k$ or more pairs, for some non-negative integer $k$ determined by the tree. The left column is more complicated since non-grouping parentheses can introduce occurrences that require an exact number of parentheses, as well as all the complications of marks.
 
-The remainder of this section will be devoted to first showing that $\neg \exists t_1, t_2 \in L(T_D).\ \words(t_1) \subseteq \words(t_2)$ implies that $D$ is resolvably ambiguous if $D$ is in the lower-right quadrant, i.e., if it has no marks and no non-grouping parentheses (in Section~\ref{sec:static-proofs}), and then describing the automaton that forms the basis for our algorithm (Section~\ref{sec:lattice-vpl}). Section~\ref{sec:static-proofs} additionally shows that adding marks to a resolvably ambiguous language in the lower-right quadrant preserves resolvability, which gives us a conservative approach for languages in the top-right quadrant. Intuitively, if a language has marks, but they are just conveniences, then we can still detect that the language is resolvable. For example, most expression languages fall in this category (we can write any expression unambiguously by adding parentheses everywhere, even without any precedence or associativity), while lists in OCaml do not (no amount of parentheses will make \verb|'[1;2]'| look like a list of two elements without a mark).
+The remainder of this section will be devoted to first showing that $\neg \exists t_1, t_2 \in L(T_D).\ \words(t_1) \subseteq \words(t_2)$ implies that $D$ is resolvably ambiguous if $D$ is in the lower-right quadrant, i.e., if it has no marks and no non-grouping parentheses (in Section~\ref{sec:static-proofs}), and then describing the automaton that forms the basis for our algorithm (Section~\ref{sec:lattice-vpl}). Section~\ref{sec:static-proofs} additionally shows that adding marks to a resolvably ambiguous language in the lower-right quadrant preserves resolvability, which gives us a conservative approach for languages in the top-right quadrant. Intuitively, if a language has marks, but they are not required for resolvability, then we can still detect that the language is resolvable. For example, most expression languages fall in this category (we can write any expression unambiguously by adding parentheses everywhere, even without any precedence or associativity), while lists in OCaml do not (no amount of parentheses will make \verb|'[1;2]'| look like a list of two elements without a mark).
 
 \subsection{The Road to Correctness} \label{sec:static-proofs} % TODO: probably want a better title here
 
@@ -1209,7 +1213,7 @@ Performing this procedure on a language definition $D$ without non-grouping pare
   There is a bijection between successful runs in $A_{\posp{}}$ and trees $t \in L(T_D)$.
 \end{lemma}
 
-\begin{proof}
+\begin{proof}[sketch]
   By defining two functions $\treetorun$ and $\runtotree$, the former from a tree to a run, the latter from run to tree, then showing these two functions to be inverses of each other.
 \end{proof}
 
@@ -1227,7 +1231,7 @@ We denote the word recognized by a run $R$ by $\runtoword(R)$.
   We can define a function $\runprimetorun$ from runs in $A'_{\posp{}}$ to runs in $A_{\posp{}}$ such that $\forall R.\ L(\runtoword(\runprimetorun(R))) \subseteq L(\runtoword(R))$.
 \end{lemma}
 
-\begin{proof}
+\begin{proof}[sketch]
   By removing every transition that pushes or pops $\gamma$.
 \end{proof}
 
@@ -1235,7 +1239,7 @@ We denote the word recognized by a run $R$ by $\runtoword(R)$.
   The existence of two distinct runs $R$ and $R'$ such that $R$ is a successful run in $A_{\posp{}}$ and $R'$ in $A'_{\posp{}}$, and $\runtoword(R) = \runtoword(R')$, implies the existence of two distinct trees such that the word language of one is entirely contained in the other.
 \end{theorem}
 
-\begin{proof}
+\begin{proof}[sketch]
   Assume $\runprimetorun(R') = R$. $\runprimetorun$ either leaves its argument unchanged, or changes the recognized word. If $R'$ and $R$ recognize the same word, and $\runprimetorun(R') = R$, then $R' = R$, but that is a contradiction.
 
   Since $\runprimetorun(R') \neq R$ we have two distinct trees $t_1 = \runtotree(\runprimetorun(R'))$ and $t_2 = \runtotree(R)$. Since $L(\runtoword(\runprimetorun(R'))) \subseteq L(\runtoword(R'))$ and $L(\runtoword(R')) = L(\runtoword(R))$ we have that $L(t_1) \subseteq L(t_2)$.
@@ -1334,9 +1338,7 @@ Broman~\cite{palmkvistCreatingDomainSpecificLanguages2019},
 wherein each production is defined separately from each other (one
 \syncon{syncon} each).
 %
-The tool is implemented in Haskell and uses an off-the-shelf
-implementation\footnote{\url{http://hackage.haskell.org/package/Earley}}
-of the Earley parsing algorithm
+The tool is implemented in Haskell and uses a custom implementation of the Earley parsing algorithm
 \cite{earleyEfficientContextfreeParsing1970}.
 
 The main difference between the DSL and the formalism in
@@ -1525,8 +1527,8 @@ Resolvable alternatives:
 \begin{lstlisting}[language={[objective]caml}]
 Unresolvable alternatives:
   seq
-   - int                  gt.orc:1:1-3
-   - call                 gt.orc:1:8-12
+   - int        gt.orc:1:1-3
+   - call       gt.orc:1:8-12
 \end{lstlisting}
 \end{minipage}
 }
@@ -1669,17 +1671,21 @@ individually correct with regards to precedence.
 
 \section{Related Work}\label{sec:related-work}
 
-Afroozeh et al.~\cite{afroozehSafeSpecificationOperator2013}'s operator ambiguity removal patterns bear a striking resemblance to the marks presented in this paper. However, in special-casing (what in this paper would be) marks on left and right-recursions in productions they correctly cover the edge case involving deep precedence discussed in Section~\ref{sec:evaluation-ocaml}. This approach thus suggests an interesting direction for future work: to integrate it into a system designed around resolvable ambiguity, and extending the algorithms presented in this paper to cover it.
+Our related work falls in three categories: syntax definition formalisms (including subclasses of CFGs), language frameworks, and other approaches to ambiguity.
 
-Danielsson and Norell~\cite{danielssonParsingMixfixOperators2011} give a method for specifying grammars for expressions containing mixfix operators. They allow non-transitive, non-total precedence, and ``feel that it is overly restrictive to require the grammar to be unambiguous.'' Similar to our approach, they do not reject ambiguous grammars, only ambiguous parses. They also introduce a concept of \emph{precedence correct} expressions; expressions where direct children must have higher precedence than parents. This is more restrictive than our approach, e.g., in a language where \verb|'+'| and \verb|'-'| have no defined relative precedence they reject \verb|'1 + 2 * 3'| as syntactically invalid, while we parse it as an ambiguous expression.
+Afroozeh et al.~\cite{afroozehSafeSpecificationOperator2013}'s operator ambiguity removal patterns bear a striking resemblance to the marks presented in this paper. However, in special-casing (what in this paper would be) marks on left and right-recursions in productions they correctly cover the edge case involving deep precedence discussed in Section~\ref{sec:evaluation-ocaml}. This approach thus suggests an interesting direction for future work: extend the algorithms presented in this paper to cover it.
 
-Silver \cite{vanwykSilverExtensibleAttribute2010}, a system for defining extensible languages using attribute grammars, and its associated parser Copper \cite{vanwykContextawareScanningParsing2007} have a ``Modular Well-Definedness Analysis'' \cite{kaminskiModularWellDefinednessAnalysis2013}, with which extension language developers can check that their extension will compose well with other extensions, without any knowledge of any particular other extension. For this paper, only the syntactic component \cite{schwerdfegerVerifiableCompositionDeterministic2009} of this analysis is relevant. This analysis guarantees that the composition of a base language and any number of extensions that have passed the analysis will compose to a grammar in LALR(1). This is a far more restricted class of languages than unambiguous languages, not to mention resolvably ambiguous languages, and thus places far more restrictions on language designers than our approach.
-
-The detection of classical ambiguity in context-free grammars is undecidable in general \cite{cantorAmbiguityProblemBackus1962}, yet numerous heuristic approaches exist. Examples include linguistic characterizations and regular language approximations \cite{brabrandAnalyzingAmbiguityContextFree2007}, using SAT-solvers \cite{axelssonAnalyzingContextFreeGrammars2008}, and other conservative approaches \cite{schmitzConservativeAmbiguityDetection2007}, For an overview, and additional approaches, see the PhD thesis of Basten~\cite{bastenAmbiguityDetectionProgramming2011}.
+Danielsson and Norell~\cite{danielssonParsingMixfixOperators2011} give a method for specifying grammars for expressions containing mixfix operators. They allow non-transitive, non-total precedence, and ``feel that it is overly restrictive to require the grammar to be unambiguous.'' Similar to our approach, they do not reject ambiguous grammars, only ambiguous parses. They also introduce a concept of \emph{precedence correct} expressions; expressions where direct children must have higher precedence than parents. This is more restrictive than our approach, e.g., in a language where \verb|'+'| and \verb|'*'| have no defined relative precedence they reject \verb|'1 + 2 * 3'| as syntactically invalid, while we parse it as an ambiguous expression.
 
 Parsing expression grammars \cite{fordParsingExpressionGrammars2004} sidestep the issue of ambiguity by not introducing it at all. However, this also loses the potential gains of leaving certain ambiguities. Additionally, since the ordering of productions matter, composition of languages must be ordered, and the interactions between composed languages becomes non-obvious, e.g., merely adding productions may remove previously recognized words from the language, depending on where they are added.
 
-Numerous language development frameworks and libraries support syntactic language composition \emph{without} any guarantees on the resulting language (e.g., \cite{heeringSyntaxDefinitionFormalism1989,lorenzenSoundTypedependentSyntactic2016}). These systems tend to have some form of general parser, so that they can handle arbitrary context-free grammars, but also assume that the composed language is unambiguous, which in practice precludes the composition of languages constructed independently of each other.
+Most commonly used parser generators are based on unambiguous CFG subclasses, e.g., LL(k), LR(k), or LR(*). Others do not fit neatly in the Chomsky hierarchy, but still produce a single parse tree per parse, e.g., LL(*) \cite{parrLLFoundationANTLR2011} and ALL(*) \cite{parrAdaptiveLLParsing2014}. Yet others produce multiple parse trees or other forms of parse forests, e.g., GLR \cite{langDeterministicTechniquesEfficient1974}, GLL \cite{scottGLLParsing2010}, and Earley \cite{earleyEfficientContextfreeParsing1970}.
+
+Silver \cite{vanwykSilverExtensibleAttribute2010}, a system for defining extensible languages using attribute grammars, and its associated parser Copper \cite{vanwykContextawareScanningParsing2007} have a ``Modular Well-Definedness Analysis'' \cite{kaminskiModularWellDefinednessAnalysis2013}, the syntactic component of which can be found in \cite{schwerdfegerVerifiableCompositionDeterministic2009}. This analysis guarantees that the composition of a base language and any number of extensions that have passed the analysis will compose to a grammar in LALR(1). This language class is more restrictive than both unambiguous and resolvably ambiguous languages, though somewhat comparable to the subclass our static analysis supports.
+
+The detection of classical ambiguity in context-free grammars is undecidable in general \cite{cantorAmbiguityProblemBackus1962}, yet numerous heuristic approaches exist. Examples include linguistic characterizations and regular language approximations \cite{brabrandAnalyzingAmbiguityContextFree2007}, using SAT-solvers \cite{axelssonAnalyzingContextFreeGrammars2008}, and other conservative approaches \cite{schmitzConservativeAmbiguityDetection2007}, For an overview, and additional approaches, see the PhD thesis of Basten~\cite{bastenAmbiguityDetectionProgramming2011}.
+
+Numerous language development frameworks and libraries support syntactic language composition \emph{without} any guarantees on the resulting language (e.g., \cite{heeringSyntaxDefinitionFormalism1989,lorenzenSoundTypedependentSyntactic2016,erdwegLayoutSensitiveGeneralizedParsing2013}). These systems tend to have some form of general parser, so that they can handle arbitrary context-free grammars, but also assume that the composed language is unambiguous, which in practice precludes the composition of languages constructed independently of each other.
 
 % UNFINISHED
 
