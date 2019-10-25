@@ -296,9 +296,9 @@ match 1 with
 \vrule
 \begin{minipage}{\textwidth}
 \begin{lstlisting}[basicstyle=\small\tt]
- File "./nestmatch.ml", line 4, characters 4-5:
- Error: This pattern matches values of type int
-        but a pattern was expected which
+ File "./nest.ml", line 4, characters 4-5:
+ Error: This pattern matches values of type
+        int but a pattern was expected which
         matches values of type string
 \end{lstlisting}
 \end{minipage}
@@ -397,7 +397,25 @@ states.
 A pushdown automata further adds a set of stack symbols $\Gamma$
 and equips the transition function $\delta$ with information on
 which symbols are pushed, popped or just read from the stack.
+%
+% TODO: Something on VPDAs?
 
+\paragraph{Unranked Regular Tree Grammars}
+Trees generalize words by allowing each terminal to have multiple
+ordered successors, instead of just zero or one. In this paper, we
+are only concerned with \emph{unranked} trees, where the arity of
+a terminal is not fixed.
+%
+Each terminal with a non-zero rank has a label, allowing a
+\emph{horizontal}
+representation~\cite{comonTreeAutomataTechniques2007}. For
+example, $a(n(\verb|'1'|) \;\verb|'+'|\; n(\verb|'2'|))$ represents
+the parse tree of the string ``$1+2$''.
+%
+Finally, $yield : L(T) -> \T^{*}$ is the sequence of terminals
+obtained by a left-to-right traversal of a tree. Informally, it is
+the flattening of a tree after all internal nodes have been
+removed.
 
 
 %Sections~\ref{sec:preliminaries-cfgs} and \ref{sec:preliminaries-automata} describe context-free grammars and various forms of automata, the latter with some non-standard notation to make later sections easier to read. Section~\ref{sec:preliminaries-vpls} then describes visibly pushdown languages, which enable the analyses described in Sections~\ref{sec:static} and \ref{sec:dynamic}. Finally, Sections~\ref{sec:preliminaries-trees} and \ref{sec:preliminaries-ambiguity} describe trees and ambiguity, the former with some non-standard notation and the latter with a slightly wider definition than normal.
@@ -706,7 +724,7 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
   \label{fig:running-example-generated}
 \end{figure}
 
-Examples of elements in each of these four languages can be seen in Fig.~\ref{fig:example-words-in-square}, \RED{along with visualizations of the syntax trees}. Each element corresponds to the word ``$(1 + 2) * 3$'' in $L(G'_D)$. Note that the word in $L(G_D)$ is ambiguous, and that there are other words in $L(G'_D)$ that correspond to the same element in $L(T_D)$, e.g., ``$((1 + 2)) * 3$'' and ``$(1 + 2) * (3)$''. As a memory aid, the primed versions ($G'_D$ and $T'_D$) contain disambiguation (grouping parentheses, precedence, associativity, etc.) while the unprimed versions ($G_D$ and $T_D$) are the (likely ambiguous) straightforward translations (i.e., ignoring marks) from $D$.
+Examples of elements in each of these four languages can be seen in Fig.~\ref{fig:example-words-in-square}. Each element corresponds to the word ``$(1 + 2) * 3$'' in $L(G'_D)$. Note that the word in $L(G_D)$ is ambiguous, and that there are other words in $L(G'_D)$ that correspond to the same element in $L(T_D)$, e.g., ``$((1 + 2)) * 3$'' and ``$(1 + 2) * (3)$''. As a memory aid, the primed versions ($G'_D$ and $T'_D$) contain disambiguation (grouping parentheses, precedence, associativity, etc.) while the unprimed versions ($G_D$ and $T_D$) are the (likely ambiguous) straightforward translations (i.e., ignoring marks) from $D$.
 
 {
 \newcommand{\terminal}[1]{\ \underline{#1}\ }
@@ -793,7 +811,7 @@ $$
   \end{tabular}
 \end{center}
 
-\noindent This is a resolvable ambiguity, since $\parse($\verb|'1 + (2 + 3)'|$) = \{t_1\}$ and $\parse($\verb|'(1 + 2) + 3'|$) = \{t_2\}$. To demonstrate the unresolvable case, we add the production $E -> s: E$ \verb|';'| $E$, at which point we find that the word \verb|'[1 ; 2]'| is unresolvably ambiguous; $\parse($\verb|'[1 ; 2]'|$) = \{t_3, t_4\}$ where:
+\noindent This is a resolvable ambiguity, since $\parse($\verb|'1 + (2 + 3)'|$) = \{t_1\}$ and \\$\parse($\verb|'(1 + 2) + 3'|$) = \{t_2\}$. To demonstrate the unresolvable case, we add the production $E -> s: E$ \verb|';'| $E$, at which point we find that the word \verb|'[1 ; 2]'| is unresolvably ambiguous; $\parse($\verb|'[1 ; 2]'|$) = \{t_3, t_4\}$ where:
 
 \begin{center}
   \begin{tabular}{l}
@@ -827,7 +845,7 @@ Our approach centers around the construction of a visibly pushdown automaton rec
 
 \begin{center}
 \begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
-    scale = 1,transform shape]
+    scale = .9,transform shape]
   \node[state,initial] (1) {};
   \node[state] (2) [right of=1] {};
   \node[state] (3) [right of=2] {};
@@ -958,7 +976,7 @@ We begin by constructing a visibly pushdown automaton that recognizes \emph{a} l
 
 \begin{center}
 \begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
-    scale = 1,transform shape]
+    scale = .9,transform shape]
   \node[state,initial] (1) {$1$};
   \node[state,accepting] (2) [right of=1] {$2$};
   \node[state,accepting] (3) [right of=2] {$3$};
@@ -996,7 +1014,7 @@ We begin by constructing a visibly pushdown automaton that recognizes \emph{a} l
 
 \begin{center}
 \begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
-    scale = 1,transform shape]
+    scale = .9,transform shape]
   \node[state] (1) {$1$};
   \node[state] (2) [right of=1] {$2$};
   \node[state] (3) [right of=2] {$3$};
@@ -1057,7 +1075,7 @@ Finally, we change step 2 in our construction to the following:
 
 \begin{center}
 \begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
-    scale = 1,transform shape]
+    scale = .9,transform shape]
   \node[state] (1) {$1$};
   \node[state] (2) [right of=1] {$2$};
   \node[state] (3) [right of=2] {$3$};
@@ -1134,26 +1152,26 @@ We define the translation from production to DFA through a function $\dfa$ from 
 \item $\T' = \T \cup \{'\pospl', '\pospr'\}$.
 \item $\Gamma = Q \times Q \times \Labels^{*}$.
 \item $\delta$ is defined by the following equations (unspecified cases produce $\emptyset$):
+  % TODO: This could be made prettier and more aligned
   $$
-  \begin{array}{r@{\;=\;}l@{\;\mid\;}l}
-    \delta(p, a, \lambda)
-    & \multicolumn{2}{@{}l@{}}{\{(\delta_l(p, a), \lambda)\} \qquad \text{ where } p \in Q_l \text{ and } a \in \T} \\
+  \begin{array}{l}
+    \delta(p, a, \lambda) = \{(\delta_l(p, a), \lambda)\} \qquad \text{ where } p \in Q_l \text{ and } a \in \T \\
 
-    \delta(s, \text{``}\pospl\text{''}, \lambda)
-    & \{ (s_{l}, (s, f, w))
-    & (S, w, N) \in T, N = \labelnt(l) \} \\
+    \delta(s, \text{``}\pospl\text{''}, \lambda) =
+    \{ (s_{l}, (s, f, w)) \mid
+    (S, w, N) \in T, N = \labelnt(l) \} \\
 
-    \delta(p, \text{``}\pospl\text{''}, \lambda)
-    & \{ (s_{l_3}, (p, q, w))
-    & p \in Q_{l_1}, \delta_{l_1}(p, N) = q, (N, w, N') \in T, N' = \labelnt(l_3) \} \\
+    \delta(p, \text{``}\pospl\text{''}, \lambda) = \\
+    \qquad\{ (s_{l_3}, (p, q, w)) \mid
+    p \in Q_{l_1}, \delta_{l_1}(p, N) = q, (N, w, N') \in T, N' = \labelnt(l_3) \} \\
 
-    \delta(p, \text{``}\pospr\text{''}, (s, f, w))
-    & \{ (f, \lambda)
-    & (S, w, N) \in T, N = \labelnt(l), p \in F_l \} \\
+    \delta(p, \text{``}\pospr\text{''}, (s, f, w)) =
+    \{ (f, \lambda) \mid
+    (S, w, N) \in T, N = \labelnt(l), p \in F_l \} \\
 
-    \delta(q', \text{``}\pospr\text{''}, (p, q, w))
-    & \{ (q, \lambda)
-    & q' \in F_{l_1}, \labelnt(l_1) = N', (N, w, N') \in T, p \in Q_{l_2}, \delta_{l_2}(p, N) = q \} \\
+    \delta(q', \text{``}\pospr\text{''}, (p, q, w)) = \\
+    \qquad \{ (q, \lambda) \mid
+    q' \in F_{l_1}, \labelnt(l_1) = N', (N, w, N') \in T, p \in Q_{l_2}, \delta_{l_2}(p, N) = q \} \\
 
   \end{array}
   $$
@@ -1286,36 +1304,44 @@ We thus have a way to detect the presence or absence of a pair of trees $t_1, t_
 
 \section{Case Studies} \label{sec:evaluation}
 
-In this section, we showcase two possible use-cases of dynamic
-resolvability analysis: composing separately defined DSLs
-(Section~\ref{sec:evaluation-orc}), and finding ambiguities in
-grammars through testing (Section~\ref{sec:evaluation-ocaml}).
-%
 We have implemented a tool and a small DSL for syntax definition
-that generates a language definition in the style of
+(Section~\ref{sec:evaluation-syncon}) that generates a language
+definition in the style of
 Section~\ref{sec:parse-time-disambiguation}, which the tool then
 uses to construct a parser and do dynamic resolvability analysis.
+%
+In this section, we showcase two possible use-cases of dynamic
+resolvability analysis using this tool: composing separately
+defined DSLs (Section~\ref{sec:evaluation-orc}), and finding
+ambiguities in grammars through testing
+(Section~\ref{sec:evaluation-ocaml}).
+
+
+\subsection{A DSL for Syntax Definition}
+\label{sec:evaluation-syncon}
+
+We write our syntax definitions in a DSL building on
+\emph{syncons}, introduced by Palmkvist and
+Broman~\cite{palmkvistCreatingDomainSpecificLanguages2019},
+wherein each production is defined separately from each other (one
+\syncon{syncon} each).
+%
 The tool is implemented in Haskell and uses an off-the-shelf
 implementation\footnote{\url{http://hackage.haskell.org/package/Earley}}
 of the Earley parsing algorithm
 \cite{earleyEfficientContextfreeParsing1970}.
 
-The syntax definition DSL builds on \emph{syncons}, introduced by
-Palmkvist and Broman~\cite{palmkvistCreatingDomainSpecificLanguages2019}, wherein each
-production is defined separately from each other (one
-\syncon{syncon} each).
-%
 The main difference between the DSL and the formalism in
 Section~\ref{sec:parse-time-disambiguation} is that marks are
-introduced as separate \syncon{forbid} declarations rather than
-being inlined in productions. This allows supporting high-level
+introduced as separate \syncon{forbid} declarations instead of
+being inlined in productions. This allows supporting
 convenience constructs, e.g., specifying precedence between
 previously defined operators instead of manually inserting marks,
 but is also important for composability as ambiguities can be
 statically resolved without changing the original definitions.
-Other convenience constructs include defining prefix, infix, and
+Other convenience constructs include prefix, infix, and
 postfix operators with a given associativity.
-
+%
 The running example used in
 Section~\ref{sec:parse-time-disambiguation}
 (Fig.~\ref{fig:running-example-definition} on
@@ -1328,8 +1354,8 @@ follows:
 type Exp
 grouping "(" Exp ")"
 precedence {
-  mul; // higher in precedence list
-  add; // means higher precedence
+  mul; // higher in list means
+  add; // higher precedence
 }
 \end{lstlisting}
 &
@@ -1348,10 +1374,10 @@ infix mul: Exp = "*"
 expressions, and declare that parentheses can be used to group
 expressions. We define a lexical token for integers, and a
 \syncon{syncon} for integer literals using this token. A list is
-defined as a sequence of zero or more expressions separated by
-semi-colons wrapped in square braces. Finally, addition and
+defined as a bracketed sequence of zero or more expressions separated by
+semi-colons. Finally, addition and
 multiplication are defined as infix syncons with the expected
-precedence rules. Note that we could just as well have replaced
+precedence rules. Note that we could also have replaced
 the precedence list with explicit \syncon{forbid} declarations,
 ``\syncon{forbid mul.left = add}'' and ``\syncon{forbid mul.right = add}''
 (cf. the mark $\{a\}$ in the production of $m$ in
@@ -1431,10 +1457,10 @@ defined language is likely to introduce ambiguities. For example,
 if that language also contains infix operators, the precedence
 between these and the Orc combinators will be undefined. With
 support for resolvable ambiguity, however, we can allow this
-ambiguity and let programmers disambiguate expressions using
-parentheses. After composing the above definition with a simple
-language supporting addition, variables, and function calls
-(language definition omitted for brevity), parsing the expression
+ambiguity and let programmers use parentheses for disambiguation.
+After composing the above definition with a simple language
+supporting addition, variables, and function calls (full
+definition omitted for brevity), parsing the expression
 %
 ``\ocaml{1 + 2 >x> f(x)}''
 %
@@ -1511,16 +1537,16 @@ choices to make as language designers:
   \syncon{forbid gt.right = gt} (where \syncon{gt} is the syncon
   for the greater-than operator).
 \item We could change the definition of the parallel combinators
-  and define separate lexical tokens for the combinators, e.g.,
-  \syncon{token Seq = ">[[:lower:]][[:word:]]*>"}. This would add
-  just enough whitespace sensitivity to allow separating the
-  different cases.
+  and define separate lexical tokens for the combinators, e.g,
+  \syncon{token Seq = ">[[:lower:]]}\\\syncon{[[:word:]]*>"}. This
+  would add just enough whitespace sensitivity to allow separating
+  the different cases.
 \item We could change the syntax of the combinators to avoid
-  clashes with other operators.
+  clashes.
 \end{itemize}
 
 \noindent
-The change in the first alternative is somewhat ad-hoc, but can be done after composition
+The first alternative is somewhat ad-hoc, but can be done after composition
 and would allow us to reuse both language definitions without
 modifications. In the latter two alternatives, we lose reuse of
 the definitions of Orc combinators, but place no additional
@@ -1546,14 +1572,14 @@ the resulting grammar is also possible.
 \subsection{Finding Ambiguities with Dynamic Resolvability Analysis} \label{sec:evaluation-ocaml}
 
 In this section, we investigate how to apply dynamic resolvability
-analysis to identify ambiguities in the specification of a
+analysis to find ambiguities in the specification of a
 real-world language.
 %
 Using syncons, we have specified a substantial subset of OCaml's
 syntax as described in chapters 7 and 8 (base language and
 extensions) of the OCaml reference manual~\cite{leroyOCamlSystemRelease2018}.
-The syncon definition is just under 700 lines of code, and is
-currently complete enough to parse roughly 75\% (1012 out of 1334
+The syncon definition is just under 700 lines long, and can
+currently parse roughly 75\% (1012 out of 1334
 files) of the \verb|.ml| files present in the OCaml compiler
 itself (we discuss limitations of our tool in the end of this
 section).
@@ -1622,7 +1648,7 @@ functions as a prefix operator in OCaml), and thus
 the expression as ambiguous, additionally suggesting the
 alternative interpretation
 %
-``\ocaml{(1 + (let x = 1 in x)) + 2}''.
+``\ocaml{(1 + (let x}\\\ocaml{= 1 in x)) + 2}''.
 %
 This interpretation is indeed valid if we only look at the direct
 children of each operator, since ``\ocaml{(_ + _) + 2}'',
@@ -1637,13 +1663,13 @@ individually correct with regards to precedence.
 
 Afroozeh et al.~\cite{afroozehSafeSpecificationOperator2013}'s operator ambiguity removal patterns bear a striking resemblance to the marks presented in this paper. However, in special-casing (what in this paper would be) marks on left and right-recursions in productions they correctly cover the edge case involving deep precedence discussed in Section~\ref{sec:evaluation-ocaml}. This approach thus suggests an interesting direction for future work: to integrate it into a system designed around resolvable ambiguity, and extending the algorithms presented in this paper to cover it.
 
-Danielsson and Norell~\cite{danielssonParsingMixfixOperators2011} give a method for specifying grammars for expressions containing mixfix operators. They allow non-transitive, non-total precedence, and ``feel that it is overly restrictive to require the grammar to be unambiguous.'' Similar to our approach, they do not reject ambiguous grammars, only ambiguous parses. They also introduce a concept of \emph{precedence correct} expressions; expressions where direct children must be related by precedence (children must have higher precedence than parents). This is more restrictive than our approach, e.g., in a language where \verb|'+'| and \verb|'-'| have no defined relative precedence they reject \verb|'1 + 2 * 3'| as syntactically invalid, while we parse it as an ambiguous expression.
+Danielsson and Norell~\cite{danielssonParsingMixfixOperators2011} give a method for specifying grammars for expressions containing mixfix operators. They allow non-transitive, non-total precedence, and ``feel that it is overly restrictive to require the grammar to be unambiguous.'' Similar to our approach, they do not reject ambiguous grammars, only ambiguous parses. They also introduce a concept of \emph{precedence correct} expressions; expressions where direct children must have higher precedence than parents. This is more restrictive than our approach, e.g., in a language where \verb|'+'| and \verb|'-'| have no defined relative precedence they reject \verb|'1 + 2 * 3'| as syntactically invalid, while we parse it as an ambiguous expression.
 
 Silver \cite{vanwykSilverExtensibleAttribute2010}, a system for defining extensible languages using attribute grammars, and its associated parser Copper \cite{vanwykContextawareScanningParsing2007} have a ``Modular Well-Definedness Analysis'' \cite{kaminskiModularWellDefinednessAnalysis2013}, with which extension language developers can check that their extension will compose well with other extensions, without any knowledge of any particular other extension. For this paper, only the syntactic component \cite{schwerdfegerVerifiableCompositionDeterministic2009} of this analysis is relevant. This analysis guarantees that the composition of a base language and any number of extensions that have passed the analysis will compose to a grammar in LALR(1). This is a far more restricted class of languages than unambiguous languages, not to mention resolvably ambiguous languages, and thus places far more restrictions on language designers than our approach.
 
 The detection of classical ambiguity in context-free grammars is undecidable in general \cite{cantorAmbiguityProblemBackus1962}, yet numerous heuristic approaches exist. Examples include linguistic characterizations and regular language approximations \cite{brabrandAnalyzingAmbiguityContextFree2007}, using SAT-solvers \cite{axelssonAnalyzingContextFreeGrammars2008}, and other conservative approaches \cite{schmitzConservativeAmbiguityDetection2007}, For an overview, and additional approaches, see the PhD thesis of Basten~\cite{bastenAmbiguityDetectionProgramming2011}.
 
-Parsing expression grammars \cite{fordParsingExpressionGrammars2004} sidestep the issue of ambiguity by not introducing it in the first place. However, this also loses the potential gains of leaving certain ambiguities. Additionally, since the ordering of productions matter, composition of languages must be ordered, and the interactions between composed languages becomes non-obvious, e.g., merely adding productions may remove previously recognized words from the language, depending on where they are added.
+Parsing expression grammars \cite{fordParsingExpressionGrammars2004} sidestep the issue of ambiguity by not introducing it at all. However, this also loses the potential gains of leaving certain ambiguities. Additionally, since the ordering of productions matter, composition of languages must be ordered, and the interactions between composed languages becomes non-obvious, e.g., merely adding productions may remove previously recognized words from the language, depending on where they are added.
 
 Numerous language development frameworks and libraries support syntactic language composition \emph{without} any guarantees on the resulting language (e.g., \cite{heeringSyntaxDefinitionFormalism1989,lorenzenSoundTypedependentSyntactic2016}). These systems tend to have some form of general parser, so that they can handle arbitrary context-free grammars, but also assume that the composed language is unambiguous, which in practice precludes the composition of languages constructed independently of each other.
 
@@ -1746,12 +1772,13 @@ This partitioning gives us the following particularly relevant properties:
   $(Q_2, \T, \delta_2, q'_0, F_2)$ their product automaton has the
   form $(Q_1 \times Q_2, \T, \delta', (q_0, q'_0),$
   $ F_1 \times F_2)$ where, when $c \in \T_c$, $i \in \T_i$ and
-  $r \in \T_r$:
+  $r \in \T_r$: \RED{TODO: Is this definition correct? $g_1$ and
+    $g_2$ are not used in the third case}
   \[
-  \begin{array}{r@{\ =\ }l}
-    \delta'((p_1, p_2), c, \lambda) & \{((q_1, q_2), (g_1, g_2)) \mid (q_1, g_1) \in \delta_1(p_1, c, \lambda), (q_2, g_2) \in \delta_2(p_2, c, \lambda) \}\\
-    \delta'((p_1, p_2), i, \lambda) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, i, \lambda), (q_2, \lambda) \in \delta_2(p_2, i, \lambda) \}\\
-    \delta'((p_1, p_2), r, (g_1, g_2)) & \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, r, \lambda), (q_2, \lambda) \in \delta_2(p_2, r, \lambda) \}\\
+  \begin{array}{l}
+    \delta'((p_1, p_2), c, \lambda) =\\ \qquad\{((q_1, q_2), (g_1, g_2)) \mid (q_1, g_1) \in \delta_1(p_1, c, \lambda), (q_2, g_2) \in \delta_2(p_2, c, \lambda) \}\\
+    \delta'((p_1, p_2), i, \lambda) =\\ \qquad \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, i, \lambda), (q_2, \lambda) \in \delta_2(p_2, i, \lambda) \}\\
+    \delta'((p_1, p_2), r, (g_1, g_2)) =\\ \qquad \{((q_1, q_2), \lambda) \mid (q_1, \lambda) \in \delta_1(p_1, r, \lambda), (q_2, \lambda) \in \delta_2(p_2, r, \lambda) \}\\
   \end{array}
   \]
 
@@ -1762,7 +1789,7 @@ This partitioning gives us the following particularly relevant properties:
 
 Trees generalize words by allowing each terminal to have multiple ordered successors, instead of just zero or one. Most literature considers \emph{ranked} tree languages, where each terminal has a fixed arity, i.e., the same terminal must always have the same number of successors. This is as opposed to \emph{unranked} tree languages, where the arity of a terminal is not fixed. The sequence of successors to a single terminal in an unranked tree tends to be described by a word language (referred to as a horizontal language in \cite{comonTreeAutomataTechniques2007}), often a regular language.
 
-The results and properties presented in this paper are more naturally described through unranked trees, thus all further references to trees are to unranked trees, despite ranked being more common in the literature. We further distinguish terminals used solely as leaves from terminals that may be either nodes or leaves. Since we will use unranked trees to represent parse trees, the former will represent terminals from the parsed word, while the latter represent terminals introduced as internal nodes.
+The results and properties presented in this paper are more naturally described through unranked trees, thus all references to trees here are to unranked trees, despite ranked being more common in the literature. We further distinguish terminals used solely as leaves from terminals that may be either nodes or leaves. Since we will use unranked trees to represent parse trees, the former will represent terminals from the parsed word, while the latter represent terminals introduced as internal nodes.
 
 An unranked tree grammar $T$ is a tuple $(\NT, \T, X, P, S)$ where:
 
