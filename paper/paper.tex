@@ -140,8 +140,7 @@ user always disambiguate an ambiguous program?  We introduce and
 formalize this fundamental problem---called the \emph{resolvable
   ambiguity problem}---and divide it into separate static and dynamic
 resolvability problems. We provide solutions to the static problem
-for two restricted classes of languages and sketch proofs of soundness and,
-depending on the restrictions, completeness. We also provide a sound
+for a restricted language class and sketch proofs of soundness and completeness. We also provide a sound
 and complete solution to the dynamic problem for a much less
 restricted class of languages.
 %
@@ -165,9 +164,8 @@ only allowing unambiguous grammars has been taken for granted as the
 only truth: \emph{the} way of how the syntax of a language must be
 defined ~\cite{sudkampLanguagesMachinesIntroduction1997,ahoCompilersPrinciplesTechniques2006,webberModernProgrammingLanguages2003,cooperEngineeringCompiler2011,ginsburgAmbiguityContextFree1966}.
 %
-However, recent work by
-Palmkvist and Broman~\cite{palmkvistCreatingDomainSpecificLanguages2019} shows why
-carefully designed ambiguous syntax definitions are in some cases
+However, our recent work~\cite{palmkvistCreatingDomainSpecificLanguages2019} suggests that
+carefully designed ambiguous syntax definitions can be
 preferable compared to completely unambiguous
 definitions.
 
@@ -222,7 +220,7 @@ be selected using different modifications.
 %
 We can divide the problem of resolvable ambiguity into two
 different decision problems.
-For a particular language, the \emph{dynamic resolvable ambiguity problem} asks the following question: can every parse tree of \emph{one particular} program be written unambiguously, while the \emph{static resolvability problem} asks if every parse tree of \emph{every} program can be written unambiguously. The latter problem in particular is difficult, since it in general involves examining an infinite set (one per parse tree) of infinite sets (words that can parse as that parse tree) to find one without a unique element (i.e., an unambiguous word). Furthermore we must be able to produce an unambiguous program for a given parse tree to be able to give good error messages to an end-user encountering an ambiguity.
+For a particular language, the \emph{dynamic resolvable ambiguity problem} asks the following question: can every parse tree of \emph{one particular} program be written unambiguously, while the \emph{static resolvability problem} asks if every parse tree of \emph{every} program can be written unambiguously. In particular, the latter problem is difficult, since it in general involves examining an infinite set (one per parse tree) of infinite sets (words that can parse as that parse tree) to find one without a unique element (i.e., an unambiguous word). Furthermore we must be able to produce an unambiguous program for a given parse tree to be able to give good error messages to an end-user encountering an ambiguity.
 
 In this paper we describe a syntax definition formalism where ambiguities can be resolved by grouping parentheses, and precedence and associativity is specified through \emph{marks} (c.f. Section~\ref{sec:parse-time-disambiguation}). As a delimitation we only consider languages with balanced parentheses. Our approach builds on the following key insights: i) the language of a parse tree is visibly pushdown \cite{alurVisiblyPushdownLanguages2004}, ii) these languages can be encoded as words, and iii) the language of the word encodings of all trees for a language is also visibly pushdown. The last point allows the construction of a visibly pushdown automaton (VPDA) that we examine to solve the static problem for a particular language subclass. Our solution to the dynamic problem, which builds on the first point, is general.
 
@@ -394,7 +392,7 @@ $w \in L(G)$ is ambiguous if there are two distinct leftmost
 derivations of that word.
 
 \paragraph{Automata}
-An automata is a 5-tuple $(Q,\T,\delta,q_0,F)$, where $Q$ is a
+An automaton is a 5-tuple $(Q,\T,\delta,q_0,F)$, where $Q$ is a
 finite set of states; $\T$ a finite set of terminals; $\delta$ a
 transition function from $Q \times \T$ to finite subsets of $Q$
 (or single states of $Q$ for a deterministic automaton);
@@ -565,11 +563,6 @@ Before introducing this formalism, however, we introduce the two central problem
   $f(P) \implies \rho(P) \text{ for all abstract parsers } P$
 \end{definition}
 
-In practice, we may additionally be interested in a decision procedure
-$g$ such that $g(P) \implies \lnot \rho(P) \text{ for all abstract
-  parsers } P$. It turns out, we can give $g$ for the parse languages
-studied in the following sections.
-
 \begin{definition}[Completeness of Static Resolvability]\label{def:static-procedure-complete}
   A decision procedure $f$, solving the static resolvability problem, is \emph{complete} iff
 
@@ -584,11 +577,6 @@ studied in the following sections.
 
   $f(P, w) \implies \rho_P(w) \text{ for all } w \in \Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$
 \end{definition}
-
-\noindent Analogous to the static case, for the parse languages studied in the
-following sections, we can also provide a decision procedure $g$ such
-that $g(\parse, w) \implies \lnot \rho_P(w) \text{ for all } w \in
-\Sigma^{*} \text{ and abstract parsers } P = (\T, T, \parse)$.
 
 \begin{definition}[Completeness of Dynamic Resolvability]\label{def:dynamic-procedure-complete}
   A decision procedure $f$, solving the dynamic resolvability problem, is complete iff
@@ -607,7 +595,7 @@ With that in mind, we define a language definition $D$ as a set of labelled prod
 
 Each non-terminal appearing in the regular expression of a production carries a \emph{mark} $m$ which is a set of labels whose productions may \emph{not} replace that non-terminal. To lessen clutter, we write $E_\emptyset$ as $E$. Consider the language definition shown in Fig.~\ref{fig:running-example-definition} which we use as a running example. In the production describing multiplication ($m$) both non-terminals are marked with $\{a\}$, which thus forbids addition from being a direct child of a multiplication. By ``direct child'' we mean ``without an intermediate node'', most commonly grouping parentheses; thus, this enforces conventional precedence.
 
-\begin{figure}
+\begin{figure}[b]
 
 \centering
 \begin{minipage}{.47\textwidth}
@@ -650,7 +638,7 @@ From $D$ we then generate four grammars: $G_D$, $T_D$, $G'_D$, and $T'_D$. Techn
 
 \noindent Fig.~\ref{fig:running-example-generated} shows the four grammars generated from our running example in Fig.~\ref{fig:running-example-definition}. The context-free grammars are produced by a rather standard translation from regular expressions to CFGs, while the primed grammars get a new non-terminal per distinctly marked non-terminal in $D$, where each new non-terminal only has the productions whose label is not in the mark. For example, the non-terminal $E_{\{a\}}$ in Fig.~\ref{fig:running-example-generated:t-prime} has no production corresponding to the $a$ production in Fig.~\ref{fig:running-example-definition}.
 
-\begin{figure}
+\begin{figure}[t]
   \subfloat[$T_D$, the parse trees of $G_D$.\label{fig:running-example-generated:t}]{%
     \begin{minipage}{0.5\textwidth}
     \centering
@@ -1685,7 +1673,7 @@ Silver \cite{vanwykSilverExtensibleAttribute2010}, a system for defining extensi
 
 The detection of classical ambiguity in context-free grammars is undecidable in general \cite{cantorAmbiguityProblemBackus1962}, yet numerous heuristic approaches exist. Examples include linguistic characterizations and regular language approximations \cite{brabrandAnalyzingAmbiguityContextFree2007}, using SAT-solvers \cite{axelssonAnalyzingContextFreeGrammars2008}, and other conservative approaches \cite{schmitzConservativeAmbiguityDetection2007}, For an overview, and additional approaches, see the PhD thesis of Basten~\cite{bastenAmbiguityDetectionProgramming2011}.
 
-Numerous language development frameworks and libraries support syntactic language composition \emph{without} any guarantees on the resulting language (e.g., \cite{heeringSyntaxDefinitionFormalism1989,lorenzenSoundTypedependentSyntactic2016,erdwegLayoutSensitiveGeneralizedParsing2013}). These systems tend to have some form of general parser, so that they can handle arbitrary context-free grammars, but also assume that the composed language is unambiguous, which in practice precludes the composition of languages constructed independently of each other.
+Numerous language development frameworks and libraries support syntactic language composition \emph{without} any guarantees on the resulting language (e.g., \cite{heeringSyntaxDefinitionFormalism1989,lorenzenSoundTypedependentSyntactic2016,erdwegLayoutSensitiveGeneralizedParsing2013,katsSpoofaxLanguageWorkbench2010}). These systems tend to have some form of general parser, so that they can handle arbitrary context-free grammars, but mention no handling of ambiguities encountered by an end-user.
 
 % UNFINISHED
 
