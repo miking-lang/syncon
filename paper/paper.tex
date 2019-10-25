@@ -845,7 +845,7 @@ Our approach centers around the construction of a visibly pushdown automaton rec
 
 \begin{center}
 \begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
-    scale = 1,transform shape]
+    scale = .9,transform shape]
   \node[state,initial] (1) {};
   \node[state] (2) [right of=1] {};
   \node[state] (3) [right of=2] {};
@@ -976,7 +976,7 @@ We begin by constructing a visibly pushdown automaton that recognizes \emph{a} l
 
 \begin{center}
 \begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
-    scale = 1,transform shape]
+    scale = .9,transform shape]
   \node[state,initial] (1) {$1$};
   \node[state,accepting] (2) [right of=1] {$2$};
   \node[state,accepting] (3) [right of=2] {$3$};
@@ -1014,7 +1014,7 @@ We begin by constructing a visibly pushdown automaton that recognizes \emph{a} l
 
 \begin{center}
 \begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
-    scale = 1,transform shape]
+    scale = .9,transform shape]
   \node[state] (1) {$1$};
   \node[state] (2) [right of=1] {$2$};
   \node[state] (3) [right of=2] {$3$};
@@ -1075,7 +1075,7 @@ Finally, we change step 2 in our construction to the following:
 
 \begin{center}
 \begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=2cm,
-    scale = 1,transform shape]
+    scale = .9,transform shape]
   \node[state] (1) {$1$};
   \node[state] (2) [right of=1] {$2$};
   \node[state] (3) [right of=2] {$3$};
@@ -1326,23 +1326,22 @@ Broman~\cite{palmkvistCreatingDomainSpecificLanguages2019},
 wherein each production is defined separately from each other (one
 \syncon{syncon} each).
 %
-The tool which performs the parsing is implemented in Haskell and
-uses an off-the-shelf
+The tool is implemented in Haskell and uses an off-the-shelf
 implementation\footnote{\url{http://hackage.haskell.org/package/Earley}}
 of the Earley parsing algorithm
 \cite{earleyEfficientContextfreeParsing1970}.
 
 The main difference between the DSL and the formalism in
 Section~\ref{sec:parse-time-disambiguation} is that marks are
-introduced as separate \syncon{forbid} declarations rather than
-being inlined in productions. This allows supporting high-level
+introduced as separate \syncon{forbid} declarations instead of
+being inlined in productions. This allows supporting
 convenience constructs, e.g., specifying precedence between
 previously defined operators instead of manually inserting marks,
 but is also important for composability as ambiguities can be
 statically resolved without changing the original definitions.
-Other convenience constructs include defining prefix, infix, and
+Other convenience constructs include prefix, infix, and
 postfix operators with a given associativity.
-
+%
 The running example used in
 Section~\ref{sec:parse-time-disambiguation}
 (Fig.~\ref{fig:running-example-definition} on
@@ -1375,10 +1374,10 @@ infix mul: Exp = "*"
 expressions, and declare that parentheses can be used to group
 expressions. We define a lexical token for integers, and a
 \syncon{syncon} for integer literals using this token. A list is
-defined as a sequence of zero or more expressions separated by
-semi-colons wrapped in square braces. Finally, addition and
+defined as a bracketed sequence of zero or more expressions separated by
+semi-colons. Finally, addition and
 multiplication are defined as infix syncons with the expected
-precedence rules. Note that we could just as well have replaced
+precedence rules. Note that we could also have replaced
 the precedence list with explicit \syncon{forbid} declarations,
 ``\syncon{forbid mul.left = add}'' and ``\syncon{forbid mul.right = add}''
 (cf. the mark $\{a\}$ in the production of $m$ in
@@ -1458,10 +1457,10 @@ defined language is likely to introduce ambiguities. For example,
 if that language also contains infix operators, the precedence
 between these and the Orc combinators will be undefined. With
 support for resolvable ambiguity, however, we can allow this
-ambiguity and let programmers disambiguate expressions using
-parentheses. After composing the above definition with a simple
-language supporting addition, variables, and function calls
-(language definition omitted for brevity), parsing the expression
+ambiguity and let programmers use parentheses for disambiguation.
+After composing the above definition with a simple language
+supporting addition, variables, and function calls (full
+definition omitted for brevity), parsing the expression
 %
 ``\ocaml{1 + 2 >x> f(x)}''
 %
@@ -1543,11 +1542,11 @@ choices to make as language designers:
   would add just enough whitespace sensitivity to allow separating
   the different cases.
 \item We could change the syntax of the combinators to avoid
-  clashes with other operators.
+  clashes.
 \end{itemize}
 
 \noindent
-The change in the first alternative is somewhat ad-hoc, but can be done after composition
+The first alternative is somewhat ad-hoc, but can be done after composition
 and would allow us to reuse both language definitions without
 modifications. In the latter two alternatives, we lose reuse of
 the definitions of Orc combinators, but place no additional
@@ -1573,14 +1572,14 @@ the resulting grammar is also possible.
 \subsection{Finding Ambiguities with Dynamic Resolvability Analysis} \label{sec:evaluation-ocaml}
 
 In this section, we investigate how to apply dynamic resolvability
-analysis to identify ambiguities in the specification of a
+analysis to find ambiguities in the specification of a
 real-world language.
 %
 Using syncons, we have specified a substantial subset of OCaml's
 syntax as described in chapters 7 and 8 (base language and
 extensions) of the OCaml reference manual~\cite{leroyOCamlSystemRelease2018}.
-The syncon definition is just under 700 lines of code, and is
-currently complete enough to parse roughly 75\% (1012 out of 1334
+The syncon definition is just under 700 lines long, and can
+currently parse roughly 75\% (1012 out of 1334
 files) of the \verb|.ml| files present in the OCaml compiler
 itself (we discuss limitations of our tool in the end of this
 section).
@@ -1664,13 +1663,13 @@ individually correct with regards to precedence.
 
 Afroozeh et al.~\cite{afroozehSafeSpecificationOperator2013}'s operator ambiguity removal patterns bear a striking resemblance to the marks presented in this paper. However, in special-casing (what in this paper would be) marks on left and right-recursions in productions they correctly cover the edge case involving deep precedence discussed in Section~\ref{sec:evaluation-ocaml}. This approach thus suggests an interesting direction for future work: to integrate it into a system designed around resolvable ambiguity, and extending the algorithms presented in this paper to cover it.
 
-Danielsson and Norell~\cite{danielssonParsingMixfixOperators2011} give a method for specifying grammars for expressions containing mixfix operators. They allow non-transitive, non-total precedence, and ``feel that it is overly restrictive to require the grammar to be unambiguous.'' Similar to our approach, they do not reject ambiguous grammars, only ambiguous parses. They also introduce a concept of \emph{precedence correct} expressions; expressions where direct children must be related by precedence (children must have higher precedence than parents). This is more restrictive than our approach, e.g., in a language where \verb|'+'| and \verb|'-'| have no defined relative precedence they reject \verb|'1 + 2 * 3'| as syntactically invalid, while we parse it as an ambiguous expression.
+Danielsson and Norell~\cite{danielssonParsingMixfixOperators2011} give a method for specifying grammars for expressions containing mixfix operators. They allow non-transitive, non-total precedence, and ``feel that it is overly restrictive to require the grammar to be unambiguous.'' Similar to our approach, they do not reject ambiguous grammars, only ambiguous parses. They also introduce a concept of \emph{precedence correct} expressions; expressions where direct children must have higher precedence than parents. This is more restrictive than our approach, e.g., in a language where \verb|'+'| and \verb|'-'| have no defined relative precedence they reject \verb|'1 + 2 * 3'| as syntactically invalid, while we parse it as an ambiguous expression.
 
 Silver \cite{vanwykSilverExtensibleAttribute2010}, a system for defining extensible languages using attribute grammars, and its associated parser Copper \cite{vanwykContextawareScanningParsing2007} have a ``Modular Well-Definedness Analysis'' \cite{kaminskiModularWellDefinednessAnalysis2013}, with which extension language developers can check that their extension will compose well with other extensions, without any knowledge of any particular other extension. For this paper, only the syntactic component \cite{schwerdfegerVerifiableCompositionDeterministic2009} of this analysis is relevant. This analysis guarantees that the composition of a base language and any number of extensions that have passed the analysis will compose to a grammar in LALR(1). This is a far more restricted class of languages than unambiguous languages, not to mention resolvably ambiguous languages, and thus places far more restrictions on language designers than our approach.
 
 The detection of classical ambiguity in context-free grammars is undecidable in general \cite{cantorAmbiguityProblemBackus1962}, yet numerous heuristic approaches exist. Examples include linguistic characterizations and regular language approximations \cite{brabrandAnalyzingAmbiguityContextFree2007}, using SAT-solvers \cite{axelssonAnalyzingContextFreeGrammars2008}, and other conservative approaches \cite{schmitzConservativeAmbiguityDetection2007}, For an overview, and additional approaches, see the PhD thesis of Basten~\cite{bastenAmbiguityDetectionProgramming2011}.
 
-Parsing expression grammars \cite{fordParsingExpressionGrammars2004} sidestep the issue of ambiguity by not introducing it in the first place. However, this also loses the potential gains of leaving certain ambiguities. Additionally, since the ordering of productions matter, composition of languages must be ordered, and the interactions between composed languages becomes non-obvious, e.g., merely adding productions may remove previously recognized words from the language, depending on where they are added.
+Parsing expression grammars \cite{fordParsingExpressionGrammars2004} sidestep the issue of ambiguity by not introducing it at all. However, this also loses the potential gains of leaving certain ambiguities. Additionally, since the ordering of productions matter, composition of languages must be ordered, and the interactions between composed languages becomes non-obvious, e.g., merely adding productions may remove previously recognized words from the language, depending on where they are added.
 
 Numerous language development frameworks and libraries support syntactic language composition \emph{without} any guarantees on the resulting language (e.g., \cite{heeringSyntaxDefinitionFormalism1989,lorenzenSoundTypedependentSyntactic2016}). These systems tend to have some form of general parser, so that they can handle arbitrary context-free grammars, but also assume that the composed language is unambiguous, which in practice precludes the composition of languages constructed independently of each other.
 
