@@ -595,7 +595,7 @@ mkError :: (Eq (TokKind t), Hashable (TokKind t))
         -> Vector t -> Seq InactiveSet -> Error nodeLabel t
 mkError Precomputed{scanMap} input sets = Error expected found
   where
-    found = input Vector.!? Seq.length sets
+    found = input Vector.!? (Seq.length sets - 1)
     expected = Seq.index sets (Seq.length sets - 1)
       & oldAllItems
       & S.map (\(Eim s _) -> s)
