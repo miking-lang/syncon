@@ -1,0 +1,24 @@
+comment "//[^\\n]*(\\n|$)"
+comment "/\\*" "\\*/"
+
+token Ident = "[[:lower:]_][[:alnum:]_']*"
+token Integer = "[0-9][0-9_]*"
+token String = "\"(\\\\.|[^\"\\\\])*\""
+
+type Statement
+
+syncon top: Top = (st:Statement ";")+
+
+syncon print: Statement = "print" e:Exp
+
+type Exp
+grouping "(" Exp ")"
+
+syncon var: Exp = i:Ident
+syncon int: Exp = i:Integer
+syncon str: Exp = s:String
+
+infix plus: Exp = "+"
+infix minus: Exp = "-"
+infix times: Exp = "*"
+infix divide: Exp = "/"
