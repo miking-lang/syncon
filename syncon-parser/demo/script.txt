@@ -3,9 +3,10 @@ First set of parens seems annoying
 - remove, show ambiguity error, write new precedence list
 Second set of parens
 - remove, show ambiguity error, point at elided part, add associativity
+Boolean and/or
 Add pattern matching as in OCaml
 - add patterns, matchExp, show what happens with a more complicated expr on the rhs of an arm
 - say it's essentially a prefix op, rewrite as prefix, attach precedence (mention that the tool should be more helpful)
-- show nested match
+- show nested match, talk about it, show the "hacky" solution
 "Thus far all ambiguities have been benign in the sense that they can be solved, but that's not true in general"
-- add comma operator from C and function calls
+- add comma operator from C and function calls, show solution
