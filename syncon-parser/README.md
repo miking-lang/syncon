@@ -1,9 +1,7 @@
 # Syncon Parser
 
 This is a working implementation of a parser based on syncons. At present, it does not implement
-any static ambiguity checking, nor does it give suggestions on how to fix parse-time ambiguities, or
-even nice printing of ambiguities (though it does localize them, i.e., there may be multiple errors,
-but they'll be minimal).
+any static ambiguity checking, and the dynamic ambiguity checking may in some cases suggest ambiguous alternatives as unambiguous (though most of the time the suggestions are actually fully unambiguous).
 
 To run you need to have [stack](https://docs.haskellstack.org/en/stable/README/) installed, then run:
 
@@ -11,11 +9,15 @@ To run you need to have [stack](https://docs.haskellstack.org/en/stable/README/)
 cd syncon-parser # Ensure you are in the correct directory
 stack setup      # Might not be needed, but eh
 stack build
-stack exec syncon-parser -- examples/split1.syncon examples/split2.syncon examples/split.test --html=out.html
+stack exec syncon-parser -- compile examples/split1.syncon examples/split2.syncon --output=examples/split.synconc
+stack exec syncon-parser -- parse examples/split.synconc examples/split.test --html=out.html
 ```
 
-Here `examples/split1.syncon` and `examples/split2.syncon` are the definition files of the language to parse, `examples/split.test` is the source code file to parse, and `out.html` is the output file. If there are errors, those will be printed, otherwise `out.html` will contain an interactive visualization of the parsed syntax tree. For more options, run `stack exec syncon-parser -- --help`.
+Here `examples/split1.syncon` and `examples/split2.syncon` are the definition files of the language to parse, `examples/split.synconc` is a compiled file describing the language, `examples/split.test` is the source code file to parse, and `out.html` is the debug output file. If there are errors, those will be printed, otherwise `out.html` will contain an interactive visualization of the parsed syntax tree. For more options, run `stack exec syncon-parser -- --help`, `stack exec syncon-parser -- compile -- help`, or `stack exec syncon-parser -- parse -- help`.
 
+## Installing the Parser
+
+You can install the parser by running `stack install` after building it. This will put it in a location where `stack` likes to put executables, which you would then want ta add to your `$PATH`. For me it's `~/.local/bin`, but the command gives the location as output as well. You can then replace `stack exec syncon-parser --` with just `syncon-parser` in the commands above.
 
 ## Basics of Defining the Syntactical Aspects of a Language
 
@@ -81,7 +83,7 @@ syncon topLetRec: Top =
 { builtin }
 ```
 
-The right hand side, between `=` and `{`, is the syntax description, which describes the syntactical form of a syncon. It is similar to a regular expression, but does not allow choice (i.e. `|`), and allows naming things. The named things will later be part of the abstract syntax tree that is constructed, so put a name on everything that shouldn't be thrown away.
+The right hand side, between `=` and `{`, is the syntax description, which describes the syntactical form of a syncon. It is similar to a regular expression (it allows the operators `|`, `+`, `*`, and `?`), and allows naming things. The named things will later be part of the abstract syntax tree that is constructed, so put a name on everything that shouldn't be thrown away.
 
 The body (between `{` and `}`) is unspecified at the moment, since this project only considers parsing for now. Thus every syncon must be declared as `builtin`.
 
