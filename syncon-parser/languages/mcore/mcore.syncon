@@ -1,0 +1,83 @@
+token Ident = "[_[:lower:]][[:word:]]*"
+token CapitalIdent = "[[:upper:]][[:word:]]*"
+token Integer = "[0-9]+"
+token Float = "[0-9]+\.[0-9]+" // TODO: Other syntax is possible too
+token SciFloat = "[0-9]+(\.[0-9])?+e(-|\+)?[0-9]+(\.[0-9])?"
+token String = "\"(\\\\.|[^\"\\\\])*\""
+token Char = "'(\\\\.|.)'"
+
+comment "//[^\\n]*(\\n|$)"
+comment "--[^\\n]*(\\n|$)"
+
+type Type
+grouping "(" Type ")"
+
+syncon unitType:Type = "()"
+syncon dynType:Type = "Dyn"
+syncon tupType:Type = "("hd:Type ("," (tl:Type))+")"
+syncon seqType:Type = "["inner:Type"]"
+syncon conType:Type = (k:CapitalIdent)
+infix left arrowType:Type = "->"
+
+type Include
+syncon include: Include = "include" (s:String)
+
+type Decl
+syncon topLet: Decl  = "let" (x:Ident) (":" ty:Type)? "=" (e:Exp)
+syncon topType: Decl = "type" (t:CapitalIdent) ("=" (ty:Type))?
+syncon topCon: Decl  = "con" (k:CapitalIdent) (":" (ty:Type))?
+
+type Exp
+grouping "(" Exp ")"
+
+prefix let: Exp = "let"  (x:Ident) (":" ty:Type)? "=" (e:Exp) "in"
+
+syncon typ: Exp = "type" (t:CapitalIdent) ("=" (ty:Type))? "in" (body:Exp)
+
+syncon con: Exp = "con"  (k:CapitalIdent) (":" (ty:Type))? "in" (body:Exp)
+
+prefix lam: Exp = "lam"  (x:Ident) (":" ty:Type)? "."
+
+prefix if:  Exp = "if" (cnd:Exp) "then" (thn:Exp) "else"
+
+prefix match: Exp =
+  "match" (target:Exp) "with" (k:CapitalIdent) (x:Ident)?
+  "then" (thn:Exp) "else"
+
+syncon utest: Exp = "utest" (actual:Exp) "with" (expected:Exp) "in" (body:Exp)
+
+postfix proj: Exp = "." (i:Integer)
+
+infix left app: Exp =
+
+syncon var: Exp = (x:Ident)
+
+syncon conFun: Exp = (k:CapitalIdent)
+
+syncon fix: Exp = "fix"
+
+syncon seq: Exp = "["(hd:Exp ("," (tl:Exp))*)?"]"
+
+syncon tuple: Exp = "("hd:Exp ("," (tl:Exp))+")"
+
+syncon unit: Exp = "()"
+
+syncon float: Exp = (f:(Float|SciFloat))
+
+syncon int: Exp = (n:Integer)
+
+syncon char: Exp = (c:Char)
+
+syncon string: Exp = (s:String)
+
+syncon true: Exp = "true"
+
+syncon false: Exp = "false"
+
+precedence {
+  proj;
+  app;
+  lam; match; if; let;
+}
+
+syncon program: Top = (includes:Include)* (tops:Decl)* "mexpr" (e:Exp)
