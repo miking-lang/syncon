@@ -27,7 +27,7 @@ import Data.FileEmbed (embedFile)
 import Data.Generics.Uniplate.Data (universe, universeBi)
 import Data.Functor.Foldable (project, cata)
 import Text.Show.Pretty (pPrint)
-import Codec.Serialise (writeFileSerialise, readFileDeserialise)
+import Codec.Serialise (writeFileSerialise, readFileDeserialise, DeserialiseFailure(..))
 
 import qualified Options.Applicative as Opt
 
@@ -102,7 +102,8 @@ test :: IO ()
 -- test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--dot=out"] main
 -- test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--two-level"] main
 -- test = withArgs ["examples/bootstrap.syncon", "--source=examples/bootstrap.syncon", "--json=out.json"] main
-test = withArgs ["--help"] main
+-- test = withArgs ["--help"] main
+test = withArgs ["parse", "README.md", "source.test"] main
 -- test = GLL.test
 
 getArgsSeq :: IO (Seq [Char])
@@ -241,10 +242,12 @@ parseCommand = Opt.command "parse" (Opt.info parseCmd $ Opt.progDesc "Parse a li
       files <- some $ Opt.argument Opt.str $
         Opt.metavar "FILES..."
 
-      pure $ do
-        (preParseSerialisable, pl) <- readFileDeserialise synconc
-        preParse <- Parser.serialisableToPrecompute @(Lexer.Token Parser.SingleLanguage LD.TypeName) preParseSerialisable & dataOrError mempty ()
-        parseAction' (preParse, pl) files
+      pure $
+        try (readFileDeserialise synconc) >>= \case
+          Left DeserialiseFailure{} -> die $ "Could not parse '" <> toS synconc <> "' as a '.synconc' file, did you supply the right file first?"
+          Right (preParseSerialisable, pl) -> do
+            preParse <- Parser.serialisableToPrecompute @(Lexer.Token Parser.SingleLanguage LD.TypeName) preParseSerialisable & dataOrError mempty ()
+            parseAction' (preParse, pl) files
 
 devCommand :: Opt.Mod Opt.CommandFields (IO ())
 devCommand = Opt.command "dev" (Opt.info devCmd $ Opt.progDesc "Compile and parse a language in one command, for use during language development.")
