@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards, ViewPatterns, UndecidableInstances #-}
 
-module P4Parsing.Parser (Error(..), precomputeSingleLanguage, dfToLanguageTokens, parseTokens, parseFile, forestToDot, precomputeToSerialisable, serialisableToPrecompute) where
+module P4Parsing.Parser (Error(..), precomputeSingleLanguage, dfToLanguageTokens, parseTokens, parseFile, forestToDot, precomputeToSerialisable, serialisableToPrecompute, Precomputed) where
 
 import Pre hiding (from, some, many, optional)
 import Result (Result(..))
