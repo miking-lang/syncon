@@ -2,6 +2,30 @@ print 1;
 
 print 1 + 2;
 
-print 1 + (2 * 3);
+print 1 + 2 * 3;
 
-print 1 + ((2 * 3) + 4);
+print 1 + 2 * 3 + 4;
+
+print 1 == 2 + 3;
+
+// This is ambiguous, and it's probably helpful for the user to leave it ambiguous (since we only have binary equality, as opposed to the chained comparators of, e.g., python)
+// print true == 2 == 3;
+
+// The meaning of this expression differs between C-likes and python, even though the operators have essentially the same semantics
+// print 1 & 3 == 1;
+
+// This requires match to have defined relative precedence with add
+print match 1 with
+| 1 -> "something"
+| _ -> "other" + 1;
+
+// This is ambiguous, the last match arm can be part of either the inner match or the outer match
+// print match 1 with
+// | 1 -> match "one" with
+//   | _ -> "inner"
+// | _ -> "outer";
+
+print f((1, 2));
+
+// This is unresolvably ambiguous without forbids
+// print f(1, 2);

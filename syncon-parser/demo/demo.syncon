@@ -18,7 +18,43 @@ syncon var: Exp = i:Ident
 syncon int: Exp = i:Integer
 syncon str: Exp = s:String
 
-infix plus: Exp = "+"
-infix minus: Exp = "-"
-infix times: Exp = "*"
-infix divide: Exp = "/"
+infix left plus: Exp = "+"
+infix left minus: Exp = "-"
+infix left times: Exp = "*"
+infix left divide: Exp = "/"
+
+infix equals: Exp = "=="
+infix binaryAnd: Exp = "&"
+
+// explicit prefix match: Exp =
+//   "match" e:Exp "with"
+//   ("|" p:Pat "->" arm:Exp)+
+// This rewrite is required atm to let the parser treat match like a prefix operator. In the future
+// the above version should be possible instead, since the rewrite is rather mechanical.
+prefix match: Exp =
+  "match" e:Exp "with"
+  arm:("|" p:Pat "->" e2:Exp)*
+  ("|" p2:Pat "->")
+
+postfix funcCall: Exp =
+  "(" (a:Exp ("," b:Exp)*)? ")"
+
+infix sequence: Exp = ","
+// forbid funcCall.a = sequence
+// forbid funcCall.b = sequence
+
+type Pat
+grouping "(" Pat ")"
+
+syncon wildcard: Pat = "_"
+syncon identPat: Pat = i:Ident
+syncon intPat: Pat = i:Integer
+syncon stringPat: Pat = i:String
+
+// Try removing this list, or some entries from it.
+precedence {
+  times divide;
+  plus minus;
+  equals;
+  match;
+}
