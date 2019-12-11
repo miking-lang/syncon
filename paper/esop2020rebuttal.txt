@@ -444,6 +444,11 @@ SCORE: 1 ((no familiarity))
 
 ==============================================
 
+Thank you for the insightful comments! They will help improve future
+versions of this paper. We begin by answering the explicit "Questions
+for author response", then address some other comments. The latter exceed
+the space limit, and are thus intended for an interested reviewer, or
+the one posing that particular question.
 
 Reviewer 1:
 For a language designer, resolvable ambiguity provides a smoother way
@@ -458,81 +463,78 @@ For a programmer, the dynamic analysis provides explicit solutions
 to a resolvable ambiguity error, i.e., the programmer is expected
 to replace the ambiguous section with one of the suggested solutions.
 
-Reviewer 2:
-It may be possible that after disambiguation all obtained trees are
+Reviewer 4:
+Section 6 takes an ambiguous word, creates an automaton for each parse tree
+(that recognizes the (possibly ambiguous) words that can parse as that tree),
+then combines these to create automata that recognize unambiguous words for each
+tree.
+Section 7 describes a relation between trees that corresponds to an unresolvable
+ambiguity, then describes a way to check for this relation using VPDAs. The
+equivalence only holds for a limited language subclass.
+
+# Other Comments
+
+## Reviewer 2:
+### It may be possible that after disambiguation all obtained trees are
 removed, how do your definitions take care of this?
   Assuming disambiguation by programmer: that would imply that the
   new word $w'$ has $\mathit{parse}(w') = \emptyset$, which means it
   is not part of the language, whereby it is not a valid disambiguation.
   Assuming disambiguation by language designer: this just removes the
   word from the language, which is again not a valid disambiguation.
-I am totally confused by the last paragraph on page 10 where you show
-2 alternative representations of the sentence (1+2)*3 of which you claim
+### I am totally confused by the last paragraph on page 10 where you show 2 alternative representations of the sentence (1+2)*3 of which you claim
 that these representations are ambiguous, why?
   The ambiguous word is the corresponding one in $L(G_D)$ (note the absence
   of a prime), i.e., "1+2*3".
-At the bottom of page 11 you introduce a new for sequential composition
-which leads to ambiguities for the grammar G_D of page 10, or not? I fail
-to see the point that you try to make here. The explanation at the top
-of page 12 does not help me in understanding your point.
+### At the bottom of page 11 you introduce a new for sequential composition which leads to ambiguities for the grammar G_D of page 10, or not? I fail to see the point that you try to make here. The explanation at the top of page 12 does not help me in understanding your point.
   $G_D$ already was ambiguous, but $G'_D$ was not. Having an ambiguous $G'_D$
   does not guarantee an unresolvable ambiguity, but it does cause one in this
   case. The intended point is to show an example of an unresolvable
   ambiguity, after which we mention how one might solve this particular one
-[...] whether your approach is applicable to ambiguities that cannot be
-resolved by introducing paired brackets?
+### [...] whether your approach is applicable to ambiguities that cannot be resolved by introducing paired brackets?
   It cannot, since the design in Section 5 only discards grouping parentheses.
   One could formulate a different formalism, still following the definitions
   in Section 4, that discards more information, which can then be used for
   disambiguation, which naturally poses more challenges for the analyses.
-Please explain the automaton at the top of page 13 better, are you able
-to recognize [(((a))(b))], I do not think so?
+### Please explain the automaton at the top of page 13 better, are you able to recognize [(((a))(b))], I do not think so?
   This automaton does not recognize any word containing '[' or ']', but it
   does indeed recognize (((a))(b)).
 
-Reviewer 3:
-Really good review, but too many questions to try to answer here.
-The static analysis is present because it gives a desireable guarantee
-for a language designer: a user cannot encounter an unresolvable
-ambiguity (with the limitations as caveats). Additionally, we
-suspected that the dynamic analysis alone would be considered too weak
-a contribution.
+## Reviewer 3:
+Thank you especially for the detailed comments on the more technical parts
+of the paper. To avoid being long-winded we will not address all of them
+here, but they will most certainly be considered for future versions.
+### My suggestion for the authors is [...] to remove the part about the second algorithm [...]
+  The static analysis is present because it gives a desireable guarantee
+  for a language designer: a user cannot encounter an unresolvable
+  ambiguity (with the limitations as caveats). However, using the
+  extra space to explore complexity and performance concerns is an
+  interesting idea.
+### I'm not sure what invariants are supposed to hold in the algorithm
+  Roughly, the invariants are the following:
+  - A recognizes a subset of words(t), such that words(t) \ L(A) contains
+    only ambiguous words.
+  - T' contains trees that are known to be ambiguous with t for some word
+    in L(A).
 
-Reviewer 4:
-Can you give a summary of Section 6 and 7 that is more intuitive for an outsider?
-  Section 6 takes an ambiguous word, creates an automaton for each parse tree
-  (that recognizes the (possibly ambiguous) words that can parse as that tree),
-  then combines these to create automata that recognize unambiguous words for each
-  tree.
-  Section 7 describes a relation between trees that corresponds to an unresolvable
-  ambiguity, then describes a way to check for this relation using VPDAs. The
-  equivalence only holds for a limited language subclass.
-
-Reviewer 5:
-Why is "resolvable ambiguity" the key to making ambiguity palatable?
+## Reviewer 5:
+### Why is "resolvable ambiguity" the key to making ambiguity palatable?
   The reasoning is largely this: if the language is ambiguous then a user
   can write an ambiguous program. If they do, we need to present it in
   an understandable way that is helpful for solving the ambiguity. The user
   never sees an AST otherwise, whereby we would like to present clarifying
   source code. This is possible exactly when the ambiguity is resolvable,
   by definition.
-Finally, the OCaml grammar discussion was underwhelming. Simply
-writing down the grammar and using any full-CFG parser would produce
-the same results -- resolvable ambiguity isn't used at all.
+### Finally, the OCaml grammar discussion was underwhelming. Simply writing down the grammar and using any full-CFG parser would produce the same results -- resolvable ambiguity isn't used at all.
   This is correct, with the small caveat that the errors produced
   by our methods were quite helpful in finding the underspecified
   places in the grammar.
-One additional question is whether the new grammar formalism (dubbed
-"syncons") is intended as an important new contribution, or merely a
-technical device for demonstrating the issues of ambiguity.
+### One additional question is whether the new grammar formalism (dubbed "syncons") is intended as an important new contribution, or merely a technical device for demonstrating the issues of ambiguity.
   It is a tool built using the ideas presented here, intended for
   other developments in the research group, thus its syntax is
   designed for that.
-It's possible to avoid the problems described in 8.2 in much simpler
-ways -- simply reject programs that combine operators from multiple
-grammars without parentheses, rather than assuming the precedence
-should be a total order. This is, for example, how the Fortress
-language worked.
-  This is also how our tool works, except we use the dynamic analysis
-  to provide example resolutions, and we support this also for
-  cases caused by something other than precedence or associativity.
+### It's possible to avoid the problems described in 8.2 in much simpler ways -- simply reject programs that combine operators from multiple grammars without parentheses, rather than assuming the precedenced should be a total order. This is, for example, how the Fortress language worked.
+  Our tool also rejects programs combining operators without defined
+  relative precedence, except we use the dynamic analysis to provide
+  example resolutions, and we support this also for cases caused by
+  something other than precedence or associativity.
