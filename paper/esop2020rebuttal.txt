@@ -451,6 +451,10 @@ the space limit, and are thus intended for an interested reviewer, or
 the one posing that particular question.
 
 Reviewer 1:
+For a programmer, the dynamic analysis provides explicit solutions
+to a resolvable ambiguity error, i.e., the programmer is expected
+to replace the ambiguous section with one of the suggested solutions.
+The static analysis should never be run by the programmer.
 For a language designer, resolvable ambiguity provides a smoother way
 to explore syntax. You can postpone disambiguation decisions until a
 later point of development, when you have actually written some programs
@@ -458,10 +462,9 @@ using the syntax (or decide to leave the ambiguity). Note that changing
 a language to make a previously ambiguous program unambiguous (via
 precedence and the like) is a backwards compatible change. The static
 analysis ensures that no unresolvable ambiguity can appear (with the
-caveat that the current static analysis is limited).
-For a programmer, the dynamic analysis provides explicit solutions
-to a resolvable ambiguity error, i.e., the programmer is expected
-to replace the ambiguous section with one of the suggested solutions.
+caveat that the current static analysis is limited). The language designer
+is thus expected to change the grammar such that the unresolvable
+ambiguity is no longer possible.
 
 Reviewer 4:
 Section 6 takes an ambiguous word, creates an automaton for each parse tree
