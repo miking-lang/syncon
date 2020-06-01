@@ -19,12 +19,12 @@ utest slice argv 1 2 with ["test","mexpr"] in
 
 // Test to read and to write to a file
 let str1 = "A unicode string.\n島" in
-let file = "_testfile" in
-let _ = writeFile file str1 in
+let ignore = "_testfile" in
+let foo = writeFile file str1 in
 let str2 = readFile file in
 utest str1 with str2 in
 utest fileExists file with true in
-let _ = deleteFile file in
+let ignore = deleteFile file in
 utest fileExists file with false in
 
 ()

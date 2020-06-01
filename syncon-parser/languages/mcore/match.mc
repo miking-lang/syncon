@@ -5,12 +5,11 @@
 
 mexpr
 
-// Constructor with and without arguments
+// Constructor
 con K1 in
 con K2 in
 con K3 in
 utest K1 with K1 in
-utest match K1 with K1 then 1 else 0 with 1 in
 utest K2() with K2() in
 utest match K2() with K2 a then a else () with () in
 utest K3("k",100) with K3("k",100) in

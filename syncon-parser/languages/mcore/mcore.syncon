@@ -41,8 +41,19 @@ prefix lam: Exp = "lam"  (x:Ident) (":" ty:Type)? "."
 prefix if:  Exp = "if" (cnd:Exp) "then" (thn:Exp) "else"
 
 prefix match: Exp =
-  "match" (target:Exp) "with" (k:CapitalIdent) (x:Ident)?
+  "match" (target:Exp) "with" (p:Pat)
   "then" (thn:Exp) "else"
+
+type Pat
+
+syncon wildcardPat: Pat = "_"
+syncon namedPat: Pat = i:Ident
+syncon tupPat: Pat = "(" (p1:Pat ("," p2:Pat)*)? ")"
+syncon conPat: Pat = con:CapitalIdent p:Pat
+syncon intPat: Pat = i:Integer
+syncon truePat: Pat = "true"
+syncon falsePat: Pat = "false"
+syncon unitPat: Pat = "()"
 
 syncon utest: Exp = "utest" (actual:Exp) "with" (expected:Exp) "in" (body:Exp)
 
