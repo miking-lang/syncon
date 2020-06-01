@@ -1326,8 +1326,12 @@ Broman~\cite{palmkvistCreatingDomainSpecificLanguages2019},
 wherein each production is defined separately from each other (one
 \syncon{syncon} each).
 %
-The tool is implemented in Haskell and uses a custom implementation of the Earley parsing algorithm
-\cite{earleyEfficientContextfreeParsing1970}.
+The tool is implemented in Haskell and uses a custom implementation of
+the Earley parsing algorithm \cite{earleyEfficientContextfreeParsing1970}
+and a different version of the dynamic analysis that is faster in the
+common case, but not guaranteed to terminate on an unresolvable
+ambiguity. We bound the execution time with a timeout, and report
+``unresolvable'' if this timeout is triggered.
 
 The main difference between the DSL and the formalism in
 Section~\ref{sec:parse-time-disambiguation} is that marks are
