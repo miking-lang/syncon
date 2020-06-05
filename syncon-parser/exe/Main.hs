@@ -1,10 +1,11 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-unused-imports -fno-warn-deprecations #-}
 
 module Main where
 
 import Pre hiding ((<.>))
 import Result (Result(..))
+import Data.String (fromString)
 
 import FileAnnotation (annotate, putInTextTemplate)
 import ErrorMessage (FormatError, formatErrors, formatError, ErrorOpts)
@@ -30,6 +31,8 @@ import Text.Show.Pretty (pPrint)
 import Codec.Serialise (writeFileSerialise, readFileDeserialise, DeserialiseFailure(..))
 
 import qualified Options.Applicative as Opt
+import qualified Hedgehog
+import qualified Text.Earley.Forest.Grammar as Forest
 
 import P1Lexing.Types (Range(..), range, textualRange)
 import qualified P1Lexing.Types as Lexer
@@ -42,6 +45,7 @@ import qualified P2LanguageDefinition.Elaborator as LD
 
 import qualified P4Parsing.Types as Parser
 import qualified P4Parsing.Parser as Parser
+import qualified P4Parsing.Generator as Parser
 
 import qualified P5DynamicAmbiguity.Types as DynAmb
 import qualified P5DynamicAmbiguity.TreeLanguage as DynAmb
@@ -103,7 +107,8 @@ test :: IO ()
 -- test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--two-level"] main
 -- test = withArgs ["examples/bootstrap.syncon", "--source=examples/bootstrap.syncon", "--json=out.json"] main
 -- test = withArgs ["--help"] main
-test = withArgs ["parse", "README.md", "source.test"] main
+-- test = withArgs ["parse", "README.md", "source.test"] main
+test = withArgs ["pbt", "examples/ambig.syncon"] main
 -- test = GLL.test
 
 getArgsSeq :: IO (Seq [Char])
@@ -116,7 +121,7 @@ die' :: Text -> IO a
 die' t = do
   throwIO $ SourceFileException t
 
-compileAction :: [FilePath] -> IO (Parser.Precomputed Parser.SL, DynAmb.PreLanguage DynAmb.Elidable)
+compileAction :: [FilePath] -> IO (LD.DefinitionFile, Parser.Precomputed Parser.SL, DynAmb.PreLanguage DynAmb.Elidable)
 compileAction files = do
   sources <- files <&> toS & S.fromList & S.toMap
     & M.traverseWithKey (\path _ -> readFile $ toS path)
@@ -126,7 +131,7 @@ compileAction files = do
   df <- LD.mkDefinitionFile tops & dataOrError sources ()
   preParse <- Parser.precomputeSingleLanguage @(Lexer.Token Parser.SingleLanguage LD.TypeName) df & dataOrError sources ()
   let pl = DynAmb.precompute @DynAmb.Elidable df
-  return (preParse, pl)
+  return (df, preParse, pl)
 
 parseAction :: Opt.Parser ((Parser.Precomputed Parser.SL, DynAmb.PreLanguage DynAmb.Elidable) -> [FilePath] -> IO ())
 parseAction = do
@@ -184,7 +189,7 @@ parseAction = do
               & mapM (foldMap S.singleton >>> DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
               <&> fmap (formatError DynAmb.EO{DynAmb.showTwoLevel, DynAmb.showElided = DynAmb.showElidable nodeMap, DynAmb.elidedRange = DynAmb.getElidable pl nodeMap >>> fst})
               <&> formatErrors sources
-              & (>>= die')
+              >>= die'
         maybe (die' "        timeout when parsing file") return mNode
 
     numSuccesses <- readIORef successfulFiles
@@ -229,7 +234,7 @@ compileCommand = Opt.command "compile" (Opt.info compileCmd $ Opt.progDesc "Comp
         <> Opt.metavar "OUTPUT"
 
       pure $ do
-        (preParse, pl) <- compileAction files
+        (_, preParse, pl) <- compileAction files
         let serialisable = (Parser.precomputeToSerialisable preParse, pl)
         writeFileSerialise outputFile serialisable
 
@@ -260,11 +265,72 @@ devCommand = Opt.command "dev" (Opt.info devCmd $ Opt.progDesc "Compile and pars
 
       pure $ do
         let (defFiles, srcFiles) = partition ("syncon" `isExtensionOf`) files
-        (preParse, pl) <- compileAction defFiles
+        (_, preParse, pl) <- compileAction defFiles
         parseAction' (preParse, pl) srcFiles
 
+data Ambiguity = UnresolvableAmbiguity | Ambiguity deriving (Show)
+hasAmbStyle :: Ambiguity -> DynAmb.Error a b -> Bool
+hasAmbStyle Ambiguity _ = True
+hasAmbStyle UnresolvableAmbiguity err = case DynAmb.ambiguityStyle err of
+  DynAmb.Unresolvable -> True
+  DynAmb.Mixed -> True
+  DynAmb.Resolvable -> False
+
+pbtCommand :: Opt.Mod Opt.CommandFields (IO ())
+pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambiguity of a language using property based testing.")
+  where
+    pbtCmd = do
+      target <- Opt.flag UnresolvableAmbiguity Ambiguity
+        $ Opt.long "ambiguity"
+        <> Opt.help "Look for any kind of ambiguity, not just unresolvable ambiguity."
+      numRuns <- Opt.option Opt.auto
+        $ Opt.long "tests"
+        <> Opt.metavar "N"
+        <> Opt.value 10000
+        <> Opt.help "The number of tests to run."
+      dynAmbTimeout <- fmap (*1_000) $ Opt.option Opt.auto
+        $ Opt.long "dynamic-resolvability-timeout"
+        <> Opt.metavar "MS"
+        <> Opt.help "Timeout for determining if a single ambiguity is resolvable, in milliseconds. A negative value means 'wait forever'."
+        <> Opt.value 10_000
+      showTwoLevel <- Opt.switch
+        $ Opt.long "two-level"
+        <> Opt.help "Always show the two level representation, even if some alternatives are resolvable."
+      files <- some $ Opt.argument Opt.str $
+        Opt.metavar "FILES..."
+        <> Opt.help "The '.syncon' files that define the language to be tested."
+
+      pure $ do
+        (df, preParse, pl) <- compileAction files
+        let gen = Parser.programGenerator df
+            prop = Hedgehog.withShrinks 1000000 $ Hedgehog.withTests (fromInteger numRuns) $ Hedgehog.property $ do
+              (size, Lexer.makeFakeFile -> (sources, program)) <- Hedgehog.forAllWith (snd >>> toList >>> fmap Forest.unlex >>> Text.intercalate " " >>> toS) gen
+              Hedgehog.collect size
+              Hedgehog.evalM $ case Parser.parseTokens preParse program of
+                Error _ -> do
+                  Hedgehog.annotate $ "Got error when parsing generated program, this should not be possible"
+                  Hedgehog.failure
+                Data forest@(nodeMap, _) -> case DynAmb.isolate forest of
+                  Data _ -> Hedgehog.success
+                  Error ambs -> do
+                    errs <- ambs
+                      & mapM (foldMap S.singleton >>> DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
+                      <&> Seq.filter (hasAmbStyle target)
+                      & lift
+                    if Seq.null errs
+                      then Hedgehog.success
+                      else do
+                      errs
+                        <&> formatError DynAmb.EO{DynAmb.showTwoLevel, DynAmb.showElided = DynAmb.showElidable nodeMap, DynAmb.elidedRange = DynAmb.getElidable pl nodeMap >>> fst}
+                        & formatErrors sources
+                        & toS
+                        & Hedgehog.annotate
+                      Hedgehog.failure
+        Hedgehog.checkParallel $ Hedgehog.Group (fromString $ intercalate ", " files) [(fromString $ show target, prop)]
+        pure ()
+
 main :: IO ()
-main = join $ Opt.execParser $ Opt.info (Opt.hsubparser (compileCommand <> parseCommand <> devCommand) <**> Opt.helper)
+main = join $ Opt.execParser $ Opt.info (Opt.hsubparser (compileCommand <> parseCommand <> devCommand <> pbtCommand) <**> Opt.helper)
   $ Opt.fullDesc
   <> Opt.progDesc "Parse files using syncons. To parse a language defined with syncon you first have to compile it using the 'compile' command, then use the 'parse' command, giving it the file produced by 'compile'. Alternatively, you can use 'dev' to do both at once, though this is likely only desired during development, when the language definition changes frequently."
   <> Opt.header "syncon-parser -- A proof-of-concept parser based on syncons"

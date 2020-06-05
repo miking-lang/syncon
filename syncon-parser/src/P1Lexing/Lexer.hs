@@ -10,6 +10,7 @@ module P1Lexing.Lexer
 , advanceLexer
 , allOneLanguage
 , allOneLanguage'
+, makeFakeFile
 ) where
 
 import Pre
@@ -23,6 +24,9 @@ import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.UTF8 as UTF8
 import qualified Data.Sequence as Seq
 import qualified Data.HashMap.Strict as M
+import qualified Data.Text as Text
+
+import qualified Text.Earley.Forest.Grammar as Forest
 
 import ErrorMessage (FormatError(..), simpleErrorMessage, ErrorMessage(..))
 
@@ -302,3 +306,16 @@ allOneLanguage' :: (Eq l, Hashable l)
                 -> IO (Result [Error l n] [Token l n])
 allOneLanguage' lang langToks path = allOneLanguage lang langToks <*> pure path
   & sequenceA & fmap join
+
+makeFakeFile :: Coercible n Text => Seq (Token l n) -> (HashMap Text Text, Seq (Token l n))
+makeFakeFile toks =
+  ( toks <&> Forest.unlex & toList & Text.intercalate " " & M.singleton file
+  , mapAccumL addRangeAndAdvance firstPosition toks & snd)
+  where
+    file = "<generated>"
+    setRange r (LitTok _ l t) = LitTok r l t
+    setRange r (OtherTok _ l n t) = OtherTok r l n t
+    addRangeAndAdvance start tok =
+      let end = Text.foldl stepPosition start $ Forest.unlex tok
+          next = stepPosition end ' '
+      in (next, setRange (Range file start end) tok)

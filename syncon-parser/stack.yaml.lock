@@ -13,7 +13,7 @@ packages:
     hackage: pretty-terminal-0.1.0.0
 snapshots:
 - completed:
-    size: 497510
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/13/16.yaml
-    sha256: 3e56dd069db766f8e4c0a61ba49611e549c8b7757369fe1a063d1c33548790ac
-  original: lts-13.16
+    size: 523443
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/14/0.yaml
+    sha256: 283773e7120f5446d961eab35ea95c9af9c24187cc178537bd29273200a05171
+  original: lts-14.0

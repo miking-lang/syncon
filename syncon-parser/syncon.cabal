@@ -25,6 +25,8 @@ executable syncon-parser
                , filepath
                , text
                , serialise
+               , earley-forest
+               , hedgehog
   default-extensions: NoImplicitPrelude
                     , EmptyCase
                     , FlexibleContexts
@@ -71,6 +73,7 @@ library
                , text
                , hashable
                , unordered-containers
+               , semialign
                , these
                , containers
                , vector
@@ -84,6 +87,7 @@ library
                , pretty-terminal
                , Earley
                , earley-forest
+               , hedgehog
                , aeson
                , serialise
   exposed-modules: Pre
@@ -108,6 +112,7 @@ library
                  , P2LanguageDefinition.Elaborator
                  , P4Parsing.Types
                  , P4Parsing.Parser
+                 , P4Parsing.Generator
                  , P5DynamicAmbiguity.Types
                  , P5DynamicAmbiguity.TreeLanguage
                  , P5DynamicAmbiguity.Analysis

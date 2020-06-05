@@ -1,4 +1,4 @@
-module P5DynamicAmbiguity.Analysis (analyze, Error, ErrorOptions(..)) where
+module P5DynamicAmbiguity.Analysis (analyze, Error, ErrorOptions(..), ambiguityStyle, AmbiguityStyle(..)) where
 
 import Pre
 
@@ -20,6 +20,12 @@ import P5DynamicAmbiguity.TreeLanguage (treeLanguage, PreLanguage)
 import P5DynamicAmbiguity.Types
 
 data Error elidable tok = Ambiguity Range [(NodeOrElide elidable tok, Text)] [NodeOrElide elidable tok]  -- ^ Resolvable alternatives, and unresolvable alternatives
+data AmbiguityStyle = Resolvable | Unresolvable | Mixed
+ambiguityStyle :: Error elidable tok -> AmbiguityStyle
+ambiguityStyle (Ambiguity _ (_:_) (_:_)) = Mixed
+ambiguityStyle (Ambiguity _ [] (_:_)) = Unresolvable
+ambiguityStyle (Ambiguity _ (_:_) []) = Resolvable
+ambiguityStyle (Ambiguity _ [] []) = panic $ "Unexpectedly empty ambiguity error"
 
 instance FormatError (Error elidable tok) where
   type ErrorOpts (Error elidable tok) = ErrorOptions elidable
