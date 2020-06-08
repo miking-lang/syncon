@@ -514,6 +514,7 @@ shortestWord NVA{..} = recur initialConfigs
     isFinal (s, [], _) = S.member s final
     isFinal _ = False
 
+data TimeoutInfo = DidTimeout | DidNotTimeout
 shortestUniqueWord :: forall s sta i o c.
                       ( Eq s, Hashable s
                       , Eq sta, Hashable sta
@@ -523,13 +524,15 @@ shortestUniqueWord :: forall s sta i o c.
                    => Int  -- ^ Timeout in microseconds. Negative to never timeout
                    -> Int  -- ^ Max word length to consider (inclusive)
                    -> HashSet (NVA s sta i o c)  -- ^ NVAs to find unique words for
-                   -> IO (HashMap (NVA s sta i o c) [TaggedTerminal i o c])  -- ^ Produced shortest unique words, per NVA. If no unique word was found for an NVA, then there is no entry for that NVA here
+                   -> IO (TimeoutInfo, HashMap (NVA s sta i o c) [TaggedTerminal i o c])  -- ^ Produced shortest unique words, per NVA. If no unique word was found for an NVA, then there is no entry for that NVA here
 shortestUniqueWord _ maxLength _
   | maxLength < 0 = compErr "Data.Automaton.NVA.shortestUniqueWord" $ "Got a negative maxLength: " <> show maxLength
 shortestUniqueWord timeoutDuration maxLength (toList >>> Vec.fromList -> nvas) = do
   res <- newIORef $ getUniques initials
-  _ <- timeout timeoutDuration $ recur maxLength res initials
-  readIORef res <&> (M.toList >>> fmap (asNVA *** Pre.reverse) >>> M.fromList)
+  didntTimeout <- timeout timeoutDuration $ recur maxLength res initials
+  readIORef res
+    <&> (M.toList >>> fmap (asNVA *** Pre.reverse) >>> M.fromList)
+    <&> (maybe DidTimeout (const DidNotTimeout) didntTimeout,)
   where
     asNVA idx = Vec.unsafeIndex nvas idx
     initialConfigs NVA{initial} = S.map (, []) initial

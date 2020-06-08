@@ -27,6 +27,7 @@ executable syncon-parser
                , serialise
                , earley-forest
                , hedgehog
+               , lifted-async
   default-extensions: NoImplicitPrelude
                     , EmptyCase
                     , FlexibleContexts

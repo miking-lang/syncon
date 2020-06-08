@@ -1,4 +1,4 @@
-module P5DynamicAmbiguity.Analysis (analyze, Error, ErrorOptions(..), ambiguityStyle, AmbiguityStyle(..)) where
+module P5DynamicAmbiguity.Analysis (analyze, Error, ErrorOptions(..), ambiguityStyle, AmbiguityStyle(..), didTimeout) where
 
 import Pre
 
@@ -8,7 +8,7 @@ import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
 import Data.Semigroup (Max(..))
 
-import Data.Automaton.NVA (NVA, shortestUniqueWord, shortestWord)
+import Data.Automaton.NVA (NVA, shortestUniqueWord, shortestWord, TimeoutInfo(..))
 import Data.Automaton.EpsilonNVA (untag, TaggedTerminal(..))
 
 import ErrorMessage (FormatError(..), simpleErrorMessage)
@@ -19,24 +19,30 @@ import P4Parsing.Types (NodeF(..))
 import P5DynamicAmbiguity.TreeLanguage (treeLanguage, PreLanguage)
 import P5DynamicAmbiguity.Types
 
-data Error elidable tok = Ambiguity Range [(NodeOrElide elidable tok, Text)] [NodeOrElide elidable tok]  -- ^ Resolvable alternatives, and unresolvable alternatives
+data Error elidable tok = Ambiguity Range TimeoutInfo [(NodeOrElide elidable tok, Text)] [NodeOrElide elidable tok]  -- ^ Resolvable alternatives, and unresolvable alternatives
 data AmbiguityStyle = Resolvable | Unresolvable | Mixed
 ambiguityStyle :: Error elidable tok -> AmbiguityStyle
-ambiguityStyle (Ambiguity _ (_:_) (_:_)) = Mixed
-ambiguityStyle (Ambiguity _ [] (_:_)) = Unresolvable
-ambiguityStyle (Ambiguity _ (_:_) []) = Resolvable
-ambiguityStyle (Ambiguity _ [] []) = panic $ "Unexpectedly empty ambiguity error"
+ambiguityStyle (Ambiguity _ _ (_:_) (_:_)) = Mixed
+ambiguityStyle (Ambiguity _ _ [] (_:_)) = Unresolvable
+ambiguityStyle (Ambiguity _ _ (_:_) []) = Resolvable
+ambiguityStyle (Ambiguity _ _ [] []) = panic $ "Unexpectedly empty ambiguity error"
+
+didTimeout :: Error elidable tok -> Bool
+didTimeout (Ambiguity _ DidTimeout _ _) = True
+didTimeout _ = False
 
 instance FormatError (Error elidable tok) where
   type ErrorOpts (Error elidable tok) = ErrorOptions elidable
-  formatError EO{showTwoLevel, elidedRange, showElided} (Ambiguity r resolvable trees) = simpleErrorMessage r $
+  formatError EO{showTwoLevel, elidedRange, showElided} (Ambiguity r timeoutInfo resolvable trees) = simpleErrorMessage r $
     kind <> " with " <> show (length trees + length resolvable) <> " alternatives.\n" <>
     resolvableSection <>
     unresolvableSection
     where
       hasResolvable = not $ null resolvable
       hasUnresolvable = not $ null trees
-      kind | hasUnresolvable = "Unresolvable ambiguity error"
+      timeoutStr | DidTimeout <- timeoutInfo = " (timeout)"
+                 | otherwise = ""
+      kind | hasUnresolvable = "Unresolvable ambiguity error" <> timeoutStr
            | otherwise = "Ambiguity error"
       resolvableSection
         | not hasResolvable = ""
@@ -83,7 +89,7 @@ analyze :: forall elidable tok. (Eq elidable, Hashable elidable, Show elidable, 
         -> HashSet (NodeOrElide elidable tok)
         -> IO (Error elidable tok)
 analyze timeout pl mkToken getElided showElided alts = do
-  res <- shortest
+  (timeoutInfo, res) <- shortest
   M.toList languages
     <&> (\(node, lang) ->
            case M.lookup lang res of
@@ -94,7 +100,7 @@ analyze timeout pl mkToken getElided showElided alts = do
                & (node, )
                & Left)
     & partitionEithers
-    & uncurry (Ambiguity range)
+    & uncurry (Ambiguity range timeoutInfo)
     & return
   where
     range = toList alts & \case
@@ -106,17 +112,20 @@ analyze timeout pl mkToken getElided showElided alts = do
     languages :: HashMap (NodeOrElide elidable tok) (ResLang elidable)
     languages = S.toMap alts & M.mapWithKey (\node _ -> mkLanguage node)
 
-    shortest :: IO (HashMap (ResLang elidable) [TaggedTerminal (Token elidable) (Token elidable) (Token elidable)])
+    shortest :: IO (TimeoutInfo, HashMap (ResLang elidable) [TaggedTerminal (Token elidable) (Token elidable) (Token elidable)])
     shortest = do
-      result <- shortestUniqueWord timeout (len + 10) nvas
-      S.toMap nvas & M.mapMaybeWithKey (getResult result)
+      (timeoutInfo, result) <- shortestUniqueWord timeout (len + 10) nvas
+      S.toMap nvas
+        & M.mapMaybeWithKey (getResult result)
+        & (timeoutInfo,)
         & return
       where
         Max len = foldMap (shortestWord >>> fmap (length >>> Max) >>> fold) nvas
-        nvas = foldMap S.singleton languages
-        duplicateLangs = toList languages
+        langsWithCounts = toList languages  -- TODO: OPTIMIZE: I believe this is acutally quite expensive, each NVA is quite large
           <&> (, Sum @Int 1)
           & M.fromListWith (<>)
+        nvas = M.keysSet langsWithCounts
+        duplicateLangs = langsWithCounts
           & M.filter (getSum >>> (> 1))
         getResult result nva _
           | M.member nva duplicateLangs = Nothing

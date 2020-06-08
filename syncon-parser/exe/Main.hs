@@ -3,7 +3,7 @@
 
 module Main where
 
-import Pre hiding ((<.>))
+import Pre hiding ((<.>), race)
 import Result (Result(..))
 import Data.String (fromString)
 
@@ -14,6 +14,8 @@ import System.Environment (withArgs)
 import System.FilePath ((</>), (<.>), takeDirectory, isExtensionOf)
 import System.Timeout (timeout)
 import System.Directory (createDirectoryIfMissing)
+
+import Control.Concurrent.Async.Lifted (race)
 
 import Data.Data (Data)
 import Data.IORef (newIORef, modifyIORef', readIORef)
@@ -292,7 +294,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
         $ Opt.long "dynamic-resolvability-timeout"
         <> Opt.metavar "MS"
         <> Opt.help "Timeout for determining if a single ambiguity is resolvable, in milliseconds. A negative value means 'wait forever'."
-        <> Opt.value 10_000
+        <> Opt.value 4_000
       showTwoLevel <- Opt.switch
         $ Opt.long "two-level"
         <> Opt.help "Always show the two level representation, even if some alternatives are resolvable."
@@ -303,31 +305,38 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
       pure $ do
         (df, preParse, pl) <- compileAction files
         let gen = Parser.programGenerator df
-            prop = Hedgehog.withShrinks 1000000 $ Hedgehog.withTests (fromInteger numRuns) $ Hedgehog.property $ do
+            prop = Hedgehog.withTests (fromInteger numRuns) $ Hedgehog.property $ do
               (size, Lexer.makeFakeFile -> (sources, program)) <- Hedgehog.forAllWith (snd >>> toList >>> fmap Forest.unlex >>> Text.intercalate " " >>> toS) gen
               Hedgehog.collect size
-              Hedgehog.evalM $ case Parser.parseTokens preParse program of
-                Error _ -> do
-                  Hedgehog.annotate $ "Got error when parsing generated program, this should not be possible"
-                  Hedgehog.failure
-                Data forest@(nodeMap, _) -> case DynAmb.isolate forest of
-                  Data _ -> Hedgehog.success
-                  Error ambs -> do
-                    errs <- ambs
-                      & mapM (foldMap S.singleton >>> DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
-                      <&> Seq.filter (hasAmbStyle target)
-                      & lift
-                    if Seq.null errs
-                      then Hedgehog.success
-                      else do
-                      errs
-                        <&> formatError DynAmb.EO{DynAmb.showTwoLevel, DynAmb.showElided = DynAmb.showElidable nodeMap, DynAmb.elidedRange = DynAmb.getElidable pl nodeMap >>> fst}
-                        & formatErrors sources
-                        & toS
-                        & Hedgehog.annotate
-                      Hedgehog.failure
+              discardSlow dynAmbTimeout $ do
+                Hedgehog.evalM $ case Parser.parseTokens preParse program of
+                  Error _ -> do
+                    Hedgehog.annotate $ "Got error when parsing generated program, this should not be possible"
+                    Hedgehog.failure
+                  Data forest@(nodeMap, _) -> case DynAmb.isolate forest of
+                    Data _ -> Hedgehog.success
+                    Error ambs -> do
+                      errs <- ambs
+                        & mapM (foldMap S.singleton >>> DynAmb.analyze (-1) pl DynAmb.convertToken (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
+                        <&> Seq.filter (hasAmbStyle target)
+                        & lift
+                      if Seq.null errs
+                        then Hedgehog.success
+                        else do
+                        errs
+                          <&> formatError DynAmb.EO{DynAmb.showTwoLevel, DynAmb.showElided = DynAmb.showElidable nodeMap, DynAmb.elidedRange = DynAmb.getElidable pl nodeMap >>> fst}
+                          & formatErrors sources
+                          & toS
+                          & Hedgehog.annotate
+                        Hedgehog.failure
         Hedgehog.checkParallel $ Hedgehog.Group (fromString $ intercalate ", " files) [(fromString $ show target, prop)]
         pure ()
+    discardSlow :: Int -> Hedgehog.TestT IO a -> Hedgehog.PropertyT IO a
+    discardSlow timelimit v = do
+      result <- Hedgehog.test $ race (liftIO $ threadDelay timelimit) v
+      case result of
+        Left _ -> Hedgehog.discard
+        Right a -> pure a
 
 main :: IO ()
 main = join $ Opt.execParser $ Opt.info (Opt.hsubparser (compileCommand <> parseCommand <> devCommand <> pbtCommand) <**> Opt.helper)
