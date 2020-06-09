@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module P4Parsing.Generator (programGenerator) where
 
@@ -7,6 +8,9 @@ import qualified Data.HashSet as S
 import qualified Data.HashMap.Strict as M
 import qualified Data.Sequence as Seq
 import Data.Bitraversable (bitraverse)
+
+import Data.Functor.Foldable (cata)
+import Data.Functor.Foldable.TH (makeBaseFunctor)
 
 import P1Lexing.Types (Token(..), Range(..))
 import P2LanguageDefinition.Types (DefinitionFile(..), TypeName(..), Name(..), SDName(..), Syncon(..), SyntaxDescription(..), Rec(..), Repetition(..))
@@ -24,11 +28,12 @@ data CSTNode = CSTNode
   , cst_children :: !(Seq (Either Tok CSTNode))
   }
 type Tok = Token SingleLanguage TypeName
+makeBaseFunctor ''CSTNode
 
-programGenerator :: DefinitionFile -> Gen (Int, Seq Tok)
+programGenerator :: DefinitionFile -> Gen (Int, HashSet Name, HashSet TypeName, Seq Tok)
 programGenerator DefinitionFile{syncons, forbids, precedences, groupings, syntaxTypes} =
   genInSyTy getDisallowed getSyns isToken (TypeName "Top") S.empty
-  <&> ((size >>> getSum) &&& flattenCST)
+  <&> (cata combinedAlg >>> coerce)
   where
     elaboration = elaborate syncons forbids precedences
     getDisallowed :: (Name, Either Rec SDName) -> HashSet Name
@@ -119,8 +124,27 @@ shallowShrinkCST CSTNode{cst_type, cst_disallowedHere, cst_children} =
              && maybe True (\n -> not $ n `S.member` cst_disallowedHere) cst_name)
   <&> (\c -> c {cst_disallowedHere = cst_disallowedHere})
 
-flattenCST :: CSTNode -> Seq Tok
-flattenCST CSTNode{cst_children} = cst_children >>= either Seq.singleton flattenCST
+combinedAlg :: CSTNodeF (Sum Int, HashSet Name, HashSet TypeName, Seq Tok) -> (Sum Int, HashSet Name, HashSet TypeName, Seq Tok)
+combinedAlg cst = (sizeAlg $ p1 <$> cst, nameAlg $ p2 <$> cst, typeAlg $ p3 <$> cst, flattenAlg $ p4 <$> cst)
+  where
+    p1 (a, _, _, _) = a
+    p2 (_, a, _, _) = a
+    p3 (_, _, a, _) = a
+    p4 (_, _, _, a) = a
 
-size :: CSTNode -> Sum Int
-size CSTNode{cst_children} = 1 + foldMap (either (const mempty) size) cst_children
+flattenAlg :: CSTNodeF (Seq Tok) -> Seq Tok
+flattenAlg = cst_childrenF >=> either Seq.singleton identity
+
+sizeAlg :: CSTNodeF (Sum Int) -> Sum Int
+sizeAlg CSTNodeF{cst_childrenF} = 1 + foldMap fold cst_childrenF
+
+nameAlg :: CSTNodeF (HashSet Name) -> HashSet Name
+nameAlg CSTNodeF{cst_childrenF, cst_nameF} =
+  foldMap fold cst_childrenF & maybe identity S.insert cst_nameF
+
+typeAlg :: CSTNodeF (HashSet TypeName) -> HashSet TypeName
+typeAlg CSTNodeF{cst_childrenF, cst_typeF, cst_disallowedHereF = _} =
+  foldMap (either getTokTy identity) cst_childrenF & S.insert cst_typeF
+  where
+    getTokTy LitTok{} = S.empty
+    getTokTy (OtherTok _ _ tyn _) = S.singleton tyn

@@ -6,6 +6,7 @@ module Main where
 import Pre hiding ((<.>), race)
 import Result (Result(..))
 import Data.String (fromString)
+import qualified Text.Printf as Printf
 
 import FileAnnotation (annotate, putInTextTemplate)
 import ErrorMessage (FormatError, formatErrors, formatError, ErrorOpts)
@@ -290,6 +291,15 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
         <> Opt.metavar "N"
         <> Opt.value 10000
         <> Opt.help "The number of tests to run."
+      showSizeDistr <- Opt.switch
+        $ Opt.long "size-distr"
+        <> Opt.help "Show the distribution of CST sizes generated"
+      showSynconDistr <- Opt.switch
+        $ Opt.long "syncon-distr"
+        <> Opt.help "Show the fraction of CSTs that contain each syncon"
+      showSyTyDistr <- Opt.switch
+        $ Opt.long "syty-distr"
+        <> Opt.help "Show the fraction of CSTs that contain each syntax type"
       dynAmbTimeout <- fmap (*1_000) $ Opt.option Opt.auto
         $ Opt.long "dynamic-resolvability-timeout"
         <> Opt.metavar "MS"
@@ -304,10 +314,19 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
 
       pure $ do
         (df, preParse, pl) <- compileAction files
+        let allSyncons = LD.syncons df & M.keysSet
+            allSyTys = LD.syntaxTypes df & M.keysSet
+            classifySyncon present n = Hedgehog.classify (coerce n & toS @Text & fromString) $ S.member n present
+            classifySyTy present n = Hedgehog.classify (coerce n & toS @Text & fromString) $ S.member n present
         let gen = Parser.programGenerator df
             prop = Hedgehog.withTests (fromInteger numRuns) $ Hedgehog.property $ do
-              (size, Lexer.makeFakeFile -> (sources, program)) <- Hedgehog.forAllWith (snd >>> toList >>> fmap Forest.unlex >>> Text.intercalate " " >>> toS) gen
-              Hedgehog.collect size
+              (size, syncons, types, Lexer.makeFakeFile -> (sources, program)) <- Hedgehog.forAllWith ((\(_, _, _, x) -> x) >>> toList >>> fmap Forest.unlex >>> Text.intercalate " " >>> toS) gen
+              when showSizeDistr $
+                Hedgehog.label $ fromString $ Printf.printf "%4d" size
+              when showSynconDistr $
+                mapM_ (classifySyncon syncons) allSyncons
+              when showSyTyDistr $
+                mapM_ (classifySyTy types) allSyTys
               discardSlow dynAmbTimeout $ do
                 Hedgehog.evalM $ case Parser.parseTokens preParse program of
                   Error _ -> do
@@ -329,7 +348,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                           & toS
                           & Hedgehog.annotate
                         Hedgehog.failure
-        Hedgehog.checkParallel $ Hedgehog.Group (fromString $ intercalate ", " files) [(fromString $ show target, prop)]
+        Hedgehog.check prop
         pure ()
     discardSlow :: Int -> Hedgehog.TestT IO a -> Hedgehog.PropertyT IO a
     discardSlow timelimit v = do
