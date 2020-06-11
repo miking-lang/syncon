@@ -163,6 +163,9 @@ parseAction = do
     <> Opt.metavar "MS"
     <> Opt.help "Timeout for determining if a single ambiguity is resolvable, in milliseconds. A negative value means 'wait forever'."
     <> Opt.value 1_000
+  noIsolation <- Opt.switch
+    $ Opt.long "no-isolation"
+    <> Opt.help "Do not isolate ambiguities, instead treat the entire file as ambiguous."
   continueAfterError <- Opt.switch
     $ Opt.long "continue-after-error"
     <> Opt.help "Don't abort after the first source file that gives errors."
@@ -175,6 +178,9 @@ parseAction = do
     let sourceFailureHandler
           | continueAfterError = \t -> putStrLn t >> return undefined  -- NOTE: this undefined is ok, since this case will only happen after we have recorded a failure, which means that we stop processing immediately after finishing constructing this map, i.e., its values will never be used
           | otherwise = die
+        isolate = if noIsolation
+                  then DynAmb.dummyIsolate >>> first Seq.singleton
+                  else DynAmb.isolate
     srcNodes <- flip M.traverseWithKey sources $ \path _ -> do
       putStrLn $ "Parsing \"" <> path <> "\""
       handle (\(SourceFileException t) -> modifyIORef' failureFiles (+1) >> sourceFailureHandler t) $ do
@@ -186,7 +192,7 @@ parseAction = do
             createDirectoryIfMissing True $ takeDirectory fullPath
             Parser.forestToDot (Parser.n_nameF >>> coerce) forest
               & writeFile fullPath
-          DynAmb.isolate forest & \case
+          isolate forest & \case
             Data node -> modifyIORef' successfulFiles (+1) >> return node
             Error ambs -> ambs
               & mapM (foldMap S.singleton >>> DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
@@ -301,13 +307,16 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
         $ Opt.long "syty-distr"
         <> Opt.help "Show the fraction of CSTs that contain each syntax type"
       dynAmbTimeout <- fmap (*1_000) $ Opt.option Opt.auto
-        $ Opt.long "dynamic-resolvability-timeout"
+        $ Opt.long "timeout"
         <> Opt.metavar "MS"
-        <> Opt.help "Timeout for determining if a single ambiguity is resolvable, in milliseconds. A negative value means 'wait forever'."
+        <> Opt.help "Timeout before discarding a test case, in milliseconds. A negative value means 'wait forever'."
         <> Opt.value 4_000
       showTwoLevel <- Opt.switch
         $ Opt.long "two-level"
         <> Opt.help "Always show the two level representation, even if some alternatives are resolvable."
+      noIsolation <- Opt.switch
+        $ Opt.long "no-isolation"
+        <> Opt.help "Do not isolate ambiguities, instead treat the entire file as ambiguous."
       files <- some $ Opt.argument Opt.str $
         Opt.metavar "FILES..."
         <> Opt.help "The '.syncon' files that define the language to be tested."
@@ -318,6 +327,9 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
             allSyTys = LD.syntaxTypes df & M.keysSet
             classifySyncon present n = Hedgehog.classify (coerce n & toS @Text & fromString) $ S.member n present
             classifySyTy present n = Hedgehog.classify (coerce n & toS @Text & fromString) $ S.member n present
+            isolate = if noIsolation
+                      then DynAmb.dummyIsolate >>> first Seq.singleton
+                      else DynAmb.isolate
         let gen = Parser.programGenerator df
             prop = Hedgehog.withTests (fromInteger numRuns) $ Hedgehog.property $ do
               (size, syncons, types, Lexer.makeFakeFile -> (sources, program)) <- Hedgehog.forAllWith ((\(_, _, _, x) -> x) >>> toList >>> fmap Forest.unlex >>> Text.intercalate " " >>> toS) gen
@@ -332,7 +344,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                   Error _ -> do
                     Hedgehog.annotate $ "Got error when parsing generated program, this should not be possible"
                     Hedgehog.failure
-                  Data forest@(nodeMap, _) -> case DynAmb.isolate forest of
+                  Data forest@(nodeMap, _) -> case isolate forest of
                     Data _ -> Hedgehog.success
                     Error ambs -> do
                       errs <- ambs

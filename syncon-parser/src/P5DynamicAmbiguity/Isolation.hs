@@ -1,4 +1,4 @@
-module P5DynamicAmbiguity.Isolation (isolate, getElidable, showElidable, Elidable) where
+module P5DynamicAmbiguity.Isolation (isolate, dummyIsolate, getElidable, showElidable, Elidable) where
 
 import Pre hiding (reduce, State, state, orElse)
 import Result (Result(..))
@@ -8,7 +8,7 @@ import qualified Data.HashMap.Lazy as M
 import qualified Data.Sequence as Seq
 import Data.STRef (STRef, newSTRef, readSTRef, modifySTRef')
 
-import Data.Functor.Foldable (embed)
+import Data.Functor.Foldable (embed, project)
 import Text.Earley.Forest.Grammar (unlex, Parseable)
 import Text.Earley.Forest.Parser (Node)
 
@@ -120,6 +120,24 @@ validElidables top = do
     intersections = toList >>> \case
       [] -> S.empty
       (x : xs) -> foldl' S.intersection x xs
+
+-- | Do no isolation, instead produce a single ambiguity covering the entirety of
+-- the AST. This has terrible complexity, since ambiguities interact multiplicatively.
+dummyIsolate :: (Dag tok, HashSet Node)
+             -> Result (Seq (NodeOrElide tok)) (FullNode tok)
+dummyIsolate (dag, roots) = runST $ do
+  state <- State dag <$> newSTRef M.empty
+  runReaderT (dummyAmb roots) state <&> \case
+    (tree Seq.:<| Seq.Empty) -> Data tree
+    trees -> Error $ mkElide <$> trees
+  where
+    mkElide :: FullNode tok -> NodeOrElide tok
+    mkElide = project >>> fmap mkElide >>> Node
+
+dummyAmb :: HashSet Node -> IsolationM s tok (Seq (FullNode tok))
+dummyAmb = toList
+  >>> traverse (\node -> fetchNode node >>= traverse dummyAmb <&> sequence <&> fmap embed)
+  >>> fmap mconcat
 
 fetchNode :: Node -> IsolationM s tok (NodeF tok (HashSet Node))
 fetchNode node = asks
