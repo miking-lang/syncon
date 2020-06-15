@@ -17,7 +17,8 @@ import P2LanguageDefinition.Types
 data Assoc = AssocLeft | AssocRight
 
 -- | The forbids are generated differently depending on what kind of operator it is, e.g.,
--- a prefix operator will never be forbidden in RRec, since there's no ambiguity there.
+-- a prefix operator will never be forbidden in RRec, since there's no ambiguity there
+-- (assuming 'PermissivePrecedence').
 data OpKind = InfixOp | PrefixOp | PostfixOp | OtherOp
 
 -- | Produce a single structure containing all disambiguation. Note that there won't be a mapping
@@ -26,8 +27,9 @@ data OpKind = InfixOp | PrefixOp | PostfixOp | OtherOp
 elaborate :: HashMap Name Syncon  -- ^ All syncons we will work with
           -> Seq Forbid  -- ^ Forbids, including generated associativity forbids
           -> PrecedenceMatrix  -- ^ All defined precedences
+          -> PrecedenceKind  -- ^ How to treat low precedence unary operators
           -> Elaboration  -- ^ A mapping from (qualified) sdnames to their marks, i.e., their forbidden syncons
-elaborate syncons forbids (PrecedenceMatrix mat) = elaboratedForbids : assocEntries
+elaborate syncons forbids (PrecedenceMatrix mat) precKind = elaboratedForbids : assocEntries
   & foldl' (M.unionWith S.union) M.empty
   where
     elaboratedForbids = toList forbids
@@ -79,8 +81,10 @@ elaborate syncons forbids (PrecedenceMatrix mat) = elaboratedForbids : assocEntr
     forbid :: Name -> Rec -> Name -> Elaboration
     forbid n1 r n2
       | LRec <- r
+      , PermissivePrecedence <- precKind
       , Just PostfixOp <- mKind = M.empty
       | RRec <- r
+      , PermissivePrecedence <- precKind
       , Just PrefixOp <- mKind = M.empty
       | M.lookup n1 recs & fold & S.member r
       = M.singleton (n1, Left r) (S.singleton n2)

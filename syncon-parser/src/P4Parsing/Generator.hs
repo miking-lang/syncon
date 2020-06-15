@@ -31,11 +31,11 @@ type Tok = Token SingleLanguage TypeName
 makeBaseFunctor ''CSTNode
 
 programGenerator :: DefinitionFile -> Gen (Int, HashSet Name, HashSet TypeName, Seq Tok)
-programGenerator DefinitionFile{syncons, forbids, precedences, groupings, syntaxTypes} =
+programGenerator DefinitionFile{syncons, forbids, precedences, groupings, syntaxTypes, precedenceKind} =
   genInSyTy getDisallowed getSyns isToken (TypeName "Top") S.empty
   <&> (cata combinedAlg >>> coerce)
   where
-    elaboration = elaborate syncons forbids precedences
+    elaboration = elaborate syncons forbids precedences precedenceKind
     getDisallowed :: (Name, Either Rec SDName) -> HashSet Name
     getDisallowed loc = M.lookupDefault S.empty loc elaboration
 

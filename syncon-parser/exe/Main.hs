@@ -124,14 +124,14 @@ die' :: Text -> IO a
 die' t = do
   throwIO $ SourceFileException t
 
-compileAction :: [FilePath] -> IO (LD.DefinitionFile, Parser.Precomputed Parser.SL, DynAmb.PreLanguage DynAmb.Elidable)
-compileAction files = do
+compileAction :: LD.PrecedenceKind -> [FilePath] -> IO (LD.DefinitionFile, Parser.Precomputed Parser.SL, DynAmb.PreLanguage DynAmb.Elidable)
+compileAction precKind files = do
   sources <- files <&> toS & S.fromList & S.toMap
     & M.traverseWithKey (\path _ -> readFile $ toS path)
   putStrLn @Text "Parsing definition file(s)"
   tops <- M.traverseWithKey (\defFile _ -> LD.parseFile $ toS defFile) sources
     >>= (fold >>> dataOrError sources ())
-  df <- LD.mkDefinitionFile tops & dataOrError sources ()
+  df <- LD.mkDefinitionFile precKind tops & dataOrError sources ()
   preParse <- Parser.precomputeSingleLanguage @(Lexer.Token Parser.SingleLanguage LD.TypeName) df & dataOrError sources ()
   let pl = DynAmb.precompute @DynAmb.Elidable df
   return (df, preParse, pl)
@@ -235,15 +235,18 @@ compileCommand :: Opt.Mod Opt.CommandFields (IO ())
 compileCommand = Opt.command "compile" (Opt.info compileCmd $ Opt.progDesc "Compile a list of '.syncon' files to a single '.synconc' file, to be used for parsing.")
   where
     compileCmd = do
-      files <- some $ Opt.argument Opt.str $
-        Opt.metavar "FILES..."
+      precKind <- Opt.flag LD.PermissivePrecedence LD.RestrictivePrecedence
+        $ Opt.long "restrictive-precedence"
+        <> Opt.help "Restrict low-precedence unary operators to retain unambiguity in the presence of a total precedence list. This changes the recognized syntactic language, but not the semantic language."
+      files <- some $ Opt.argument Opt.str
+        $ Opt.metavar "FILES..."
       outputFile <- Opt.strOption
         $ Opt.long "output"
         <> Opt.short 'o'
         <> Opt.metavar "OUTPUT"
 
       pure $ do
-        (_, preParse, pl) <- compileAction files
+        (_, preParse, pl) <- compileAction precKind files
         let serialisable = (Parser.precomputeToSerialisable preParse, pl)
         writeFileSerialise outputFile serialisable
 
@@ -267,6 +270,9 @@ devCommand :: Opt.Mod Opt.CommandFields (IO ())
 devCommand = Opt.command "dev" (Opt.info devCmd $ Opt.progDesc "Compile and parse a language in one command, for use during language development.")
   where
     devCmd = do
+      precKind <- Opt.flag LD.PermissivePrecedence LD.RestrictivePrecedence
+        $ Opt.long "restrictive-precedence"
+        <> Opt.help "Restrict low-precedence unary operators to retain unambiguity in the presence of a total precedence list. This changes the recognized syntactic language, but not the semantic language."
       parseAction' <- parseAction
       files <- some $ Opt.argument Opt.str $
         Opt.metavar "FILES..."
@@ -274,7 +280,7 @@ devCommand = Opt.command "dev" (Opt.info devCmd $ Opt.progDesc "Compile and pars
 
       pure $ do
         let (defFiles, srcFiles) = partition ("syncon" `isExtensionOf`) files
-        (_, preParse, pl) <- compileAction defFiles
+        (_, preParse, pl) <- compileAction precKind defFiles
         parseAction' (preParse, pl) srcFiles
 
 data Ambiguity = UnresolvableAmbiguity | Ambiguity deriving (Show)
@@ -289,6 +295,9 @@ pbtCommand :: Opt.Mod Opt.CommandFields (IO ())
 pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambiguity of a language using property based testing.")
   where
     pbtCmd = do
+      precKind <- Opt.flag LD.PermissivePrecedence LD.RestrictivePrecedence
+        $ Opt.long "restrictive-precedence"
+        <> Opt.help "Restrict low-precedence unary operators to retain unambiguity in the presence of a total precedence list. This changes the recognized syntactic language, but not the semantic language."
       target <- Opt.flag UnresolvableAmbiguity Ambiguity
         $ Opt.long "ambiguity"
         <> Opt.help "Look for any kind of ambiguity, not just unresolvable ambiguity."
@@ -322,7 +331,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
         <> Opt.help "The '.syncon' files that define the language to be tested."
 
       pure $ do
-        (df, preParse, pl) <- compileAction files
+        (df, preParse, pl) <- compileAction precKind files
         let allSyncons = LD.syncons df & M.keysSet
             allSyTys = LD.syntaxTypes df & M.keysSet
             classifySyncon present n = Hedgehog.classify (coerce n & toS @Text & fromString) $ S.member n present

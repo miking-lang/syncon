@@ -142,8 +142,8 @@ addImplicits tops = SyntaxTypeTop (SyntaxType (TypeName "Top") mempty) : tops
 -- The check does not check for any kind of ambiguity, neither internal nor unresolvable.
 --
 -- NOTE: this will not check the validity of regular expressions
-mkDefinitionFile :: [Top] -> Res DefinitionFile
-mkDefinitionFile (addImplicits >>> Seq.fromList -> tops) = do
+mkDefinitionFile :: PrecedenceKind -> [Top] -> Res DefinitionFile
+mkDefinitionFile precedenceKind (addImplicits >>> Seq.fromList -> tops) = do
   findDuplicates s_name synconTops
   findDuplicates getTypeName typeTops
   (bracketKindInfo, Groupings groupings) <- checkGroupings syntaxTypes tops

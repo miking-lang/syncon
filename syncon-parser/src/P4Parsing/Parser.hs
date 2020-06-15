@@ -166,7 +166,7 @@ generateGrammar DefinitionFile{..}
         & compFromJust "P4Parsing.Parser.generateGrammar" "Top somehow vanished during generation"
         & return
   where
-    elaboration = elaborate syncons forbids precedences
+    elaboration = elaborate syncons forbids precedences precedenceKind
     markings = mkMarkings syncons isSyTy elaboration
     nts = computeNonTerminals syntaxTypes markings
     syTyToSyncon = computeSynconsBySyntaxType syncons

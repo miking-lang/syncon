@@ -80,7 +80,7 @@ getGroupings PreLanguage{tokGroupings} tyn = M.lookup tyn tokGroupings & fold
 precompute :: DefinitionFile -> PreLanguage elidable
 precompute df@P2.DefinitionFile{bracketKindInfo} = PreLanguage{..}
   where
-    elaboration = elaborate (P2.syncons df) (P2.forbids df) (P2.precedences df)
+    elaboration = elaborate (P2.syncons df) (P2.forbids df) (P2.precedences df) (P2.precedenceKind df)
     elaborationWithRecs :: HashMap (Name, SDName) (HashSet Name)
     elaborationWithRecs = M.unionWith S.union fixedOriginals recAdditions
       where

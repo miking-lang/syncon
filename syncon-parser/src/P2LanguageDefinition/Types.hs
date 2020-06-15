@@ -20,6 +20,13 @@ newtype TypeName = TypeName Text deriving (Show, Eq, Ord, Hashable, Data, Typeab
 -- | Names for subsections of syntax descriptions.
 newtype SDName = SDName Text deriving (Show, Eq, Hashable, Data, Typeable, NFData, Serialise)
 
+-- | This configures what the elaborator will do when it encounters a pre- or postfix operator with
+-- lower precedence than an infix operator. 'RestrictivePrecedence' will forbid `_ infix (prefix _)`
+-- while PermissivePrecedence will allow it. The option is there because while that specific example
+-- is unambiguous in the permissive world, `_ infix prefix _ infix _` is not, even though the only
+-- involved operators have total precedence.
+data PrecedenceKind = RestrictivePrecedence | PermissivePrecedence
+
 data DefinitionFile = DefinitionFile
   { syncons :: !(HashMap Name Syncon)
   , syntaxTypes :: !(HashMap TypeName (Either SyntaxType TokenType))
@@ -28,6 +35,7 @@ data DefinitionFile = DefinitionFile
   , comments :: !(Seq Comment)
   , bracketKindInfo :: !BracketKindInfo
   , groupings :: !(HashMap TypeName (Seq (Either Text TypeName, Either Text TypeName)))
+  , precedenceKind :: !PrecedenceKind
   }
 
 newtype BracketKindInfo = BracketKindInfo (HashMap (Either Text TypeName) BracketKind) deriving (Serialise)
