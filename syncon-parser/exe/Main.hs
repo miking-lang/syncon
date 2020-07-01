@@ -388,8 +388,9 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                           & toS
                           & Hedgehog.annotate
                         Hedgehog.failure
-        Hedgehog.check prop
-        pure ()
+        Hedgehog.check prop >>= \case
+          True -> exitSuccess
+          False -> exitFailure
     discardSlow :: Int -> Hedgehog.TestT IO a -> Hedgehog.PropertyT IO a
     discardSlow timelimit v = do
       result <- Hedgehog.test $ race (liftIO $ threadDelay timelimit) v
