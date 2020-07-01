@@ -15,7 +15,7 @@ import ErrorMessage (FormatError(..), simpleErrorMessage)
 
 import P1Lexing.Types (Range, textualRange, Ranged)
 import P2LanguageDefinition.Types (TypeName, Name(..))
-import P4Parsing.Types (NodeF(..))
+import P4Parsing.Types (NodeF(..), allNodeFChildren)
 import P5DynamicAmbiguity.TreeLanguage (treeLanguage, PreLanguage)
 import P5DynamicAmbiguity.Types
 
@@ -32,8 +32,8 @@ didTimeout (Ambiguity _ DidTimeout _ _) = True
 didTimeout _ = False
 
 instance FormatError (Error elidable tok) where
-  type ErrorOpts (Error elidable tok) = ErrorOptions elidable
-  formatError EO{showTwoLevel, elidedRange, showElided} (Ambiguity r timeoutInfo resolvable trees) = simpleErrorMessage r $
+  type ErrorOpts (Error elidable tok) = ErrorOptions elidable tok
+  formatError EO{showTwoLevel, elidedRange, showElided, showTok, tokRange} (Ambiguity r timeoutInfo resolvable trees) = simpleErrorMessage r $
     kind <> " with " <> show (length trees + length resolvable) <> " alternatives.\n" <>
     resolvableSection <>
     unresolvableSection
@@ -63,20 +63,24 @@ instance FormatError (Error elidable tok) where
       formattedUnresolvable = trees <&> twoLevel & S.fromList & fold
       twoLevel :: NodeOrElide elidable tok -> Text
       twoLevel (Elide elided) = "  " <> showElided elided <> "\n"
-      twoLevel (Node n@NodeF{n_nameF}) = "  " <> coerce n_nameF <> formatChildren (toList n) <> "\n"
+      twoLevel (Node n@NodeF{n_nameF}) = "  " <> coerce n_nameF <> formatChildren (allNodeFChildren n) <> "\n"
         where
           range (Node NodeF{n_rangeF}) = n_rangeF
           range (Elide elided) = elidedRange elided
-          formatChildren = sortBy (comparing range) >>> foldMap formatNode
-          formatNode (Elide elided) =
+          formatChildren = sortBy (comparing $ either tokRange range) >>> foldMap formatNode
+          formatNode (Right (Elide elided)) =
             printf "\n   - %- 20s %s" (showElided elided) (textualRange $ elidedRange elided) & Text.pack
-          formatNode (Node NodeF{n_nameF = Name name, n_rangeF}) =
+          formatNode (Right (Node NodeF{n_nameF = Name name, n_rangeF})) =
             printf "\n   - %- 20s %s" name (textualRange n_rangeF) & Text.pack
+          formatNode (Left t) =
+            printf "\n   - %- 20s %s" (showTok t) (textualRange (tokRange t)) & Text.pack
 
-data ErrorOptions elidable = EO
+data ErrorOptions elidable tok = EO
   { showTwoLevel :: Bool
   , showElided :: elidable -> Text
-  , elidedRange :: elidable -> Range }
+  , elidedRange :: elidable -> Range
+  , showTok :: tok -> Text
+  , tokRange :: tok -> Range }
 
 type ResLang elidable = NVA Int Int (Token elidable) (Token elidable) (Token elidable)
 

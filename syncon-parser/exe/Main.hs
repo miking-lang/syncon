@@ -194,11 +194,19 @@ parseAction = do
               & writeFile fullPath
           isolate forest & \case
             Data node -> modifyIORef' successfulFiles (+1) >> return node
-            Error ambs -> ambs
-              & mapM (foldMap S.singleton >>> DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
-              <&> fmap (formatError DynAmb.EO{DynAmb.showTwoLevel, DynAmb.showElided = DynAmb.showElidable nodeMap, DynAmb.elidedRange = DynAmb.getElidable pl nodeMap >>> fst})
-              <&> formatErrors sources
-              >>= die'
+            Error ambs ->
+              let opts = DynAmb.EO
+                    { DynAmb.showTwoLevel
+                    , DynAmb.showElided = DynAmb.showElidable nodeMap
+                    , DynAmb.elidedRange = DynAmb.getElidable pl nodeMap >>> fst
+                    , DynAmb.showTok = Forest.unlex
+                    , DynAmb.tokRange = range
+                    }
+              in ambs
+                 & mapM (foldMap S.singleton >>> DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
+                 <&> fmap (formatError opts)
+                 <&> formatErrors sources
+                 >>= die'
         maybe (die' "        timeout when parsing file") return mNode
 
     numSuccesses <- readIORef successfulFiles
@@ -306,6 +314,10 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
         <> Opt.metavar "N"
         <> Opt.value 10000
         <> Opt.help "The number of tests to run."
+      numDiscards <- Opt.option Opt.auto
+        $ Opt.long "discards"
+        <> Opt.value 10000
+        <> Opt.help "The maximum number of tests to discard. A test is discarded if the analysis times out."
       showSizeDistr <- Opt.switch
         $ Opt.long "size-distr"
         <> Opt.help "Show the distribution of CST sizes generated"
@@ -340,7 +352,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                       then DynAmb.dummyIsolate >>> first Seq.singleton
                       else DynAmb.isolate
         let gen = Parser.programGenerator df
-            prop = Hedgehog.withTests (fromInteger numRuns) $ Hedgehog.property $ do
+            prop = Hedgehog.withDiscards (fromInteger numDiscards) $ Hedgehog.withTests (fromInteger numRuns) $ Hedgehog.property $ do
               (size, syncons, types, Lexer.makeFakeFile -> (sources, program)) <- Hedgehog.forAllWith ((\(_, _, _, x) -> x) >>> toList >>> fmap Forest.unlex >>> Text.intercalate " " >>> toS) gen
               when showSizeDistr $
                 Hedgehog.label $ fromString $ Printf.printf "%4d" size
@@ -363,8 +375,15 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                       if Seq.null errs
                         then Hedgehog.success
                         else do
+                        let opts = DynAmb.EO
+                              { DynAmb.showTwoLevel
+                              , DynAmb.showElided = DynAmb.showElidable nodeMap
+                              , DynAmb.elidedRange = DynAmb.getElidable pl nodeMap >>> fst
+                              , DynAmb.showTok = Forest.unlex
+                              , DynAmb.tokRange = range
+                              }
                         errs
-                          <&> formatError DynAmb.EO{DynAmb.showTwoLevel, DynAmb.showElided = DynAmb.showElidable nodeMap, DynAmb.elidedRange = DynAmb.getElidable pl nodeMap >>> fst}
+                          <&> formatError opts
                           & formatErrors sources
                           & toS
                           & Hedgehog.annotate

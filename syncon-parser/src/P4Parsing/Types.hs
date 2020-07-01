@@ -29,9 +29,20 @@ data NodeInternals t node
   | Struct !(HashMap P2.SDName (Seq (NodeInternals t node)))
   deriving (Show, Functor, Foldable, Traversable, Eq, Data, Typeable, Generic)
 instance (NFData t, NFData node) => NFData (NodeInternals t node)
-
 makeBaseFunctor ''Node
 makeBaseFunctor ''NodeInternals
+
+allNodeInternalsChildren :: NodeInternals t node -> [Either t node]
+allNodeInternalsChildren (NodeLeaf n) = [Right n]
+allNodeInternalsChildren (TokenLeaf t) = [Left t]
+allNodeInternalsChildren (Struct m) = foldMap (foldMap allNodeInternalsChildren) m
+
+allNodeChildren :: Node t -> [Either t (Node t)]
+allNodeChildren Node{n_contents} = foldMap (foldMap allNodeInternalsChildren) n_contents
+
+allNodeFChildren :: NodeF t n -> [Either t n]
+allNodeFChildren NodeF{n_contentsF} = foldMap (foldMap allNodeInternalsChildren) n_contentsF
+
 deriving instance (Eq t, Eq a) => Eq (NodeF t a)
 deriving instance (Show t,Show a) => Show (NodeF t a)
 deriving instance Generic (NodeF t a)
