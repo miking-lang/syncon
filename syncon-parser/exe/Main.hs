@@ -57,6 +57,8 @@ import qualified P5DynamicAmbiguity.Analysis as DynAmb
 
 import qualified P6Output.JsonV1 as Output
 
+import qualified RandomCompose as RC
+
 import qualified Data.Automaton.NVA as NVA
 import qualified Data.Automaton.GraphViz as GraphViz
 
@@ -69,15 +71,15 @@ nodeAnnotation n = (range n, Parser.n_name n & coerce)
     tokToAnno (Lexer.LitTok r _ t) = (r, "literal " <> show t)
     tokToAnno (Lexer.OtherTok r _ (LD.TypeName tyn) t) = (r, "token " <> show tyn <> " " <> show t)
 
-dataOrError :: (Functor f, Foldable f, FormatError e) => HashMap Text Text -> ErrorOpts e -> Result (f e) a -> IO a
+dataOrError :: (Foldable f, FormatError e) => HashMap Text Text -> ErrorOpts e -> Result (f e) a -> IO a
 dataOrError _ _ (Data a) = return a
 dataOrError source opts (Error e) =
-  die $ formatErrors source $ formatError opts <$> e
+  die $ formatErrors source $ formatError opts <$> toList e
 
-dataOrError' :: (Functor f, Foldable f, FormatError e) => HashMap Text Text -> ErrorOpts e -> Result (f e) a -> IO a
+dataOrError' :: (Foldable f, FormatError e) => HashMap Text Text -> ErrorOpts e -> Result (f e) a -> IO a
 dataOrError' _ _ (Data a) = return a
 dataOrError' source opts (Error e) =
-  die' $ formatErrors source $ formatError opts <$> e
+  die' $ formatErrors source $ formatError opts <$> toList e
 
 testReduce :: IO ()
 testReduce = do
@@ -112,6 +114,7 @@ test :: IO ()
 -- test = withArgs ["--help"] main
 -- test = withArgs ["parse", "README.md", "source.test"] main
 test = withArgs ["pbt", "examples/ambig.syncon"] main
+-- test = withArgs ["compose", "examples/ambig.syncon"] main
 -- test = GLL.test
 
 getArgsSeq :: IO (Seq [Char])
@@ -398,8 +401,38 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
         Left _ -> Hedgehog.discard
         Right a -> pure a
 
+composeCommand :: Opt.Mod Opt.CommandFields (IO ())
+composeCommand = Opt.command "compose" (Opt.info composeCmd $ Opt.progDesc "Create random compositions of many language definitions.")
+  where
+    composeCmd = do
+      dirPath <- optional $ Opt.option Opt.str
+        $ Opt.long "all-dir"
+        <> Opt.metavar "DIR"
+        <> Opt.help "If supplied, make all the smallest compositions (i.e. base + one fragment) and write to DIR."
+      count <- Opt.option Opt.auto
+        $ Opt.long "count"
+        <> Opt.metavar "N"
+        <> Opt.help "The minimum number of language fragments present in the composition, including the base fragment."
+        <> Opt.value 10
+      base <- Opt.argument Opt.str
+        $ Opt.metavar "FILE"
+        <> Opt.help "The '.syncon' file that defines the base fragment that is to always be present."
+      others <- some $ Opt.argument Opt.str
+        $ Opt.metavar "FILES..."
+        <> Opt.help "The '.syncon' files that may be randomly picked for composition."
+
+      pure $ do
+        let baseID = RC.mkID base
+        info <- RC.computeInfo (base : others)
+        case dirPath of
+          Nothing -> RC.generateComposition count baseID info
+            >>= dataOrError mempty ()
+            >>= putStrLn
+          Just path -> RC.writeAllFragmentsToDir path baseID info
+            >>= dataOrError mempty ()
+
 main :: IO ()
-main = join $ Opt.execParser $ Opt.info (Opt.hsubparser (compileCommand <> parseCommand <> devCommand <> pbtCommand) <**> Opt.helper)
+main = join $ Opt.execParser $ Opt.info (Opt.hsubparser (compileCommand <> parseCommand <> devCommand <> pbtCommand <> composeCommand) <**> Opt.helper)
   $ Opt.fullDesc
   <> Opt.progDesc "Parse files using syncons. To parse a language defined with syncon you first have to compile it using the 'compile' command, then use the 'parse' command, giving it the file produced by 'compile'. Alternatively, you can use 'dev' to do both at once, though this is likely only desired during development, when the language definition changes frequently."
   <> Opt.header "syncon-parser -- A proof-of-concept parser based on syncons"

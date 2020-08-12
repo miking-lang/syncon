@@ -11,7 +11,10 @@ executable syncon-parser
   main-is: Main.hs
   default-language: Haskell2010
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -funbox-strict-fields
+  other-modules: RandomCompose
   build-depends: base
+               , random
+               , array
                , syncon
                , optparse-applicative
                , pretty-show

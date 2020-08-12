@@ -125,9 +125,9 @@ analyze timeout pl mkToken getElided showElided alts = do
         & return
       where
         Max len = foldMap (shortestWord >>> fmap (length >>> Max) >>> fold) nvas
-        langsWithCounts = toList languages  -- TODO: OPTIMIZE: I believe this is acutally quite expensive, each NVA is quite large
+        langsWithCounts = toList languages
           <&> (, Sum @Int 1)
-          & M.fromListWith (<>)
+          & M.fromListWith (<>)  -- TODO: OPTIMIZE: I believe this is acutally quite expensive, each NVA is quite large
         nvas = M.keysSet langsWithCounts
         duplicateLangs = langsWithCounts
           & M.filter (getSum >>> (> 1))
