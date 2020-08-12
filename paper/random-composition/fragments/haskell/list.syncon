@@ -1,2 +1,0 @@
-syncon haskellList: Exp =
-  "[" (e:Exp ("," e2:Exp)*)? "]"

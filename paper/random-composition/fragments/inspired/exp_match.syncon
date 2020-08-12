@@ -1,6 +1,0 @@
-prefix matchExp: Exp =
-  "match" v:Exp "with"
-  ("|" p:Pat "->" e:Exp)*
-  "|" p2:Pat "->"
-
-forbid matchExp.e = matchExp

@@ -1,7 +1,0 @@
-// dep: haskell/base
-
-syncon haskellCase: Exp =
-  "case" v:Exp "of" "{"
-  p:Pat ("|" g:HaskellGuard ("," g2:HaskellGuard)*)? "->" e:Exp
-  (";" p2:Pat ("|" g3:HaskellGuard ("," g4:HaskellGuard)*)? "->" e2:Exp)*
-  "}"

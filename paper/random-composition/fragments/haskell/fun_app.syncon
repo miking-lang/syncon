@@ -1,2 +1,0 @@
-infix left haskellFunApp: Exp =
-  // intentionally left empty

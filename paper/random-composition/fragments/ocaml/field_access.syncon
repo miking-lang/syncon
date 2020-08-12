@@ -1,9 +1,0 @@
-postfix ocamlFieldAccess: Exp = "." f:Ident
-
-infix right ocamlFieldUpdate: Exp =
-  "." f:Ident "<-"
-
-precedence {
-  ocamlFieldAccess;
-  ocamlFieldUpdate;
-}

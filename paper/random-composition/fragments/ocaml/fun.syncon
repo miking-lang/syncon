@@ -1,7 +1,0 @@
-prefix ocamlFun: Exp =
-  "fun" p1:OcamlParameter*
-  ( p2: OcamlParameter ":" ty:Type
-  | p3:OcamlParameter) "->"
-
-type OcamlParameter
-syncon ocamlPatParam: OcamlParameter = p:Pat

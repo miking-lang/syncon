@@ -1,4 +1,0 @@
-syncon ocamlRecordPat: Pat =
-  "{" f:Ident (":" ty:Type)? ("=" p:Pat)?
-  (";" ft:Ident (":" tyt:Type)? ("=" pt:Pat)?)*
-  (";" w:"_")? ";"? "}"

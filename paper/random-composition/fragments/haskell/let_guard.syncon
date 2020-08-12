@@ -1,7 +1,0 @@
-// dep: haskell/base
-
-syncon haskellLetGuard: HaskellGuard =
-  "let" p:Pat "=" e:Exp
-
-syncon haskellLetFuncGuard: HaskellGuard =
-  "let" f:Ident args:Pat+ "=" e:Exp

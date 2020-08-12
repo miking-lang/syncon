@@ -1,4 +1,0 @@
-syncon ocamlRecord: Exp =
-  "{" f:Ident (":" ty:Type)? ("=" val:Exp)?
-  (";" ft:Ident (":" tyt:Type)? ("=" valt:Exp)?)*
-  ";"? "}"

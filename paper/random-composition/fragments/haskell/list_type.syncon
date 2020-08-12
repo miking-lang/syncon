@@ -1,2 +1,0 @@
-syncon haskellListType: Type =
-  "[" t:Type "]"

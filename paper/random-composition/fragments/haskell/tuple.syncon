@@ -1,2 +1,0 @@
-syncon haskellTuple: Exp =
-  "(" e:Exp ("," e2:Exp)+ ")"

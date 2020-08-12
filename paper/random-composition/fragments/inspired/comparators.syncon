@@ -1,6 +1,0 @@
-infix equal: Exp = "=="
-infix notEqual: Exp = "!="
-infix leq: Exp = "<="
-infix lt: Exp = "<"
-infix geq: Exp = ">="
-infix gt: Exp = ">"

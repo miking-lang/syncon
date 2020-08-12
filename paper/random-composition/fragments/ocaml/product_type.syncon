@@ -1,6 +1,0 @@
-infix ocamlProdType: Type =
-  "*" (inner:rec "*")*
-
-forbid ocamlProdType.left = ocamlProdType
-forbid ocamlProdType.inner = ocamlProdType
-forbid ocamlProdType.right = ocamlProdType

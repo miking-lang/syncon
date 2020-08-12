@@ -1,2 +1,0 @@
-syncon haskellTupleConstructor: Exp =
-  "(" c:","+ ")"

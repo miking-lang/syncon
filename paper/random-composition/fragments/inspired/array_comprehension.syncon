@@ -1,5 +1,0 @@
-syncon arrayComprehension: Exp =
-  "[" v:Exp "|"
-  p:Pat "<-" e:Exp
-  ("," p2:Pat "<-" e2:Exp)*
-  "]"

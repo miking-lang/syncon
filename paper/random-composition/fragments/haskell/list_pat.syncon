@@ -1,2 +1,0 @@
-syncon haskellListPat: Pat =
-  "[" (p:Pat ("," p2:Pat)*)? "]"

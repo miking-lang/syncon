@@ -1,2 +1,0 @@
-prefix ifExp: Exp =
-  "if" "(" c:Exp ")" t:Exp "else"

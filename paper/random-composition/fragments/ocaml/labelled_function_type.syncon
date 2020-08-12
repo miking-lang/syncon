@@ -1,2 +1,0 @@
-prefix ocamlLabeledFunType: Type =
-  (opt:"?"? l:Ident) ":" a:Type "->"

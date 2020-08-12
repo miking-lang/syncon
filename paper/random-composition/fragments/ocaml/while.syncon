@@ -1,2 +1,0 @@
-syncon ocamlWhile: Exp =
-  "while" c:Exp "do" b:Exp "done"

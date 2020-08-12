@@ -1,9 +1,0 @@
-infix left patAnd: Pat = "&"
-infix left patOr: Pat = "|"
-prefix patNot: Pat = "!"
-
-precedence {
-  patNot;
-  patAnd;
-  patOr;
-}

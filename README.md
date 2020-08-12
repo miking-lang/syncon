@@ -6,8 +6,6 @@ There are a few 'subprojects':
 
 - [`syncon-parser`](syncon-parser): the most exciting thing probably, an implementation of a syncon-based parser.
 - [`syncon-mode.el`](syncon-mode.el): a very simple emacs major mode for the syncon definition language used by `syncon-parser`.
-- [`paper`](paper): the paper submitted to ESOP 2019.
-- [`pandoc-doc`](pandoc-doc): informal writings on what my thoughts were towards the beginning of the current phase of development, currently very much out of date.
 
 # Papers
 

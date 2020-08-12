@@ -1,2 +1,0 @@
-type HaskellGuard  // Guards in patterns and the like, and also qualifiers in list comprehensions. Technically they are different semantically, but the syntax is identical, so we merge them here
-type HaskellConstr  // Syntax for constructors

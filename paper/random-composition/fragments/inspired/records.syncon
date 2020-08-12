@@ -1,5 +1,0 @@
-syncon recordLit: Exp =
-  "{" (v:Ident ":" e:Exp ("," v2:Ident ":" e2:Exp)*)? "}"
-
-postfix projection: Exp =
-  "." v:Ident

@@ -1,7 +1,0 @@
-// dep: ocaml/record
-
-syncon ocamlRecordUpdate: Exp =
-  "{" record:Exp "with"
-  f1:Ident (":" ty1:Type)? ("=" v1:Exp)?
-  (";" f2:Ident (":" ty2:Type)? ("=" v2:Exp)?)*
-  ";"? "}"

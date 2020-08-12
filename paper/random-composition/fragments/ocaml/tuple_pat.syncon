@@ -1,6 +1,0 @@
-infix ocamlTupPat: Pat =
-  "," (p:rec ",")*
-
-forbid ocamlTupPat.left = ocamlTupPat
-forbid ocamlTupPat.p = ocamlTupPat
-forbid ocamlTupPat.right = ocamlTupPat

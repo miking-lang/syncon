@@ -1,5 +1,0 @@
-postfix haskellRecordUpdate: Exp =
-  "{"
-  (f:Ident "=" v:Exp)
-  ("," (f2:Ident "=" v2:Exp))*
-  "}"

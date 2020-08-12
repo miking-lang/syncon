@@ -1,2 +1,0 @@
-syncon ocamlTypeAnnotation: Exp =
-  "(" e:Exp ":" t:Type ")"

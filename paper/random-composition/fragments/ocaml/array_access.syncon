@@ -1,9 +1,0 @@
-postfix ocamlArrayAccess: Exp = "." "(" e:Exp ")"
-
-infix right ocamlArrayUpdate: Exp =
-  "." "(" e:Exp ")" "<-"
-
-precedence {
-  ocamlArrayAccess;
-  ocamlArrayUpdate;
-}

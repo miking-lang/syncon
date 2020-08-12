@@ -1,5 +1,0 @@
-syncon haskellRecordPat: Pat =
-  c:UIdent "{"
-  (f:Ident "=" p:Pat
-   ("," f2:Ident "=" p2:Pat)*)?
-  "}"

@@ -1,4 +1,0 @@
-postfix typeApplication: Exp = "<" t:Type ">"
-
-syncon genericFunction: Decl =
-  "function" f:Ident ("<" targs:Type ">")+ args:Pat+ "{" body:Stm "}"

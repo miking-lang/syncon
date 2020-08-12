@@ -1,2 +1,0 @@
-syncon arrayLit: Exp = "[" (e:Exp ("," e2:Exp)*)? "]"
-postfix subscript: Exp = "[" e:Exp "]"

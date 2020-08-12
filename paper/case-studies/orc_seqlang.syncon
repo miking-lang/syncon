@@ -1,7 +1,0 @@
-token Integer = "[0-9]+"
-syncon program:Top = e:Exp
-syncon call:Exp = f:Ident "(" (e:Exp)? ")"
-syncon var:Exp = x:Ident
-syncon int:Exp = n:Integer
-infix addition:Exp = "+"
-infix semi:Exp = ";"

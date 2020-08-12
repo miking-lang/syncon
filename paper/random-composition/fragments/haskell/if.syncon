@@ -1,2 +1,0 @@
-prefix haskellIf: Exp =
-  "if" c:Exp ";"? "then" t:Exp ";"? "else" e:Exp

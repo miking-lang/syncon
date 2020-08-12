@@ -1,7 +1,0 @@
-prefix label: Stm = lab:Ident ":"
-syncon goto: Stm = "goto" lab:Ident
-
-precedence {
-  label;
-  seqComp;
-}

@@ -1,1 +1,0 @@
-infix right ternary: Exp = "?" t:Exp ":"

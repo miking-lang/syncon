@@ -1,6 +1,0 @@
-syncon ocamlSimpleTypeConstr: Type = c:Ident
-
-postfix ocamlUnaryTypeConstr: Type = c:Ident
-
-syncon ocamlManyTypeConstr: Type =
-  "(" a:Type ("," a2:Type)+ ")"
