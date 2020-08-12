@@ -1,0 +1,70 @@
+// === ../base ===
+
+token Ident = "[[:lower:]][[:alnum:]_']*"
+token UIdent = "[[:upper:]][[:alnum:]_']*"
+token Integer = "[0-9]+"
+
+type Exp
+grouping "(" Exp ")"
+
+type Stm
+grouping "{" Stm "}"
+
+type Pat
+grouping "(" Pat ")"
+
+type Type
+grouping "(" Type ")"
+
+type Decl
+
+
+syncon decls: Top = decls:Decl+
+syncon main: Decl =
+  "main" "{" body:Stm "}"
+
+infix right seqComp: Stm = ";"
+syncon letStm: Stm = "let" p:Pat (":" t:Type)? "=" e:Exp
+syncon return: Stm = "return" e:Exp?
+
+syncon intLit: Exp = i:Integer
+syncon var: Exp = i:Ident
+
+syncon wildNamePat: Pat = i:Ident
+syncon wildNoNamePat: Pat = "_"
+syncon intPat: Pat = i:Integer
+
+syncon namedType: Type = n:UIdent
+
+
+
+// === ocaml/poly_tag_type ===
+
+syncon ocamlKnownPolyTag: Type =
+  "[" ( ty1:Type? "|" ts1:OcamlTagSpec
+      | "`" tn1:Ident ("of" tyo1:Type)?)
+   ("|" ts2:OcamlTagSpec)* "]"
+
+syncon ocamlOpenPolyTag: Type =
+  "[>" ts1:OcamlTagSpec? ("|" ts2:OcamlTagSpec)* "]"
+
+syncon ocamlClosedPolyTag: Type =
+  "[<" "|"?
+  ts1:OcamlTagSpecFull
+  ("|" ts2:OcamlTagSpecFull)*
+  (">" ("`" tn:Ident)+)?
+  "]"
+
+type OcamlTagSpec
+syncon ocamlExplicitTagSpec: OcamlTagSpec =
+  "`" tn1:Ident ("of" tyo1:Type)?
+syncon ocamlExprTagSpec: OcamlTagSpec =
+  ty:Type
+
+type OcamlTagSpecFull
+syncon ocamlExplicitTagSpecFull: OcamlTagSpecFull =
+  "`" tn1:Ident
+  ("of" "&"? tyo1:Type ("&" tyo2:Type))?
+syncon ocamlExprTagSpecFull: OcamlTagSpecFull =
+  ty:Type
+

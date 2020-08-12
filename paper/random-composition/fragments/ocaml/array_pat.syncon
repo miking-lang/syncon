@@ -1,0 +1,2 @@
+syncon ocamlArrayPat: Pat =
+  "[|" (head:Pat (";" tail:Pat)* ";"?)? "|]"

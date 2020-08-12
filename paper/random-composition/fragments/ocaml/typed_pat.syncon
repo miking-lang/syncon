@@ -1,0 +1,2 @@
+syncon ocamlTypedPat: Pat =
+  "(" p:Pat ":" ty:Type ")"

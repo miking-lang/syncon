@@ -1,0 +1,14 @@
+type Exp  // Expressions
+grouping "(" Exp ")"
+
+token Ident = "[[:lower:]][[:word:]]*"
+token Integer = "[0-9]+"
+token String = "\"(\\\\.|[^\"\\\\])*\""
+
+syncon top: Top = e:Exp
+
+prefix let: Exp = "let" x:Ident "=" e:Exp "in"
+
+// infix left add: Exp = "+"
+
+syncon intLit: Exp = i:Integer

@@ -1,0 +1,2 @@
+syncon ocamlListPat: Pat =
+  "[" (p:Pat (";" p2:Pat)*)? "]"

@@ -1,0 +1,2 @@
+syncon haskellDoBind: Stm =
+  p:Pat "<-" e:Exp

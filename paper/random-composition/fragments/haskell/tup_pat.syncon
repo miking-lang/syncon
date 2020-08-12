@@ -1,0 +1,2 @@
+syncon haskellTuplePat: Pat =
+  "(" p:Pat ("," p2:Pat)+ ")"

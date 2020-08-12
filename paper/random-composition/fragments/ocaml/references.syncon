@@ -1,0 +1,8 @@
+infix right ocamlRefAssign: Exp = ":="
+
+prefix ocamlRefRead: Exp = "!"
+
+precedence {
+  ocamlRefRead;
+  ocamlRefAssign;
+}

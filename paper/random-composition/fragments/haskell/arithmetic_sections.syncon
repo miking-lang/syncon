@@ -1,0 +1,5 @@
+syncon haskellLeftSection: Exp =
+  "(" e:Exp op:("+"|"-"|"*"|"/") ")"
+
+syncon haskellRightSection: Exp =
+  "(" op:("+"|"-"|"*"|"/") e:Exp ")"

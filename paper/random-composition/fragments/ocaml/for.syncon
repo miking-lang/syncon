@@ -1,0 +1,7 @@
+syncon ocamlFor: Exp =
+  "for" v:Ident "=" e1:Exp "to" e2:Exp
+  "do" b:Exp "done"
+
+syncon ocamlForDownto: Exp =
+  "for" v:Ident "=" e1:Exp "downto" e2:Exp
+  "do" b:Exp "done"

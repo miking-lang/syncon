@@ -1,0 +1,3 @@
+// dep: haskell/base
+
+syncon haskellBooleanGuard: HaskellGuard = c:Exp

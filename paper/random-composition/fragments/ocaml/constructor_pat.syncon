@@ -1,0 +1,3 @@
+syncon ocamlSimpleConstrPat: Pat = c:UIdent
+
+prefix ocamlConstrAppPat: Pat = c:UIdent

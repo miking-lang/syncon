@@ -1,0 +1,2 @@
+syncon haskellDo: Exp =
+  "do" "{" s:Stm ";" e:Exp ";"? "}"

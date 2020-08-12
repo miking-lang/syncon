@@ -1,0 +1,6 @@
+prefix arrowFunctionExp: Exp =
+  (p:Pat | "(" p2:Pat ("," p3:Pat)+ ")") "=>"
+
+syncon arrowFunctionStm: Exp =
+  (p:Pat | "(" p2:Pat ("," p3:Pat)+ ")") "=>"
+  "{" body:Stm "}"

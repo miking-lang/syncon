@@ -1,0 +1,6 @@
+infix ocamlTuple: Exp =
+  "," (e:rec ",")*
+
+forbid ocamlTuple.left = ocamlTuple
+forbid ocamlTuple.e = ocamlTuple
+forbid ocamlTuple.right = ocamlTuple

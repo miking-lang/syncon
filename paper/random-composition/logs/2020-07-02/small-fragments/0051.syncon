@@ -1,0 +1,63 @@
+// === ../base ===
+
+token Ident = "[[:lower:]][[:alnum:]_']*"
+token UIdent = "[[:upper:]][[:alnum:]_']*"
+token Integer = "[0-9]+"
+
+type Exp
+grouping "(" Exp ")"
+
+type Stm
+grouping "{" Stm "}"
+
+type Pat
+grouping "(" Pat ")"
+
+type Type
+grouping "(" Type ")"
+
+type Decl
+
+
+syncon decls: Top = decls:Decl+
+syncon main: Decl =
+  "main" "{" body:Stm "}"
+
+infix right seqComp: Stm = ";"
+syncon letStm: Stm = "let" p:Pat (":" t:Type)? "=" e:Exp
+syncon return: Stm = "return" e:Exp?
+
+syncon intLit: Exp = i:Integer
+syncon var: Exp = i:Ident
+
+syncon wildNamePat: Pat = i:Ident
+syncon wildNoNamePat: Pat = "_"
+syncon intPat: Pat = i:Integer
+
+syncon namedType: Type = n:UIdent
+
+
+
+// === haskell/base ===
+
+type HaskellGuard  // Guards in patterns and the like, and also qualifiers in list comprehensions. Technically they are different semantically, but the syntax is identical, so we merge them here
+type HaskellConstr  // Syntax for constructors
+
+
+
+// === haskell/data_decl ===
+
+syncon haskellDataDecl: Decl =
+  "data" n:UIdent arg:Ident*
+  ("=" c:HaskellConstr
+   ("|" c2:HaskellConstr)*)?
+
+syncon haskellConstrDecl: HaskellConstr =
+  c:UIdent (strict:"!"? t:Type)*
+
+syncon haskellRecordConstrDecl: HaskellConstr =
+  c:UIdent "{"
+  f:Ident "::" strict:"!"? t:Type
+  ("," f2:Ident "::" strict2:"!"? t2:Type)*
+  "}"
+

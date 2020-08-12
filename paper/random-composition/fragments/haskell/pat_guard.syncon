@@ -1,0 +1,4 @@
+// dep: haskell/base
+
+syncon haskellPatGuard: HaskellGuard =
+  p:Pat "<-" e:Exp

@@ -1,0 +1,11 @@
+prefix match: Stm =
+  "match" v:Exp "with"
+  ("|" p:Pat "->" s:Stm)*
+  "|" p2:Pat "->"
+
+forbid match.s = match
+
+precedence {
+  seqComp;
+  match;
+}

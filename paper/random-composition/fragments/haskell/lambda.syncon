@@ -1,0 +1,2 @@
+prefix haskellLambda: Exp =
+  "\\" args:Pat* "->"

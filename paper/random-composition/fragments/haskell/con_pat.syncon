@@ -1,0 +1,10 @@
+syncon haskell0ConPat: Pat =
+  c:UIdent
+
+prefix haskellConPat: Pat =
+  c:UIdent p:Pat*
+
+forbid haskellConPat.p = haskell0ConPat
+forbid haskellConPat.p = haskellConPat
+forbid haskellConPat.right = haskell0ConPat
+forbid haskellConPat.right = haskellConPat

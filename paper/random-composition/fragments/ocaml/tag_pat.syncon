@@ -1,0 +1,2 @@
+syncon ocamlSimpleTagPat: Pat = "`" t:Ident
+prefix ocamlTagAppPat: Pat = "`" t:Ident

@@ -1,0 +1,19 @@
+infix left plus: Exp = "+"
+infix left minus: Exp = "-"
+infix left times: Exp = "*"
+infix left dividedBy: Exp = "/"
+prefix arithNeg: Exp = "-"
+prefix arithPrefixPlus: Exp = "+"
+
+precedence {
+  arithNeg arithPrefixPlus;
+  times dividedBy;
+  plus minus;
+}
+
+// TODO: do we want this in the fragment? Could follow standard praxis instead
+infix modulus: Exp = "%"
+precedence {
+  arithNeg arithPrefixPlus;
+  modulus;
+}

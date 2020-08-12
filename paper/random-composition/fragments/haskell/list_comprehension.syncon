@@ -1,0 +1,4 @@
+// dep: haskell/base
+
+syncon haskellListComprehension: Exp =
+  "[" e:Exp "|" q:HaskellGuard ("," q2:HaskellGuard)* "]"

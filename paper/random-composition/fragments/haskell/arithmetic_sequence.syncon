@@ -1,0 +1,2 @@
+syncon haskellArithmeticSequence: Exp =
+  "[" s:Exp ("," step:Exp)? ".." e:Exp? "]"

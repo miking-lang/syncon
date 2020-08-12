@@ -1,0 +1,2 @@
+syncon haskellTupleTypeConstructor: Type =
+  "(" c:","+ ")"

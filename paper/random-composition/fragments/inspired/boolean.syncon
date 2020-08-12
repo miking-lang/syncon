@@ -1,0 +1,11 @@
+syncon true: Exp = "true"
+syncon false: Exp = "false"
+prefix boolNegation: Exp = "!"
+infix left boolAnd: Exp = "&&"
+infix left boolOr: Exp = "||"
+
+precedence {
+  boolNegation;
+  boolAnd;
+  boolOr;
+}

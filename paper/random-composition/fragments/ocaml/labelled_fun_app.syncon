@@ -1,0 +1,14 @@
+postfix ocamlLabelledFunAppPun: Exp =
+  "~" l:Ident
+infix left ocamlLabelledFunApp: Exp =
+  "~" l:Ident ":"
+
+postfix ocamlOptLabelledFunAppPun: Exp =
+  "?" l:Ident
+infix left ocamlOptLabelledFunApp: Exp =
+  "?" l:Ident ":"
+
+precedence {
+  ocamlLabelledFunAppPun ocamlLabelledFunApp
+    ocamlOptLabelledFunAppPun ocamlOptLabelledFunApp;
+}

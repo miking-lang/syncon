@@ -2,9 +2,9 @@
 % LLNCS macro package for Springer Computer Science proceedings;
 % Version 2.20 of 2017/10/04
 %
-\documentclass[runningheads]{llncs}
+\documentclass[sigplan,anonymous,review]{acmart}
 %
-\usepackage{cite}
+%% \usepackage{cite}
 \usepackage{graphicx}
 % Used for displaying a sample figure. If possible, figure files should
 % be included in EPS format.
@@ -14,11 +14,11 @@
 % \renewcommand\UrlFont{\color{blue}\rmfamily}
 
 
-\usepackage{booktabs}   %% For formal tables:
+%% \usepackage{booktabs}   %% For formal tables:
                         %% http://ctan.org/pkg/booktabs
-%% \usepackage{subcaption} %% For complex figures with subfigures/subcaptions
+\usepackage{subcaption} %% For complex figures with subfigures/subcaptions
 %%                         %% http://ctan.org/pkg/subcaption
-\usepackage{subfig}
+%% \usepackage{subfig}
 \usepackage{wrapfig}
 \usepackage{multicol}
 \usepackage{amsmath}
@@ -98,35 +98,34 @@
 \begin{document}
 % Submission may be up to 25 pages, excluding references
 
-\title{Resolvable Ambiguity\thanks{This project is financially supported by the Swedish Foundation for Strategic Research (FFL15-0032)}}
+\title{Resolvable Ambiguity}
+%% \thanks{This project is financially supported by the Swedish Foundation for Strategic Research (FFL15-0032)} TODO: figure out where to include this
+\author{Viktor Palmkvist}
+\email{vipa@kth.se}
+\orcid{0000-0003-0669-4085}
+
+\author{Elias Castegren}
+\email{eliasca@kth.se}
+\orcid{0000-0003-4918-6582}
+
+\author{Philipp Haller}
+\email{phaller@kth.se}
+\orcid{0000-0002-2659-5271}
+
+\author{David Broman}
+\email{dbro@kth.se}
+\orcid{0000-0001-8457-4105}
+
+\affiliation{%
+  \institution{KTH Royal Institute of Technology}
+  \streetaddress{100 44}
+  \city{Stockholm}
+  \state{Sweden}
+  }
+
+\renewcommand{\shortauthors}{V. Palmkvist et al.}
+
 %
-%\titlerunning{Abbreviated paper title}
-% If the paper title is too long for the running head, you can set
-% an abbreviated paper title here
-%
-\author{Viktor Palmkvist\inst{1} \and
-Elias Castegren\inst{1} \and
-Philipp Haller\inst{1} \and
-David Broman\inst{1}}
-%% \author{Viktor Palmkvist\inst{1}\orcidID{0000-0003-0669-4085} \and
-%% Elias Castegren\inst{1}\orcidID{0000-0003-4918-6582} \and
-%% Philipp Haller\inst{1}\orcidID{0000-0002-2659-5271} \and
-%% David Broman\inst{1}\orcidID{0000-0001-8457-4105}}
-%
-\authorrunning{V. Palmkvist et al.}
-% First names are abbreviated in the running head.
-% If there are more than two authors, 'et al.' is used.
-%
-\institute{KTH Royal Institute of Technology, 100 44 Stockholm, Sweden
-\email{\{vipa,eliasca,dbro,phaller\}@kth.se}%\and
-%% Springer Heidelberg, Tiergartenstr. 17, 69121 Heidelberg, Germany
-%% \email{lncs@springer.com}\\
-%% \url{http://www.springer.com/gp/computer-science/lncs} \and
-%% ABC Institute, Rupert-Karls-University Heidelberg, Heidelberg, Germany\\
-%% \email{\{abc,lncs\}@uni-heidelberg.de}
-}
-%
-\maketitle              % typeset the header of the contribution
 %
 \begin{abstract}
 A common standpoint when designing the syntax of programming languages is that
@@ -147,11 +146,13 @@ restricted class of languages.
 The approach is evaluated through two separate case studies,
 covering both a large existing programming language, and the
 composability of domain-specific languages.
-\keywords{Syntax \and Ambiguity \and Grammars \and Parsing \and Domain-specific languages}
 \end{abstract}
 %
 %
 %
+\keywords{Syntax, Ambiguity, Grammars, Parsing, Domain-specific languages}
+
+\maketitle              % typeset the header of the contribution
 
 \section{Introduction}
 
@@ -162,7 +163,7 @@ a large number of restricted grammars have been developed to guarantee
 that language definitions are unambiguous. This traditional view of
 only allowing unambiguous grammars has been taken for granted as the
 only truth: \emph{the} way of how the syntax of a language must be
-defined ~\cite{sudkampLanguagesMachinesIntroduction1997,ahoCompilersPrinciplesTechniques2006,webberModernProgrammingLanguages2003,cooperEngineeringCompiler2011,ginsburgAmbiguityContextFree1966}.
+defined~\cite{sudkampLanguagesMachinesIntroduction1997,ahoCompilersPrinciplesTechniques2006,webberModernProgrammingLanguages2003,cooperEngineeringCompiler2011,ginsburgAmbiguityContextFree1966}.
 %
 However, our recent work~\cite{palmkvistCreatingDomainSpecificLanguages2019} suggests that
 carefully designed ambiguous syntax definitions can be
@@ -222,7 +223,7 @@ We can divide the problem of resolvable ambiguity into two
 different decision problems.
 For a particular language, the \emph{dynamic resolvable ambiguity problem} asks the following question: can every parse tree of \emph{one particular} program be written unambiguously, while the \emph{static resolvability problem} asks if every parse tree of \emph{every} program can be written unambiguously. In particular, the latter problem is difficult, since it in general involves examining an infinite set (one per parse tree) of infinite sets (words that can parse as that parse tree) to find one without a unique element (i.e., an unambiguous word). Furthermore we must be able to produce an unambiguous program for a given parse tree to be able to give good error messages to an end-user encountering an ambiguity.
 
-In this paper we describe a syntax definition formalism where ambiguities can be resolved by grouping parentheses, and precedence and associativity is specified through \emph{marks} (c.f. Section~\ref{sec:parse-time-disambiguation}). As a delimitation we only consider languages with balanced parentheses. Our approach builds on the following key insights: i) the language of a parse tree is visibly pushdown \cite{alurVisiblyPushdownLanguages2004}, ii) these languages can be encoded as words, and iii) the language of the word encodings of all trees for a language is also visibly pushdown. The last point allows the construction of a visibly pushdown automaton (VPDA) that we examine to solve the static problem for a particular language subclass. Our solution to the dynamic problem, which builds on the first point, is general.
+In this paper we describe a syntax definition formalism where ambiguities can be resolved by grouping parentheses, and precedence and associativity is specified through \emph{marks} (c.f. Section~\ref{sec:parse-time-disambiguation}). As a delimitation we only consider languages with balanced parentheses. Our approach builds on the following key insights: i) the language of a parse tree is visibly pushdown~\cite{alurVisiblyPushdownLanguages2004}, ii) these languages can be encoded as words, and iii) the language of the word encodings of all trees for a language is also visibly pushdown. The last point allows the construction of a visibly pushdown automaton (VPDA) that we examine to solve the static problem for a particular language subclass. Our solution to the dynamic problem, which builds on the first point, is general.
 
 A language designer can thus either use our solution to the static problem (if their language is in the appropriate subclass) or use an approach similar to unit testing through our solution to the dynamic problem. Our solution to the dynamic problem also gives suggested fixes to end-users encountering ambiguities.
 
@@ -252,8 +253,7 @@ More concretely, we make the following contributions:
 
 
 
-\section{Motivating Examples}
-\label{sec:motivation}
+\section{Motivating Examples}\label{sec:motivation}
 In this section, we motivate the need for ambiguous language definitions, where the decision of how to disambiguate a program is taken by the end-user (the programmer) and not the language designer. We motivate our new methodology both for engineering of new domain-specific languages, as well as for the design of existing general-purpose programming languages.
 
 \subsection{Domain-Specific Modeling of Components}
@@ -375,8 +375,7 @@ Precedence parsing error
 
 
 
-\section{Notation}
-\label{sec:prel}
+\section{Notation}\label{sec:prel}
 
 This section briefly explains the notations used in this paper.
 Appendix~\ref{app:prel} contains a more detailed description of
@@ -447,9 +446,603 @@ removed.
 
 %\noindent We denote the set of regular expressions with alphabet $\T$ as $\regex(\T)$.
 
-\section{Resolvable Ambiguity} \label{sec:resolvable-definition}
+% TODO: this actually refers to ``Concrete Syntax'' and ``Abstract Syntax Trees'', i.e., not to ``Concrete Syntax Trees''. Not sure how to clarify that
+\section{Describing Concrete Syntax and Abstract Syntax Trees}\label{sec:grammars}
 
-This section introduces our definition of \emph{resolvable ambiguity}, and then relates it to standard concepts in formal languages.
+This section describes the grammars we use to describe the concrete
+syntax and corresponding abstract syntax trees (ASTs) of programs. We
+start with context-free grammars and modify them step by step. The
+purpose of these modifications is two-fold: we require explicit
+descriptions of ASTs, and we require these ASTs to discard some
+information from the original parsed program. The discarded
+information can then be used for disambiguation, which we describe in
+more detail in Section~\ref{sec:tree-language}.
+
+We use the following small language with addition, multiplication,
+lists, let-expressions, and numeric literals as a running example:
+
+\begin{center}
+  \begin{minipage}[t]{.5\columnwidth}
+    \begin{tabular}{@{}l@{\quad}l@{}}
+      $E$\quad$->$ & $E$ \texttt{'+'} $E$ \\
+      $E$\quad$->$ & $E$ \texttt{'*'} $E$ \\
+      $E$\quad$->$ & \texttt{'['} $E_l$ \texttt{']'} \\
+      $E$\quad$->$ & \texttt{'let'} \texttt{Ident} \\ % TODO: Ident stands for any identifier, which means that 'Ident' is confusing, but I'm not entirely sure how to present it
+      & \texttt{'='} $E$ \texttt{'in'} $E$ \\
+      $E$\quad$->$ & \texttt{Int} \\
+    \end{tabular}
+  \end{minipage}
+  \begin{minipage}[t]{.3\columnwidth}
+    \begin{tabular}{@{}l@{\quad$->$\quad}l@{}}
+      $E_l$ & $\epsilon$ \\
+      $E_l$ & $E$ $E_{l'}$ \\
+      \addlinespace
+      $E_{l'}$ & $\epsilon$ \\
+      $E_{l'}$ & \texttt{','} $E$ $E_{l'}$ \\
+    \end{tabular}
+  \end{minipage}
+\end{center}
+
+\noindent Monospace font, \texttt{'quoted'} or \texttt{otherwise},
+represents terminals, $\epsilon$ represents the empty sequence.
+
+First we change the right-hand side of each production to be a regular
+expression instead of a sequence (i.e., our grammars are in Extended
+Backus-Naur Form, or EBNF) and add (unique) labels to each production.
+We use parentheses for grouping, $+$ for union, and $^{*}$ for Kleene
+star.
+
+\begin{center}
+  \begin{tabular}{@{}l@{\quad$->$\quad}c@{ $:$\quad}l@{}}
+    $E$ & $a$ & $E$ \texttt{'+'} $E$ \\
+    $E$ & $m$ & $E$ \texttt{'*'} $E$ \\
+    $E$ & $l$ & \texttt{'['} ($E$ (\texttt{','} $E$)$^{*}$ $+$ $\epsilon$) \texttt{']'} \\
+    $E$ & $x$ & \texttt{'let'} \texttt{Ident} \texttt{'='} $E$ \texttt{'in'} $E$ \\
+    $E$ & $n$ & \texttt{Int} \\
+  \end{tabular}
+\end{center}
+
+\noindent Both changes serve to shape our ASTs. For example,
+consider the string \texttt{'[1,2]'} with EBNF (left) and without (right):
+
+\begin{center}
+  \begin{tabular}{c@{\qquad}c}
+    \begin{tikzpicture}
+      \tikzset{level 1+/.style={level distance=20pt}}
+      \tikzset{frontier/.style={distance from root=40pt}}
+      \tikzset{edge from parent/.style={draw,edge from parent path={(\tikzparentnode.south) -- +(0,-4pt) -| (\tikzchildnode)}}}
+      \Tree [.{$l$}
+        \texttt{[}
+          [.{$n$} \texttt{1} ]
+          \texttt{,}
+          [.{$n$} \texttt{2} ]
+          \texttt{]}
+      ]
+    \end{tikzpicture} &
+    \begin{tikzpicture}
+      \tikzset{level 1+/.style={level distance=20pt}}
+      \tikzset{frontier/.style={distance from root=80pt}}
+      \tikzset{edge from parent/.style={draw,edge from parent path={(\tikzparentnode.south) -- +(0,-4pt) -| (\tikzchildnode)}}}
+      \Tree [.{$l$}
+        \texttt{[}
+          [.{$l'$}
+            [.{$n$} \texttt{1} ]
+            [.{$l''$}
+              \texttt{,}
+              [.{$n$} \texttt{2} ]
+              [.{$l'''$} ] ] ]
+          \texttt{]} ]
+    \end{tikzpicture}\\
+  \end{tabular}
+\end{center}
+
+\noindent The extra internal nodes in the right tree would present
+problems for disambiguation later.
+
+Next we add grouping parentheses in the form of a pair of terminals
+per non-terminal. Syntactically speaking these are equivalent with
+adding a production $E \rightarrow \texttt{'('} E \texttt{')'}$,
+except they are discarded when constructing the AST. Note the
+difference between $()$ and \texttt{'('}\texttt{')'}, the former is
+grouping in a regular expression, the latter is a sequence of two
+terminals. We also allow discarding terminals that carry no useful
+semantic information once the production has been identified. Since
+most terminals do \emph{not} carry useful information we denote the
+ones to be kept by underlining them:
+
+\begin{center}
+  \begin{tabular}{@{}l@{\quad$->$\quad}c@{ $:$\quad}l@{}}
+    \multicolumn{3}{l}{Productions} \\
+    \midrule
+    $E$ & $a$ & $E$ \texttt{'+'} $E$ \\
+    $E$ & $m$ & $E$ \texttt{'*'} $E$ \\
+    $E$ & $l$ & \texttt{'['} ($E$ (\texttt{','} $E$)$^{*}$ $+$ $\epsilon$) \texttt{']'} \\
+    $E$ & $x$ & \texttt{'let'} \underline{\texttt{Ident}} \texttt{'='} $E$ \texttt{'in'} $E$ \\
+    $E$ & $n$ & \underline{\texttt{Int}} \\
+  \end{tabular}
+  \begin{tabular}{c} % TODO: figure out how to top align these two
+    Grouping \\
+    \midrule
+    \texttt{'('}$E$\texttt{')'} \\
+  \end{tabular}
+\end{center}
+
+\noindent We can thus use grouping parentheses and discarded terminals
+for disambiguation. The former is often used for operator expressions,
+while the latter can be used to, e.g., disambiguate with optional
+semicolons. For example, the strings \texttt{'(1+2)*3'} and
+\texttt{'[1,2]'} produce these ASTs:
+
+\begin{center}
+  \begin{tabular}{c@{\qquad}c}
+    \begin{tikzpicture}
+      \tikzset{level 1+/.style={level distance=16pt}}
+      \tikzset{frontier/.style={distance from root=48pt}}
+      \tikzset{edge from parent/.style={draw,edge from parent path={(\tikzparentnode.south) -- +(0,-2pt) -| (\tikzchildnode)}}}
+      \Tree [.{$m$}
+        [.{$a$}
+          [.{$n$} \texttt{1} ]
+          [.{$n$} \texttt{2} ] ]
+        [.{$n$} \texttt{3} ] ]
+    \end{tikzpicture} &
+    \begin{tikzpicture}
+      \tikzset{level 1+/.style={level distance=16pt}}
+      \tikzset{frontier/.style={distance from root=32pt}}
+      \tikzset{edge from parent/.style={draw,edge from parent path={(\tikzparentnode.south) -- +(0,-2pt) -| (\tikzchildnode)}}}
+      \Tree [.{$l$}
+        [.{$n$} \texttt{1} ]
+        [.{$n$} \texttt{2} ] ]
+    \end{tikzpicture} \\
+  \end{tabular}
+
+\end{center}
+
+\noindent Note that most terminals have been discarded from the
+ASTs. Note also that we need to keep track of where each node came
+from, i.e., which terminal or non-terminal in the grammar it
+represents. For example, the $a$ node in the left AST came from the
+first $E$ in the right-hand side of the $m$ production. This could,
+e.g., be achieved by attaching unique labels to each non-terminal and
+kept terminal in a right-hand side, then additionally annotating each
+AST node with the corresponding label. However, in most examples this
+connection will be obvious, thus we omit these to avoid cluttering the
+presentation, and clarify the connection in text if necessary.
+
+Finally we consider precedence and associativity. A common approach is
+to create a \emph{precedence ladder} by splitting each non-terminal
+into several non-terminals, one per precedence level. Explicitly doing
+this is undesireable in our setting, for two reasons:
+
+\begin{enumerate}
+\item It requires total precedence, but we wish to allow, e.g.,
+  leaving the precedence between operators from different languages
+  undefined.
+\item Grouping parentheses as described above recurse to the
+  \emph{same} non-terminal, which would then not contain productions
+  representing lower precedence operators.
+\end{enumerate}
+
+\noindent The former suggests that we cannot use precedence ladders
+unchanged, and the latter suggests that we need some explicit support
+in our grammars; we cannot simply rewrite the grammar without breaking
+grouping parentheses.
+
+We thus adopt an approach that coincides with precedence ladders if
+precedence is total and transitive, but allows the absence of both
+these properties. To simplify later analysis we treat precedence and
+associativity as user-facing conveniences to be translated to a
+simpler form. We describe the simpler form first, then the
+translation, then illustrate both with examples.
+
+We introduce \emph{marks}, annotations on the non-terminals appearing
+on the right-hand side of a production. Each mark is a set of
+production labels denoting the productions that may \emph{not} appear
+in that position. For example, $E_{\{a, x\}}$ may parse as neither the
+production labelled $a$, nor the production labelled $x$. It may,
+however, parse as a pair of grouping parentheses that contain either of
+these productions. We write $E_\emptyset$ as $E$ to reduce clutter.
+
+Translation is then a process of examining the relative precedence of
+every pair of productions and the associativity of each production and
+adding marks as appropriate. For example, if $E -> m: E \texttt{'*'}
+E$ has higher precedence than $E -> a: E \texttt{'+'} E$ we update $m$
+to $E -> m: E_{\{a\}} \texttt{'*'} E_{\{a\}}$. If $m$ is additionally
+left-associative we update it to $E -> m: E_{\{a\}} \texttt{'*'}
+E_{\{a, m\}}$.
+
+% TODO: figure out how to lay these out nicely. The first and third subfigure should fit vertically and be roughly the same height as the second.
+\begin{figure*}[t]
+  \subcaptionbox{The completed running example.\label{fig:grammar-example}}[.48\textwidth]{
+    \begin{tabular}{@{}l@{\quad$->$\quad}c@{ $:$\quad}l@{}}
+      \multicolumn{3}{l}{Productions} \\
+      \midrule
+      $E$ & $a$ & $E_{\{x\}}$ \texttt{'+'} $E_{\{x,a\}}$ \\
+      $E$ & $m$ & $E_{\{x,a\}}$ \texttt{'*'} $E_{\{x,a,m\}}$ \\
+      $E$ & $l$ & \texttt{'['} ($E$ (\texttt{','} $E$)$^{*}$ $+$ $\epsilon$) \texttt{']'} \\
+      $E$ & $x$ & \texttt{'let'} \underline{\texttt{Ident}} \texttt{'='} $E$ \texttt{'in'} $E$ \\
+      $E$ & $n$ & \underline{\texttt{Int}} \\
+    \end{tabular}
+    \begin{tabular}{c} % TODO: figure out how to top align these two
+      Grouping \\
+      \midrule
+      \texttt{'('}$E$\texttt{')'} \\
+    \end{tabular}
+  }
+  \subcaptionbox{The running example, translated to EBNF.\label{fig:grammar-example-ebnf}}[.48\textwidth]{
+    \begin{tabular}{@{}l@{\quad$->$\quad}l@{}}
+      $E$ & $E_{\{x\}}$ \texttt{'+'} $E_{\{x,a\}}$ \\
+      $E$ & $E_{\{x,a\}}$ \texttt{'*'} $E_{\{x,a,m\}}$ \\
+      $E$ & \texttt{'['} ($E$ (\texttt{','} $E$)$^{*}$ $+$ $\epsilon$) \texttt{']'} \\
+      $E$ & \texttt{'let'} \texttt{Ident} \texttt{'='} $E$ \texttt{'in'} $E$ \\
+      $E$ & \texttt{Int} \\
+      $E$ & \texttt{'('} $E$ \texttt{')'} \\
+      \addlinespace
+      $E_{\{x\}}$ & $E_{\{x\}}$ \texttt{'+'} $E_{\{x,a\}}$ \\
+      $E_{\{x\}}$ & $E_{\{x,a\}}$ \texttt{'*'} $E_{\{x,a,m\}}$ \\
+      $E_{\{x\}}$ & \texttt{'['} ($E$ (\texttt{','} $E$)$^{*}$ $+$ $\epsilon$) \texttt{']'} \\
+      $E_{\{x\}}$ & \texttt{Int} \\
+      $E_{\{x\}}$ & \texttt{'('} $E$ \texttt{')'} \\
+      \addlinespace
+      $E_{\{x,a\}}$ & $E_{\{x,a\}}$ \texttt{'*'} $E_{\{x,a,m\}}$ \\
+      $E_{\{x,a\}}$ & \texttt{'['} ($E$ (\texttt{','} $E$)$^{*}$ $+$ $\epsilon$) \texttt{']'} \\
+      $E_{\{x,a\}}$ & \texttt{Int} \\
+      $E_{\{x,a\}}$ & \texttt{'('} $E$ \texttt{')'} \\
+      \addlinespace
+      $E_{\{x,a,m\}}$ & \texttt{'['} ($E$ (\texttt{','} $E$)$^{*}$ $+$ $\epsilon$) \texttt{']'} \\
+      $E_{\{x,a,m\}}$ & \texttt{Int} \\
+      $E_{\{x,a,m\}}$ & \texttt{'('} $E$ \texttt{')'} \\
+    \end{tabular}
+  }
+  \subcaptionbox{The running example, written in EBNF with a precedence ladder.\label{fig:grammar-example-ebnf-ladder}}[.48\textwidth]{
+    \begin{tabular}{@{}l@{\quad$->$\quad}l@{}}
+      $E$ & \texttt{'let'} \texttt{Ident} \texttt{'='} $E$ \texttt{'in'} $E$ \\
+      $E$ & $E_1$ \\
+      \addlinespace
+      $E_1$ & $E_1$ \texttt{'+'} $E_2$ \\
+      $E_1$ & $E_2$ \\
+      \addlinespace
+      $E_2$ & $E_2$ \texttt{'*'} $E_3$ \\
+      $E_2$ & $E_3$ \\
+      \addlinespace
+      $E_3$ & \texttt{'['} ($E$ (\texttt{','} $E$)$^{*}$ $+$ $\epsilon$) \texttt{']'} \\
+      $E_3$ & \texttt{Int} \\
+      $E_3$ & \texttt{'('} $E$ \texttt{')'} \\
+    \end{tabular}
+  }
+  \caption{Completed grammars of the running example.}
+\end{figure*}
+
+% TODO: consistency between ``left associative'' and ``left-associative''
+Applying the usual precedences to our running example (let $<$
+addition $<$ multiplication) as well as associativities
+(left-associative multiplication and addition) yields the grammar in
+Figure~\ref{fig:grammar-example}\footnote{The observant reader may
+  notice that this grammar no longer recognizes, e.g., \texttt{1 + let
+    x = 2 in 3}. We discuss this in Section~\ref{sec:low-prec-unary}}.
+Note that production $a$ has marks containing $x$ due to precedence
+and $a$ due to associativity, and correspondingly $m$ has marks
+containing both $x$ and $a$ due to precedence, and $m$ due to
+associativity.
+
+To illustrate the concrete syntax in more familiar terms we also show
+a translation to normal EBNF grammars in
+Figure~\ref{fig:grammar-example-ebnf}. The translation is done by
+generating a new non-terminal per uniquely marked non-terminal,
+duplicating all productions that are \emph{not} in the mark, and
+adding grouping parentheses. This can be compared with
+Figure~\ref{fig:grammar-example-ebnf-ladder} which is the same
+language, but written more directly as a precedence ladder. Note that
+Figure~\ref{fig:grammar-example-ebnf} is equivalent with
+Figure~\ref{fig:grammar-example-ebnf-ladder} after inlining all
+passthrough productions (e.g. $E -> E_1$).
+
+When describing grammar formalisms a natural question is that of
+expressiveness: how expressive are the grammars we present here?
+Technically speaking they retain the full expressiveness of
+context-free languages; we can trivially translate a CFG by simply
+generating unique labels for each production and retaining all
+terminals. However, such a translation would benefit from none of our
+work as no information is discarded during parsing. We explore the
+implications of this in the evaluation, in
+Section~\ref{sec:expressiveness}.
+
+We are now ready to describe the language of an AST.
+
+\section{The Language of an Abstract Syntax Tree}\label{sec:tree-language}
+
+Central to our approach is the idea that a single AST can be written
+in multiple ways. This means that an AST corresponds to a set of
+written programs, i.e., a language. We thus discuss two kinds of
+languages: those described by the grammars in
+Section~\ref{sec:grammars}, and those consisting of programs that may
+parse as a given AST. We refer to the latter as
+\emph{AST-languages}. The grammars described in
+Section~\ref{sec:grammars} are designed to keep these AST-languages in
+the class of visibly pushdown languages
+\cite{alurVisiblyPushdownLanguages2004} which have many useful closure
+properties. This section informally describes the process of obtaining
+an AST-language from an AST and a grammar. We follow the same process
+of explanation as Section~\ref{sec:grammars}, this time beginning with
+EBNF grammars, then handling each additional modification. Note that
+we do not discuss precedence or associativity, we instead handle marks
+directly. As a running example we consider the AST obtained by parsing
+\texttt{[1, !(2?)]} using the following grammar:
+
+\begin{center}
+  \begin{tabular}{@{}l@{\quad$->$\quad}c@{ $:$\quad}l@{}}
+    \multicolumn{3}{l}{Productions} \\
+    \midrule
+    $E$ & $q$ & $E_{\{c\}}$ \texttt{'?'} \\
+    $E$ & $c$ & \texttt{'!'} $E$ \\
+    $E$ & $l$ & \texttt{'['} ($E$ (\texttt{','} $E$)$^{*}$ $+$ $\epsilon$) (\texttt{','} $+$ $\epsilon$) \texttt{']'} \\
+    $E$ & $n$ & \underline{\texttt{Int}} \\
+  \end{tabular}
+  \begin{tabular}{c} % TODO: figure out how to top align these two
+    Grouping \\
+    \midrule
+    \texttt{'('}$E$\texttt{')'} \\
+  \end{tabular}
+\end{center}
+
+When parsing using a normal EBNF grammar, without discarding any
+information, a given AST can only be parsed in exactly one way, namely
+the flattening of the tree. In this case, the AST (which is then more
+like a parse tree) looks as on the left (using $g$ for grouping
+parentheses), and the AST-language is recognized by the pushdown
+automaton on the right (though we have no need of the stack yet):
+
+\begin{center}
+  \begin{tabular}{cc}
+    \begin{tikzpicture}
+      \tikzset{level 1+/.style={level distance=16pt}}
+      \tikzset{frontier/.style={distance from root=80pt}}
+      \tikzset{edge from parent/.style={draw,edge from parent path={(\tikzparentnode.south) -- +(0,-2pt) -| (\tikzchildnode)}}}
+      \Tree [.{$l$}
+        \texttt{[}
+        [.{$n$} \texttt{1} ]
+        \texttt{,}
+        [.{$c$}
+          \texttt{!}
+          [.{$g$}
+            \texttt{(}
+            [.{$q$} [.{$n$} \texttt{2} ] \texttt{?} ]
+            \texttt{)} ] ]
+        \texttt{]} ]
+    \end{tikzpicture} &
+    \begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=1cm,transform shape]
+      \tikzset{every state/.style={minimum size=12pt}}
+      \node[state,initial] (1) {};
+      \node[state] (2) [right of=1] {};
+      \node[state] (3) [below of=2] {};
+      \node[state] (4) [left of=3] {};
+      \node[state] (5) [left of=4] {};
+      \node[state] (6) [below of=5] {};
+      \node[state] (7) [right of=6] {};
+      \node[state] (8) [right of=7] {};
+      \node[state] (9) [below of=8] {};
+      \node[state,accepting] (10) [left of=9] {};
+
+      \path (1) edge node{\texttt{[}} (2);
+      \path (2) edge node{\texttt{1}} (3);
+      \path (3) edge[above] node{\texttt{,}} (4);
+      \path (4) edge[above] node{\texttt{!}} (5);
+      \path (5) edge[left] node{\texttt{(}} (6);
+      \path (6) edge node{\texttt{2}} (7);
+      \path (7) edge node{\texttt{?}} (8);
+      \path (8) edge node{\texttt{)}} (9);
+      \path (9) edge[above] node{\texttt{]}} (10);
+    \end{tikzpicture}
+  \end{tabular}
+\end{center}
+
+\noindent When ASTs additionally discard some terminals the
+AST-language is no longer merely a flattening of the tree; instead it
+instead has to represent all possible discarded sequences of
+terminals. In some cases this yields no difference, e.g., production
+$q$ discards exactly one terminal \texttt{'?'}. In other cases there
+is a small difference, e.g., the end of production $l$ may discard
+either \texttt{',]'} or merely \texttt{']'}. Our running example thus
+yields:
+
+\begin{center}
+  \begin{tabular}{c@{\qquad}c}
+    \begin{tikzpicture}
+      \tikzset{level 1+/.style={level distance=16pt}}
+      \tikzset{frontier/.style={distance from root=80pt}}
+      \tikzset{edge from parent/.style={draw,edge from parent path={(\tikzparentnode.south) -- +(0,-2pt) -| (\tikzchildnode)}}}
+      \Tree [.{$l$}
+        [.{$n$} \texttt{1} ]
+        [.{$c$}
+          [.{$g$}
+            [.{$q$} [.{$n$} \texttt{2} ] ] ] ] ]
+    \end{tikzpicture} &
+    \begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=1cm,transform shape]
+      \tikzset{every state/.style={minimum size=12pt}}
+      \node[state,initial] (1) {};
+      \node[state] (2) [right of=1] {};
+      \node[state] (3) [right of=2] {};
+      \node[state] (4) [right of=3] {};
+      \node[state] (5) [right of=4] {};
+      \node[state] (6) [below of=5] {};
+      \node[state] (7) [left of=6] {};
+      \node[state] (8) [left of=7] {};
+      \node[state] (9) [left of=8] {};
+      % TODO: perform the first line break one step later, then have only the accepting state on the lowest line.
+      \node[state] (11) [left of=9] {};
+      \node[state,accepting] (10) [below of=11] {};
+
+      \path (1) edge node{\texttt{[}} (2);
+      \path (2) edge node{\texttt{1}} (3);
+      \path (3) edge node{\texttt{,}} (4);
+      \path (4) edge node{\texttt{!}} (5);
+      \path (5) edge node{\texttt{(}} (6);
+      \path (6) edge[above] node{\texttt{2}} (7);
+      \path (7) edge[above] node{\texttt{?}} (8);
+      \path (8) edge[above] node{\texttt{)}} (9);
+      \path (9) edge node{\texttt{]}} (10);
+      \path (9) edge[above] node{\texttt{,}} (11);
+      \path (11) edge[left] node{\texttt{]}} (10);
+    \end{tikzpicture}
+  \end{tabular}
+\end{center}
+
+% TODO: I question the clarity of this paragraph. The idea is simple, but I'm not sure I'm conveying it properly
+\noindent In general, the discarded sequence of terminals between two
+retained points in a production must be described by a regular
+language since all non-terminals are retained. For example, the AST
+obtained by parsing \texttt{'[]'} consists of a single node $l$ with
+no children. Its AST-language is described by the regular expression
+$\texttt{'['} (\texttt{','} + \epsilon) \texttt{']'}$ since the other
+sub-expressions in the production contain non-terminals (which must be
+retained) that are not present in the AST.
+
+Next we take discarded grouping parentheses into account. The AST now
+discards the $g$ node, and the automaton must allow inserting an
+arbitrary (balanced) amount of parentheses around each node. We ensure
+this by pushing to the stack when recognizing a \texttt{'('} and
+popping on \texttt{')'}. To ensure that parentheses pair correctly
+around each node we use a distinct stack symbol for each node. These
+stack symbols are represented by letters below. To reduce clutter we
+write $\circ \xrightarrow{+a} \circ$ as shorthand for an edge that
+recognizes \texttt{'('} and pushes $a$ on the stack, while $\circ
+\xrightarrow{-a} \circ$ correspondingly recognizes \texttt{')'} and
+pops $a$ from the stack\footnote{This works for our example since we
+  have only a single form of grouping parentheses, otherwise we would
+  have to be explicit.}.
+
+\begin{center}
+  \begin{tabular}{c@{\qquad}c}
+    \begin{tikzpicture}
+      \tikzset{level 1+/.style={level distance=16pt}}
+      \tikzset{frontier/.style={distance from root=64pt}}
+      \tikzset{edge from parent/.style={draw,edge from parent path={(\tikzparentnode.south) -- +(0,-2pt) -| (\tikzchildnode)}}}
+      \Tree [.{$l$}
+        [.{$n$} \texttt{1} ]
+        [.{$c$}
+          [.{$q$} [.{$n$} \texttt{2} ] ] ] ]
+    \end{tikzpicture} &
+    \begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=1cm,transform shape]
+      \tikzset{every state/.style={minimum size=12pt}}
+      \node[state,initial] (1) {};
+      \node[state] (2) [right of=1] {};
+      \node[state] (3) [right of=2] {};
+      \node[state] (4) [right of=3] {};
+      \node[state] (5) [right of=4] {};
+      \node[state] (7) [below of=4] {};
+      \node[state] (8) [left of=7] {};
+      % TODO: perform the first line break one step later, then have only the accepting state on the lowest line.
+      \node[state] (11) [below of=1] {};
+      \node[state,accepting] (10) [below of=11] {};
+
+      \path (1) edge node{\texttt{[}} (2);
+      \path (2) edge node{\texttt{1}} (3);
+      \path (3) edge node{\texttt{,}} (4);
+      \path (4) edge node{\texttt{!}} (5);
+      \path (5) edge node{\texttt{2}} (7);
+      \path (7) edge[above] node{\texttt{?}} (8);
+      \path (8) edge node{\texttt{]}} (10);
+      \path (8) edge[above] node{\texttt{,}} (11);
+      \path (11) edge[left] node{\texttt{]}} (10);
+
+      \path (1) edge[loop above] node{$+a$} (1);
+      \path (10) edge[loop left] node{$-a$} (1);
+
+      \path (2) edge[loop above] node{$+b$} (2);
+      \path (3) edge[loop above] node{$-b$} (3);
+
+      \path (4) edge[loop above] node{$+c$} (4);
+      \path (5) edge[loop above,align=left] node{$+d$\\$+e$} (5);
+      \path (8) edge[loop below,align=left] node{$-c$\\$-d$} (8);
+      \path (7) edge[loop below] node{$-e$} (8);
+    \end{tikzpicture}
+  \end{tabular}
+\end{center}
+
+\noindent Finally we account for marks. A mark has the effect of
+forbidding a particular node from being a direct child without at
+least one intermediate pair of grouping parentheses. The AST-language
+must thus require at least one pair in such a location. In this case
+we have only one relevant mark: $c$ may not be a direct child of
+$q$. The final AST-language is thus:
+
+\begin{center}
+  \begin{tabular}{c@{\qquad}c}
+    \begin{tikzpicture}
+      \tikzset{level 1+/.style={level distance=16pt}}
+      \tikzset{frontier/.style={distance from root=64pt}}
+      \tikzset{edge from parent/.style={draw,edge from parent path={(\tikzparentnode.south) -- +(0,-2pt) -| (\tikzchildnode)}}}
+      \Tree [.{$l$}
+        [.{$n$} \texttt{1} ]
+        [.{$c$}
+          [.{$q$} [.{$n$} \texttt{2} ] ] ] ]
+    \end{tikzpicture} &
+    \begin{tikzpicture}[->,>=Latex,shorten >=1pt,auto,node distance=1cm,transform shape]
+      \tikzset{every state/.style={minimum size=12pt}}
+      \node[state,initial] (1) {};
+      \node[state] (2) [right of=1] {};
+      \node[state] (3) [right of=2] {};
+      \node[state] (4) [right of=3] {};
+      \node[state] (5) [right of=4] {};
+      \node[state] (6) [below of=5] {};
+      \node[state] (7) [left of=6] {};
+      \node[state] (8) [left of=7] {};
+      \node[state] (9) [left of=8] {};
+      % TODO: perform the first line break one step later, then have only the accepting state on the lowest line.
+      \node[state] (11) [left of=9] {};
+      \node[state,accepting] (10) [below of=11] {};
+
+      \path (1) edge node{\texttt{[}} (2);
+      \path (2) edge node{\texttt{1}} (3);
+      \path (3) edge node{\texttt{,}} (4);
+      \path (4) edge node{\texttt{!}} (5);
+      \path (5) edge node{$+d$} (6);
+      \path (6) edge[above] node{\texttt{2}} (7);
+      \path (7) edge[above] node{\texttt{?}} (8);
+      \path (8) edge[above] node{$-d$} (9);
+      \path (9) edge node{\texttt{]}} (10);
+      \path (9) edge[above] node{\texttt{,}} (11);
+      \path (11) edge[left] node{\texttt{]}} (10);
+
+      \path (1) edge[loop above] node{$+a$} (1);
+      \path (10) edge[loop left] node{$-a$} (1);
+
+      \path (2) edge[loop above] node{$+b$} (2);
+      \path (3) edge[loop above] node{$-b$} (3);
+
+      \path (4) edge[loop above] node{$+c$} (4);
+      \path (5) edge[loop above,align=left] node{$+d$\\$+e$} (5);
+      \path (8) edge[loop below,align=left] node{$-c$\\$-d$} (8);
+      \path (7) edge[loop below] node{$-e$} (8);
+    \end{tikzpicture}
+  \end{tabular}
+\end{center}
+
+\noindent Note that there are now two required transitions $\circ
+\xrightarrow{+d} \circ$ and $\circ \xrightarrow{-d} \circ$, i.e.,
+there is a required pair of parentheses around the $q$ node.
+
+This automaton is clearly visibly pushdown: it pushes on \texttt{'('}
+and pops on \texttt{')'}, and does not examine the stack on any other
+terminal. However, to ensure that this holds in general we require two
+additional restrictions on our grammars:
+
+\begin{itemize}
+\item The set of opening brackets and closing brackets must be disjoint.
+\item No production may recognize an unbalanced sequence of terminals,
+  i.e., each recognized opening bracket has exactly one later closing
+  bracket.
+\end{itemize}
+
+\noindent Note that the latter requirement is slightly less
+restrictive than it may seem: an opening bracket can be closed with
+\emph{any} closing bracket, not just the one it was defined with.
+
+We are now ready to start resolving ambiguities.
+
+\section{Resolvable Ambiguity}\label{sec:resolvable-definition}
+
+This section introduces our definition of \emph{resolvable ambiguity},
+and then relates it to standard concepts in formal languages.
 
 A formal language is defined as a set of words, i.e., a subset of $\T^{*}$ for some alphabet $\T$. To be able to define \emph{resolvable ambiguity}, we additionally have to consider the results of parsing words. In order to stay as general as possible, we first define the notion of an \emph{abstract parser}.
 
@@ -1302,6 +1895,58 @@ We thus have a way to detect the presence or absence of a pair of trees $t_1, t_
 
 %% Restriction (2) also implies that $G'_D$ is not infinitely ambiguous, whereby $\parse(w)$ must be finite. The dynamic analysis thus parses $\basic(w)$ using $G_D$ with parentheses removed to produce a set $R$ of relevant trees. For every $t \in parse(w)$, we construct a VPDA recognizing $\words(t) \setminus \bigcup_{t' \in R, t \neq t'}\words(t')$. If none of these VPDAs recognize the empty language, then the word is resolvably ambiguous, otherwise it is unresolvably ambiguous.
 
+\section{Evaluation}
+
+\subsection{Expressiveness of Our Grammars}\label{sec:expressiveness}
+
+% TODO: Write this section properly once the evaluation is done.
+
+Technically speaking the grammars presented in this paper retain the
+full expressibility of context-free languages; we can trivially
+translate a CFG by simply generating unique labels for each
+production. However, such a translation would benefit from none of our
+work as no information is discarded during parsing. This section thus
+discusses the expressibility limitations we have encountered while
+designing grammars that do discard information appropriately.
+
+\subsubsection{Longest Match}
+
+Some commonly occurring language constructs require longest match,
+perhaps most commonly if-then-else, commonly referred to as the
+``dangling else'' problem.
+
+\subsubsection{Low Precedence Unary Operators}\label{sec:low-prec-unary}
+It can change the recognized language in the presence of
+low-precedence unary
+operators~\cite{aasaPrecedencesSpecificationsImplementations1995}. For
+example, using normal CFGs, a language containing addition,
+let-expressions, and numeric literals could be written naively (left)
+or with a precedence ladder (right):
+
+\begin{center}
+  \begin{tabular}{cc}
+    \begin{tabular}{@{}l@{\quad}l@{}}
+      $E$\quad$->$ & \texttt{'let'} \texttt{Ident} \\
+      & \texttt{'='} $E$ \texttt{'in'} $E$ \\
+      $E$\quad$->$ & $E$ \texttt{'+'} $E$ \\
+      $E$\quad$->$ & \texttt{Int} \\
+    \end{tabular} &
+    \begin{tabular}{@{}l@{\quad}l@{}}
+      $E_1$\quad$->$ & \texttt{'let'} \texttt{Ident} \\
+      & \texttt{'='} $E_1$ \texttt{'in'} $E_1$ \\
+      $E_1$\quad$->$ & $E_2$ \\
+      \addlinespace
+      $E_2$\quad$->$ & $E_2$ \texttt{'+'} $E_3$ \\
+      $E_2$\quad$->$ & $E_3$ \\
+      \addlinespace
+      $E_3$\quad$->$ & \texttt{Int} \\
+    \end{tabular} \\
+  \end{tabular}
+\end{center}
+
+\noindent The left language recognizes \texttt{1 + let x = 2 in 3}
+while the right does not.
+
 \section{Case Studies} \label{sec:evaluation}
 
 We have implemented a tool and a small DSL for syntax definition
@@ -1705,7 +2350,7 @@ suggest changes to the grammar of a language, based on ambiguities
 found through dynamic analysis.
 
 %% Bibliography
-\bibliographystyle{splncs04}
+\bibliographystyle{ACM-Reference-Format}
 
 \bibliography{All}
 

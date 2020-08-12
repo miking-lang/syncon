@@ -1,0 +1,2 @@
+prefix ocamlIf: Exp =
+  "if" c:Exp "then" (t:Exp "else")?
