@@ -191,12 +191,12 @@ mkLanguage pl@PreLanguage{..} mkToken getElidable (Node n@NodeF{n_nameF}) =
     genPoint (NodePoint sdname _ node) = case node of
       Node NodeF{n_nameF=innerName}
         | isForbidden pl n_nameF sdname innerName -> withOpt
-          { EpsNVA.initial = S.singleton (-1)
-          , EpsNVA.final = S.singleton (-2)
-          , EpsNVA.openTransitions = mkMandEdge (-1) <$> toList (EpsNVA.initial withOpt) <*> (second fst <$> toList groupings)
+          { EpsNVA.initial = S.singleton (-3)
+          , EpsNVA.final = S.singleton (-4)
+          , EpsNVA.openTransitions = mkMandEdge (-3) (-1) <$> (second fst <$> toList groupings)
             & EpsNVA.fromTriples
             & addTransitions (EpsNVA.openTransitions withOpt)
-          , EpsNVA.closeTransitions = mkMandEdge <$> toList (EpsNVA.final withOpt) <*> pure (-2) <*> (second snd <$> toList groupings)
+          , EpsNVA.closeTransitions = mkMandEdge (-2) (-4) <$> (second snd <$> toList groupings)
             & EpsNVA.fromTriples
             & addTransitions (EpsNVA.closeTransitions withOpt) }
         | otherwise -> withOpt
@@ -211,12 +211,21 @@ mkLanguage pl@PreLanguage{..} mkToken getElidable (Node n@NodeF{n_nameF}) =
           <&> first Right
           & Seq.fromList
         withOpt = innerLang
-          { EpsNVA.openTransitions = addTransitions (EpsNVA.openTransitions innerLang) optOpens
-          , EpsNVA.closeTransitions = addTransitions (EpsNVA.closeTransitions innerLang) optCloses }
-        optOpens = mkOptEdge <$> toList (EpsNVA.initial innerLang) <*> (second fst <$> toList groupings)
+          { EpsNVA.initial = S.singleton (-1)
+          , EpsNVA.final = S.singleton (-2)
+          , EpsNVA.openTransitions = addTransitions (EpsNVA.openTransitions innerLang) optOpens
+          , EpsNVA.closeTransitions = addTransitions (EpsNVA.closeTransitions innerLang) optCloses
+          , EpsNVA.innerTransitions = M.unionWith (M.unionWith S.union)
+              (EpsNVA.innerTransitions innerLang)
+              epsTrans
+          }
+        optOpens = mkOptEdge (-1) <$> (second fst <$> toList groupings)
           & EpsNVA.fromTriples
-        optCloses = mkOptEdge <$> toList (EpsNVA.final innerLang) <*> (second snd <$> toList groupings)
+        optCloses = mkOptEdge (-2) <$> (second snd <$> toList groupings)
           & EpsNVA.fromTriples
+        epsTrans = M.unionWith (M.unionWith S.union)
+          (M.singleton (-1) $ M.singleton Nothing $ EpsNVA.initial innerLang)
+          (S.toMap (EpsNVA.final innerLang) $> M.singleton Nothing (S.singleton $ -2))
         mkOptEdge s (sta, o) = (s, o, (sta, s))
         mkMandEdge s1 s2 (sta, o) = (s1, o, (sta, s2))
         addTransitions = M.unionWith $ M.unionWith S.union
