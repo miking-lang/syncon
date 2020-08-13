@@ -1,6 +1,6 @@
-module P5DynamicAmbiguity.Analysis (analyze, Error, ErrorOptions(..), ambiguityStyle, AmbiguityStyle(..), didTimeout) where
+module P5DynamicAmbiguity.Analysis (analyze, completeAnalyze, Error, ErrorOptions(..), ambiguityStyle, AmbiguityStyle(..), didTimeout) where
 
-import Pre
+import Pre hiding (reduce)
 
 import Text.Printf (printf)
 import qualified Data.Text as Text
@@ -8,8 +8,9 @@ import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
 import Data.Semigroup (Max(..))
 
-import Data.Automaton.NVA (NVA, shortestUniqueWord, shortestWord, TimeoutInfo(..))
+import Data.Automaton.NVA (NVA, shortestUniqueWord, shortestWord, unions, reduce, TimeoutInfo(..))
 import Data.Automaton.EpsilonNVA (untag, TaggedTerminal(..))
+import qualified Data.Automaton.DVA as DVA
 
 import ErrorMessage (FormatError(..), simpleErrorMessage)
 
@@ -83,6 +84,7 @@ data ErrorOptions elidable tok = EO
   , tokRange :: tok -> Range }
 
 type ResLang elidable = NVA Int Int (Token elidable) (Token elidable) (Token elidable)
+type ResStr elidable = [TaggedTerminal (Token elidable) (Token elidable) (Token elidable)]
 
 analyze :: forall elidable tok. (Eq elidable, Hashable elidable, Show elidable, Show tok, Ranged tok)
         => Int  -- ^ Timeout in microseconds. Negative to never timeout.
@@ -116,7 +118,7 @@ analyze timeout pl mkToken getElided showElided alts = do
     languages :: HashMap (NodeOrElide elidable tok) (ResLang elidable)
     languages = S.toMap alts & M.mapWithKey (\node _ -> mkLanguage node)
 
-    shortest :: IO (TimeoutInfo, HashMap (ResLang elidable) [TaggedTerminal (Token elidable) (Token elidable) (Token elidable)])
+    shortest :: IO (TimeoutInfo, HashMap (ResLang elidable) (ResStr elidable))
     shortest = do
       (timeoutInfo, result) <- shortestUniqueWord timeout (len + 10) nvas
       S.toMap nvas
@@ -127,10 +129,54 @@ analyze timeout pl mkToken getElided showElided alts = do
         Max len = foldMap (shortestWord >>> fmap (length >>> Max) >>> fold) nvas
         langsWithCounts = toList languages
           <&> (, Sum @Int 1)
-          & M.fromListWith (<>)  -- TODO: OPTIMIZE: I believe this is acutally quite expensive, each NVA is quite large
+          & M.fromListWith (<>)  -- TODO: OPTIMIZE: I believe this is actually quite expensive, each NVA is quite large
         nvas = M.keysSet langsWithCounts
         duplicateLangs = langsWithCounts
           & M.filter (getSum >>> (> 1))
         getResult result nva _
           | M.member nva duplicateLangs = Nothing
           | otherwise = M.lookup nva result
+
+completeAnalyze :: forall elidable tok. (Eq elidable, Hashable elidable, Show elidable, Show tok, Ranged tok)
+                => PreLanguage elidable
+                -> (tok -> Token elidable)
+                -> (elidable -> (Range, TypeName))
+                -> (elidable -> Text)
+                -> HashSet (NodeOrElide elidable tok)
+                -> Error elidable tok
+completeAnalyze pl mkToken getElided showElided alts = toList alts
+  <&> (identity &&& mkLanguage)
+  & oneAndOthers
+  <&> second (fmap snd)
+  <&> findShortest
+  <&> classify
+  & partitionEithers
+  & uncurry (Ambiguity range DidNotTimeout)
+  where
+    range = toList alts & \case
+      Node NodeF{n_rangeF} : _ -> n_rangeF
+      Elide elidable : _ -> getElided elidable & fst
+      [] -> compErr "P5DynamicAmbiguity.analyze.range" "got zero alternatives"
+    mkLanguage = treeLanguage pl mkToken getElided
+
+    oneAndOthers :: [a] -> [(a, [a])]
+    oneAndOthers [] = []
+    oneAndOthers (a : as) = (a, as) : (second (a:) <$> oneAndOthers as)
+
+    findShortest ((node, this), others) = unions others
+      & DVA.determinize
+      & DVA.difference (DVA.determinize this)
+      & DVA.asNVA
+      & reduce
+      & shortestWord
+      & (node,)
+
+    classify :: (NodeOrElide elidable tok, Maybe (ResStr elidable))
+             -> Either (NodeOrElide elidable tok, Text) (NodeOrElide elidable tok)
+    classify (node, Nothing) = Right node
+    classify (node, Just w) = w
+      <&> untag identity identity identity
+      <&> textualToken showElided
+      & Text.unwords
+      & (node, )
+      & Left

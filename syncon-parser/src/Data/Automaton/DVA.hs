@@ -345,12 +345,6 @@ renumber = renumberStates >>> renumberStack
 
 mapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
 mapKeys convert = M.toList >>> fmap (first convert) >>> M.fromList
--- data NVA s sta i o c = NVA
---   { initial :: HashSet s
---   , innerTransitions :: HashMap s (HashMap i (HashSet s))
---   , openTransitions :: HashMap s (HashMap o (HashSet (sta, s)))
---   , closeTransitions :: HashMap s (HashMap c (HashSet (sta, s)))
---   , final :: HashSet s }
 
 asNVA :: ( Eq s, Hashable s
          , Eq sta, Hashable sta)

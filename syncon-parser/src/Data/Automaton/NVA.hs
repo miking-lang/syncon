@@ -198,6 +198,21 @@ product nva1 nva2 = NVA
     cartesianProduct' as bs = (\(sta, a) (stb, b) -> ((sta, stb), (a, b)))
       <$> S.toList as <*> S.toList bs & S.fromList
 
+unions :: forall f s sta i o c. (Foldable f, Eq s, Hashable s, Eq i, Hashable i, Eq o, Hashable o, Eq sta, Hashable sta, Eq c, Hashable c)
+       => f (NVA s sta i o c) -> NVA Int sta i o c
+unions originals = NVA
+  { initial = S.unions $ initial <$> nvas
+  , innerTransitions = foldl' (M.unionWith $ M.unionWith S.union) mempty $ innerTransitions <$> nvas
+  , openTransitions = foldl' (M.unionWith $ M.unionWith S.union) mempty $ openTransitions <$> nvas
+  , closeTransitions = foldl' (M.unionWith $ M.unionWith S.union) mempty $ closeTransitions <$> nvas
+  , final = S.unions $ final <$> nvas
+  } & renumberStates
+  where
+    addStateN :: Int -> NVA s sta i o c -> NVA (Int, s) sta i o c
+    addStateN n = mapStates (n,)
+
+    nvas = zipWith addStateN [0..] $ toList originals
+
 -- |
 -- = Reducing an NVA
 
@@ -435,6 +450,15 @@ fromEpsNVA EpsNVA{..} = NVA
       return newStates
 
     addTransitions transitions = modify (mappend transitions)
+
+asEpsNVA :: (Eq i, Hashable i) => NVA s sta i o c -> EpsNVA s sta i o c
+asEpsNVA NVA{..} = EpsNVA
+  { initial
+  , innerTransitions = mapKeys Just <$> innerTransitions
+  , openTransitions
+  , closeTransitions
+  , final
+  }
 
 renumberStates :: forall s sta i o c.
                   ( Eq s, Hashable s
