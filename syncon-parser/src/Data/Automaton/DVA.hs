@@ -13,6 +13,7 @@ import Data.These (fromThese)
 
 import Util (iterateInductivelyOptM, repeatUntilStableM)
 
+import Data.Automaton.EpsilonNVA (TaggedTerminal(..))
 import Data.Automaton.NVA (NVA(NVA))
 import qualified Data.Automaton.NVA as NVA
 
@@ -49,6 +50,28 @@ instance
   => Monoid (DeterminizeState s sta i o c) where
   mappend = (<>)
   mempty = DeterminizeState mempty mempty mempty
+
+recognizes :: forall s sta i o c. (Eq s, Hashable s, Eq sta, Hashable sta, Eq i, Hashable i, Eq o, Hashable o, Eq c, Hashable c)
+           => DVA s sta i o c -> [TaggedTerminal i o c] -> Bool
+recognizes DVA{..} = recur (initial, [])
+  where
+    recur :: (s, [sta]) -> [TaggedTerminal i o c] -> Bool
+    recur (s, []) [] = s `S.member` final
+    recur _ [] = False
+    recur config (c : cs) = step c config & maybe False (\conf -> recur conf cs)
+
+    step :: TaggedTerminal i o c -> (s, [sta]) -> Maybe (s, [sta])
+    step (Inner i) (s, stack) = M.lookup s innerTransitions
+      >>= M.lookup i
+      <&> (, stack)
+    step (Open o) (s, stack) = M.lookup s openTransitions
+      >>= M.lookup o
+      <&> \(sta, s') -> (s', sta : stack)
+    step (Close _) (_, []) = Nothing
+    step (Close c) (s, sta : stack) = M.lookup s closeTransitions
+      >>= M.lookup c
+      >>= M.lookup sta
+      <&> (, stack)
 
 dstates :: (Eq s, Hashable s) => DeterminizeState s sta i o c -> HashSet s
 dstates DeterminizeState{..} = S.fromList $ is <> os <> cs
@@ -267,8 +290,8 @@ dvaOp op dva1 dva2 = DVA
       (iterateInductivelyOptM findTransitions $ S.singleton newInitial)
       mempty
 
-    dva1close = stackSymbols dva1 & S.map Just & S.toMap & fmap (const Nothing)
-    dva2close = stackSymbols dva2 & S.map Just & S.toMap & fmap (const Nothing)
+    dva1close = stackSymbols dva1 & S.map Just & S.insert Nothing & S.toMap <&> const Nothing
+    dva2close = stackSymbols dva2 & S.map Just & S.insert Nothing & S.toMap <&> const Nothing
 
     findTransitions (s1, s2) = do
       let it1 = s1 >>= (`M.lookup` innerTransitions dva1) & fromMaybe M.empty
