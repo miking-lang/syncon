@@ -221,6 +221,7 @@ test-suite syncon-parser-test
                , hedgehog
   main-is: Main.hs
   other-modules: ParseTest
+               , AutomataTest
   type: exitcode-stdio-1.0
   default-language: Haskell2010
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints

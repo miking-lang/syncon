@@ -8,8 +8,10 @@ import Pre
 import Hedgehog.Main (defaultMain)
 
 import qualified ParseTest
+import qualified AutomataTest
 
 main :: IO ()
 main = defaultMain
-  [ ParseTest.test
+  [ AutomataTest.test
+  , ParseTest.test
   ]

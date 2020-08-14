@@ -11,6 +11,8 @@ import qualified Data.HashMap.Lazy as M
 import Data.Automaton (EpsNFA(EpsNFA))
 import qualified Data.Automaton as EpsNFA
 
+import Util (iterateInductively)
+
 -- | A visibly pushdown automaton with
 -- * 's' as the states
 -- * 'sta' as the stack alphabet
@@ -31,6 +33,34 @@ data TaggedTerminal i o c
   | Close c
   deriving (Eq, Generic, Show)
 instance (Hashable i, Hashable o, Hashable c) => Hashable (TaggedTerminal i o c)
+
+recognizes :: forall s sta i o c. (Eq s, Hashable s, Eq sta, Hashable sta, Eq i, Hashable i, Eq o, Hashable o, Eq c, Hashable c)
+           => EpsNVA s sta i o c -> [TaggedTerminal i o c] -> Bool
+recognizes EpsNVA{..} = recur (S.map (,[]) $ epsClose initial)
+  where
+    recur :: HashSet (s, [sta]) -> [TaggedTerminal i o c] -> Bool
+    recur configs [] = S.filter (snd >>> null) configs & S.map fst & any (`S.member` final)
+    recur configs _
+      | S.null configs = False
+    recur configs (c : str) = recur (foldMap (step c) configs) str
+
+    epsTrans s = M.lookup s innerTransitions >>= M.lookup Nothing & fold
+    epsClose = iterateInductively epsTrans
+
+    step :: TaggedTerminal i o c -> (s, [sta]) -> HashSet (s, [sta])
+    step (Inner i) (s, stack) = M.lookup s innerTransitions
+      >>= M.lookup (Just i)
+      & foldMap (epsClose >>> S.map (, stack))
+    step (Open o) (s, stack) = M.lookup s openTransitions
+      >>= M.lookup o
+      & fold
+      & foldMap (\(sta, s') -> S.map (, sta : stack) $ epsClose $ S.singleton s')
+    step (Close _) (_, []) = S.empty
+    step (Close c) (s, sta : stack) = M.lookup s closeTransitions
+      >>= M.lookup c
+      & fold
+      & S.filter (fst >>> (== sta))
+      & foldMap (\(_, s') -> S.map (, stack) $ epsClose $ S.singleton s')
 
 untag :: (o -> a) -> (i -> a) -> (c -> a) -> TaggedTerminal i o c -> a
 untag f _ _ (Open o) = f o
