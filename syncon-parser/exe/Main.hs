@@ -380,7 +380,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                       then DynAmb.dummyIsolate >>> first Seq.singleton
                       else DynAmb.isolate
             defDynAmbKind = case target of
-              UnresolvableAmbiguity -> CompleteDyn
+              UnresolvableAmbiguity -> RaceDyn
               Ambiguity -> FastDyn
             fastAnalyze = DynAmb.analyze (-1) pl DynAmb.convertToken
             completeAnalyze = \a b -> DynAmb.completeAnalyze pl DynAmb.convertToken a b >>> return
