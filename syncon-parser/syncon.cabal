@@ -219,6 +219,7 @@ test-suite syncon-parser-test
                , filepath
                , directory
                , hedgehog
+               , lifted-async
   main-is: Main.hs
   other-modules: ParseTest
                , AutomataTest
