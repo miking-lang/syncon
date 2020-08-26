@@ -111,9 +111,9 @@ test :: IO ()
 -- test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--dot=out"] main
 -- test = withArgs ["examples/ambig.syncon", "examples/ambig.test", "--two-level"] main
 -- test = withArgs ["examples/bootstrap.syncon", "--source=examples/bootstrap.syncon", "--json=out.json"] main
--- test = withArgs ["--help"] main
+test = withArgs ["--help"] main
 -- test = withArgs ["parse", "README.md", "source.test"] main
-test = withArgs ["pbt", "examples/ambig.syncon"] main
+-- test = withArgs ["pbt", "examples/ambig.syncon"] main
 -- test = withArgs ["compose", "examples/ambig.syncon"] main
 -- test = GLL.test
 
@@ -161,10 +161,11 @@ parseAction = do
     <> Opt.metavar "S"
     <> Opt.help "Timeout for attempting to parse a single source file, in seconds. A negative value means 'wait forever'."
     <> Opt.value (-1)
+  dynAmbKind <- dynOptFlag
   dynAmbTimeout <- fmap (*1_000) $ Opt.option Opt.auto
     $ Opt.long "dynamic-resolvability-timeout"
     <> Opt.metavar "MS"
-    <> Opt.help "Timeout for determining if a single ambiguity is resolvable, in milliseconds. A negative value means 'wait forever'."
+    <> Opt.help "Timeout for determining if a single ambiguity is resolvable, in milliseconds. A negative value means 'wait forever'. Only used by '--fast'."
     <> Opt.value 1_000
   noIsolation <- Opt.switch
     $ Opt.long "no-isolation"
@@ -184,6 +185,12 @@ parseAction = do
         isolate = if noIsolation
                   then DynAmb.dummyIsolate >>> first Seq.singleton
                   else DynAmb.isolate
+        fastAnalyze = DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken
+        completeAnalyze = \a b -> DynAmb.completeAnalyze pl DynAmb.convertToken a b >>> return
+        analyze = case fromMaybe FastDyn dynAmbKind of
+          FastDyn -> DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken
+          CompleteDyn -> \a b -> DynAmb.completeAnalyze pl DynAmb.convertToken a b >>> return
+          RaceDyn -> \a b c -> race (fastAnalyze a b c) (completeAnalyze a b c) <&> either identity identity
     srcNodes <- flip M.traverseWithKey sources $ \path _ -> do
       putStrLn $ "Parsing \"" <> path <> "\""
       handle (\(SourceFileException t) -> modifyIORef' failureFiles (+1) >> sourceFailureHandler t) $ do
@@ -206,7 +213,7 @@ parseAction = do
                     , DynAmb.tokRange = range
                     }
               in ambs
-                 & mapM (foldMap S.singleton >>> DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
+                 & mapM (foldMap S.singleton >>> analyze (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
                  <&> fmap (formatError opts)
                  <&> formatErrors sources
                  >>= die'
@@ -260,6 +267,20 @@ compileCommand = Opt.command "compile" (Opt.info compileCmd $ Opt.progDesc "Comp
         (_, preParse, pl) <- compileAction precKind files
         let serialisable = (Parser.precomputeToSerialisable preParse, pl)
         writeFileSerialise outputFile serialisable
+
+data DynAnalysisKind = FastDyn | CompleteDyn | RaceDyn
+dynOptFlag :: Opt.Parser (Maybe DynAnalysisKind)
+dynOptFlag = optional $ fast <|> complete <|> race'
+  where
+    fast = Opt.flag' FastDyn
+      $ Opt.long "fast-dyn"
+      <> Opt.help "Use the fast dynamic analysis that might not terminate (except for timeout) on unresolvable input"
+    complete = Opt.flag' CompleteDyn
+      $ Opt.long "complete-dyn"
+      <> Opt.help "Use the complete dynamic analysis that will always terminate, but that might be very slow"
+    race' = Opt.flag' RaceDyn
+      $ Opt.long "race-dyn"
+      <> Opt.help "Run both dynamic analyses and use the one that terminates first."
 
 parseCommand :: Opt.Mod Opt.CommandFields (IO ())
 parseCommand = Opt.command "parse" (Opt.info parseCmd $ Opt.progDesc "Parse a list of files using a compiled '.synconc' file.")
@@ -321,6 +342,9 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
         $ Opt.long "discards"
         <> Opt.value 10000
         <> Opt.help "The maximum number of tests to discard. A test is discarded if the analysis times out."
+      showAmbDistr <- Opt.switch
+        $ Opt.long "amb-distr"
+        <> Opt.help "Show the percentage of tested programs that are ambiguous"
       showSizeDistr <- Opt.switch
         $ Opt.long "size-distr"
         <> Opt.help "Show the distribution of CST sizes generated"
@@ -335,6 +359,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
         <> Opt.metavar "MS"
         <> Opt.help "Timeout before discarding a test case, in milliseconds. A negative value means 'wait forever'."
         <> Opt.value 4_000
+      dynAmbKind <- dynOptFlag
       showTwoLevel <- Opt.switch
         $ Opt.long "two-level"
         <> Opt.help "Always show the two level representation, even if some alternatives are resolvable."
@@ -354,6 +379,15 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
             isolate = if noIsolation
                       then DynAmb.dummyIsolate >>> first Seq.singleton
                       else DynAmb.isolate
+            defDynAmbKind = case target of
+              UnresolvableAmbiguity -> RaceDyn
+              Ambiguity -> FastDyn
+            fastAnalyze = DynAmb.analyze (-1) pl DynAmb.convertToken
+            completeAnalyze = \a b -> DynAmb.completeAnalyze pl DynAmb.convertToken a b >>> return
+            analyze = case fromMaybe defDynAmbKind dynAmbKind of
+              FastDyn -> DynAmb.analyze (-1) pl DynAmb.convertToken
+              CompleteDyn -> \a b -> DynAmb.completeAnalyze pl DynAmb.convertToken a b >>> return
+              RaceDyn -> \a b c -> race (fastAnalyze a b c) (completeAnalyze a b c) <&> either identity identity
         let gen = Parser.programGenerator df
             prop = Hedgehog.withDiscards (fromInteger numDiscards) $ Hedgehog.withTests (fromInteger numRuns) $ Hedgehog.property $ do
               (size, syncons, types, Lexer.makeFakeFile -> (sources, program)) <- Hedgehog.forAllWith ((\(_, _, _, x) -> x) >>> toList >>> fmap Forest.unlex >>> Text.intercalate " " >>> toS) gen
@@ -369,10 +403,11 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                     Hedgehog.annotate $ "Got error when parsing generated program, this should not be possible"
                     Hedgehog.failure
                   Data forest@(nodeMap, _) -> case isolate forest of
-                    Data _ -> Hedgehog.success
+                    Data _ -> when showAmbDistr (Hedgehog.label "unambiguous") >> Hedgehog.success
                     Error ambs -> do
+                      when showAmbDistr $ Hedgehog.label "ambiguous"
                       errs <- ambs
-                        & mapM (foldMap S.singleton >>> DynAmb.analyze (-1) pl DynAmb.convertToken (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
+                        & mapM (foldMap S.singleton >>> analyze (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
                         <&> Seq.filter (hasAmbStyle target)
                         & lift
                       if Seq.null errs

@@ -34,6 +34,32 @@ data NVA s sta i o c = NVA
   deriving (Show, Eq, Generic)
 instance (Hashable s, Hashable sta, Hashable i, Hashable o, Hashable c) => Hashable (NVA s sta i o c)
 
+recognizes :: forall s sta i o c. (Eq s, Hashable s, Eq sta, Hashable sta, Eq i, Hashable i, Eq o, Hashable o, Eq c, Hashable c)
+           => NVA s sta i o c -> [TaggedTerminal i o c] -> Bool
+recognizes NVA{..} = recur (S.map (,[]) initial)
+  where
+    recur :: HashSet (s, [sta]) -> [TaggedTerminal i o c] -> Bool
+    recur configs [] = S.filter (snd >>> null) configs & S.map fst & any (`S.member` final)
+    recur configs _
+      | S.null configs = False
+    recur configs (c : str) = recur (foldMap (step c) configs) str
+
+    step :: TaggedTerminal i o c -> (s, [sta]) -> HashSet (s, [sta])
+    step (Inner i) (s, stack) = M.lookup s innerTransitions
+      >>= M.lookup i
+      & foldMap (S.map (, stack))
+    step (Open o) (s, stack) = M.lookup s openTransitions
+      >>= M.lookup o
+      & fold
+      & S.map (\(sta, s') -> (s', sta : stack))
+    step (Close _) (_, []) = S.empty
+    step (Close c) (s, sta : stack) = M.lookup s closeTransitions
+      >>= M.lookup c
+      & fold
+      & S.filter (fst >>> (== sta))
+      & S.map (\(_, s') -> (s', stack))
+
+
 -- | Retrieve all the states mentioned in an NVA
 states :: (Eq s, Hashable s) => NVA s sta i o c -> HashSet s
 states NVA{..} = initial `S.union` final `S.union` S.fromList (inners ++ opens ++ closes)
@@ -197,6 +223,21 @@ product nva1 nva2 = NVA
                       => HashSet (sta, a) -> HashSet (stb, b) -> HashSet ((sta, stb), (a, b))
     cartesianProduct' as bs = (\(sta, a) (stb, b) -> ((sta, stb), (a, b)))
       <$> S.toList as <*> S.toList bs & S.fromList
+
+unions :: forall f s sta i o c. (Foldable f, Eq s, Hashable s, Eq i, Hashable i, Eq o, Hashable o, Eq sta, Hashable sta, Eq c, Hashable c)
+       => f (NVA s sta i o c) -> NVA Int sta i o c
+unions originals = NVA
+  { initial = S.unions $ initial <$> nvas
+  , innerTransitions = foldl' (M.unionWith $ M.unionWith S.union) mempty $ innerTransitions <$> nvas
+  , openTransitions = foldl' (M.unionWith $ M.unionWith S.union) mempty $ openTransitions <$> nvas
+  , closeTransitions = foldl' (M.unionWith $ M.unionWith S.union) mempty $ closeTransitions <$> nvas
+  , final = S.unions $ final <$> nvas
+  } & renumberStates
+  where
+    addStateN :: Int -> NVA s sta i o c -> NVA (Int, s) sta i o c
+    addStateN n = mapStates (n,)
+
+    nvas = zipWith addStateN [0..] $ toList originals
 
 -- |
 -- = Reducing an NVA
@@ -435,6 +476,15 @@ fromEpsNVA EpsNVA{..} = NVA
       return newStates
 
     addTransitions transitions = modify (mappend transitions)
+
+asEpsNVA :: (Eq i, Hashable i) => NVA s sta i o c -> EpsNVA s sta i o c
+asEpsNVA NVA{..} = EpsNVA
+  { initial
+  , innerTransitions = mapKeys Just <$> innerTransitions
+  , openTransitions
+  , closeTransitions
+  , final
+  }
 
 renumberStates :: forall s sta i o c.
                   ( Eq s, Hashable s
