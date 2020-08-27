@@ -54,6 +54,7 @@ import qualified P5DynamicAmbiguity.Types as DynAmb
 import qualified P5DynamicAmbiguity.TreeLanguage as DynAmb
 import qualified P5DynamicAmbiguity.Isolation as DynAmb
 import qualified P5DynamicAmbiguity.Analysis as DynAmb
+import qualified P5DynamicAmbiguity.PatchTokenStream as DynAmb
 
 import qualified P6Output.JsonV1 as Output
 

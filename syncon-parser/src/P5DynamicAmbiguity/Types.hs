@@ -42,6 +42,12 @@ convertToken :: P1.Token l P2.TypeName -> Token elidable
 convertToken (P1.LitTok _ _ t) = LitTok t
 convertToken (P1.OtherTok _ _ tyn t) = OtherTokInstance tyn t
 
+makeFakeToken :: l -> (elidable -> P1.Token l P2.TypeName) -> Token elidable -> P1.Token l P2.TypeName
+makeFakeToken l _ (LitTok t) = P1.LitTok mempty l t
+makeFakeToken l _ (OtherTokInstance tyn t) = P1.OtherTok mempty l tyn t
+makeFakeToken l _ (OtherTok tyn) = P1.OtherTok mempty l tyn ("<" <> show tyn <> ">")
+makeFakeToken _ fromElide (ElidedTok e) = fromElide e
+
 instance Eq elidable => Eq (Token elidable) where
   (==) = (==) `on` eitherRepr
 instance Hashable elidable => Hashable (Token elidable) where
