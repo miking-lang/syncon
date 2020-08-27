@@ -1,4 +1,4 @@
-module P5DynamicAmbiguity.Isolation (isolate, dummyIsolate, getElidable, showElidable, Elidable) where
+module P5DynamicAmbiguity.Isolation (isolate, dummyIsolate, getElidable, showElidable, getElidableBoundsEx, getNodeOrElidableBoundsEx, Elidable) where
 
 import Pre hiding (reduce, State, state, orElse)
 import Result (Result(..))
@@ -65,6 +65,22 @@ showElidable dag = fmap toList >>> \case
       Just _ -> "..."
     getNode n = M.lookup n dag
       & compFromJust "P5DynamicAmbiguity.Analysis.showElidable.getNode" ("Missing node " <> show n)
+
+getElidableBoundsEx :: Dag tok -> Elidable -> (tok, tok)
+getElidableBoundsEx dag = fmap toList >>> \case
+  Left n -> getNodeBounds n
+  Right (n : _) -> getNodeBounds n
+  Right [] -> compErr "P5DynamicAmbiguity.Analysis.getBoundsEx" "Empty elidable"
+  where
+    getNodeBounds n = M.lookup n dag
+      & compFromJust "P5DynamicAmbiguity.Analysis.getBoundsEx.getElidableBounds" ("Missing node " <> show n)
+      & n_beginEndF
+      & compFromJust "P5DynamicAmbiguity.Analysis.getBoundsEx.getElidableBounds" ("Missing bounds on node " <> show n)
+
+getNodeOrElidableBoundsEx :: Show tok => Dag tok -> NodeOrElide tok -> (tok, tok)
+getNodeOrElidableBoundsEx dag = \case
+  Node n -> n_beginEndF n & compFromJust "P5DynamicAmbiguity.Analysis.getNodeOrElidableBoundsEx.getNodeBounds" ("Missing bounds on node " <> show n)
+  Elide e -> getElidableBoundsEx dag e
 
 -- | Given a potential ambiguity, construct either a complete subtree, or a disjoint set of
 -- minimal ambiguities

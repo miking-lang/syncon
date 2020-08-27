@@ -1,4 +1,4 @@
-module P5DynamicAmbiguity.PatchTokenStream where
+module P5DynamicAmbiguity.PatchTokenStream (patch) where
 
 import Pre
 
