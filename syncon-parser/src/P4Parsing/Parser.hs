@@ -1,6 +1,17 @@
 {-# LANGUAGE RecordWildCards, ViewPatterns, UndecidableInstances #-}
 
-module P4Parsing.Parser (Error(..), precomputeSingleLanguage, dfToLanguageTokens, parseTokens, parseFile, forestToDot, precomputeToSerialisable, serialisableToPrecompute, Precomputed) where
+module P4Parsing.Parser
+( Error(..)
+, precomputeSingleLanguage
+, dfToLanguageTokens
+, parseTokens
+, parseFile
+, parseFile'
+, forestToDot
+, precomputeToSerialisable
+, serialisableToPrecompute
+, Precomputed
+) where
 
 import Pre hiding (from, some, many, optional)
 import Result (Result(..))
@@ -72,6 +83,13 @@ precomputeSingleLanguage df = do
   grammar <- generateGrammar df
   let forest = mkGrammar (unquant grammar) & mkNNFGrammar & precompute
   return Precomputed{..}
+
+parseFile' :: Precomputed l
+           -> FilePath
+           -> IO (Res l (Token l TypeName) (HashMap Node (NodeF (Token l TypeName) (HashSet Node)), HashSet Node, [Token l TypeName]))
+parseFile' pc@Precomputed{lexFile} path = do
+  resTokens <- lexFile path
+  return $ resTokens >>= \toks -> parseTokens pc toks <&> \(nodeMap, tops) -> (nodeMap, tops, toks)
 
 parseFile :: Precomputed l
           -> FilePath

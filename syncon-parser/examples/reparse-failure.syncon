@@ -1,0 +1,3 @@
+syncon synA: Top = a:"a" "b"?
+syncon synB: Top = a:"a" "b"? ("c" "d")?
+syncon synC: Top = a:"a" "b" "c" "d"

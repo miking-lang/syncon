@@ -20,7 +20,7 @@ import P4Parsing.Types (NodeF(..), allNodeFChildren)
 import P5DynamicAmbiguity.TreeLanguage (treeLanguage, PreLanguage)
 import P5DynamicAmbiguity.Types
 
-data Error elidable tok = Ambiguity Range TimeoutInfo [(NodeOrElide elidable tok, Text)] [NodeOrElide elidable tok]  -- ^ Resolvable alternatives, and unresolvable alternatives
+data Error elidable tok = Ambiguity Range TimeoutInfo [(NodeOrElide elidable tok, (Text, Bool))] [NodeOrElide elidable tok]  -- ^ Resolvable alternatives, and unresolvable alternatives
 data AmbiguityStyle = Resolvable | Unresolvable | Mixed
 ambiguityStyle :: Error elidable tok -> AmbiguityStyle
 ambiguityStyle (Ambiguity _ _ (_:_) (_:_)) = Mixed
@@ -36,11 +36,15 @@ instance FormatError (Error elidable tok) where
   type ErrorOpts (Error elidable tok) = ErrorOptions elidable tok
   formatError EO{showTwoLevel, elidedRange, showElided, showTok, tokRange} (Ambiguity r timeoutInfo resolvable trees) = simpleErrorMessage r $
     kind <> " with " <> show (length trees + length resolvable) <> " alternatives.\n" <>
+    reparseInfo <>
     resolvableSection <>
     unresolvableSection
     where
       hasResolvable = not $ null resolvable
       hasUnresolvable = not $ null trees
+      hasReparseFailures = any (snd >>> snd >>> not) resolvable
+      reparseInfo | hasReparseFailures = "Resolutions marked '<(!)>' do not fully resolve\n all ambiguities in this program.\n"
+                  | otherwise = ""
       timeoutStr | DidTimeout <- timeoutInfo = " (timeout)"
                  | otherwise = ""
       kind | hasUnresolvable = "Unresolvable ambiguity error" <> timeoutStr
@@ -49,14 +53,17 @@ instance FormatError (Error elidable tok) where
         | not hasResolvable = ""
         | hasUnresolvable = "\nResolvable alternatives:\n" <> formattedResolvable
         | otherwise = "\n" <> formattedResolvable
+      formattedT (t, reparses)
+        | hasReparseFailures = "  " <> (if reparses then "      " else "<(!)> ") <> t <> "\n"
+        | otherwise = "  " <> t <> "\n"
       formattedResolvable
         | showTwoLevel = resolvable
           <&> (twoLevel *** S.singleton)
           & M.fromListWith S.union
           & M.toList
-          & foldMap (\(two, ts) -> foldMap (\t -> "  " <> t <> "\n") ts <> two <> "\n")
+          & foldMap (\(two, ts) -> foldMap formattedT ts <> two <> "\n")
         | otherwise = resolvable
-          & foldMap (\(_, t) -> "  " <> t <> "\n")
+          & foldMap (snd >>> formattedT)
       unresolvableSection
         | not hasUnresolvable = ""
         | hasResolvable = "\nUnresolvable alternatives:\n" <> formattedUnresolvable
@@ -81,7 +88,8 @@ data ErrorOptions elidable tok = EO
   , showElided :: elidable -> Text
   , elidedRange :: elidable -> Range
   , showTok :: tok -> Text
-  , tokRange :: tok -> Range }
+  , tokRange :: tok -> Range
+  }
 
 type ResLang elidable = NVA Int Int (Token elidable) (Token elidable) (Token elidable)
 type ResStr elidable = [TaggedTerminal (Token elidable) (Token elidable) (Token elidable)]
@@ -92,19 +100,22 @@ analyze :: forall elidable tok. (Eq elidable, Hashable elidable, Show elidable, 
         -> (tok -> Token elidable)
         -> (elidable -> (Range, TypeName))
         -> (elidable -> Text)
+        -> ([Token elidable] -> Bool)
         -> HashSet (NodeOrElide elidable tok)
         -> IO (Error elidable tok)
-analyze timeout pl mkToken getElided showElided alts = do
+analyze timeout pl mkToken getElided showElided checkReparses alts = do
   (timeoutInfo, res) <- shortest
   M.toList languages
     <&> (\(node, lang) ->
            case M.lookup lang res of
              Nothing -> Right node
-             Just w -> untag identity identity identity <$> w
-               <&> textualToken showElided
-               & Text.unwords
-               & (node, )
-               & Left)
+             Just w ->
+               let stream = untag identity identity identity <$> w
+               in textualToken showElided <$> stream
+                  & Text.unwords
+                  & (, checkReparses stream)
+                  & (node,)
+                  & Left)
     & partitionEithers
     & uncurry (Ambiguity range timeoutInfo)
     & return
@@ -142,9 +153,10 @@ completeAnalyze :: forall elidable tok. (Eq elidable, Hashable elidable, Show el
                 -> (tok -> Token elidable)
                 -> (elidable -> (Range, TypeName))
                 -> (elidable -> Text)
+                -> ([Token elidable] -> Bool)
                 -> HashSet (NodeOrElide elidable tok)
                 -> Error elidable tok
-completeAnalyze pl mkToken getElided showElided alts = toList alts
+completeAnalyze pl mkToken getElided showElided checkReparses alts = toList alts
   <&> (identity &&& mkLanguage)
   & oneAndOthers
   <&> second (fmap snd)
@@ -172,11 +184,12 @@ completeAnalyze pl mkToken getElided showElided alts = toList alts
       & (node,)
 
     classify :: (NodeOrElide elidable tok, Maybe (ResStr elidable))
-             -> Either (NodeOrElide elidable tok, Text) (NodeOrElide elidable tok)
+             -> Either (NodeOrElide elidable tok, (Text, Bool)) (NodeOrElide elidable tok)
     classify (node, Nothing) = Right node
-    classify (node, Just w) = w
-      <&> untag identity identity identity
-      <&> textualToken showElided
-      & Text.unwords
-      & (node, )
-      & Left
+    classify (node, Just w) =
+      let stream = untag identity identity identity <$> w
+      in textualToken showElided <$> stream
+         & Text.unwords
+         & (, checkReparses stream)
+         & (node, )
+         & Left

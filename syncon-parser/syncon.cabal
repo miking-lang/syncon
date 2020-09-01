@@ -121,6 +121,7 @@ library
                  , P5DynamicAmbiguity.TreeLanguage
                  , P5DynamicAmbiguity.Analysis
                  , P5DynamicAmbiguity.Isolation
+                 , P5DynamicAmbiguity.PatchTokenStream
                  , P6Output.JsonV1
   default-language: Haskell2010
   default-extensions: NoImplicitPrelude

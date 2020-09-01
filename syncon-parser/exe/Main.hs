@@ -54,6 +54,7 @@ import qualified P5DynamicAmbiguity.Types as DynAmb
 import qualified P5DynamicAmbiguity.TreeLanguage as DynAmb
 import qualified P5DynamicAmbiguity.Isolation as DynAmb
 import qualified P5DynamicAmbiguity.Analysis as DynAmb
+import qualified P5DynamicAmbiguity.PatchTokenStream as DynAmb
 
 import qualified P6Output.JsonV1 as Output
 
@@ -173,6 +174,9 @@ parseAction = do
   continueAfterError <- Opt.switch
     $ Opt.long "continue-after-error"
     <> Opt.help "Don't abort after the first source file that gives errors."
+  reparse <- Opt.switch
+    $ Opt.long "reparse-resolution"
+    <> Opt.help "Sanity check, reparses each suggested ambiguity resolution to see if it does indeed solve the ambiguity. May give false positives on nested ambiguities."
 
   pure $ \(preParse, pl) files -> do
     sources <- files <&> toS & S.fromList & S.toMap
@@ -186,22 +190,37 @@ parseAction = do
                   then DynAmb.dummyIsolate >>> first Seq.singleton
                   else DynAmb.isolate
         fastAnalyze = DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken
-        completeAnalyze = \a b -> DynAmb.completeAnalyze pl DynAmb.convertToken a b >>> return
+        completeAnalyze = \a b c -> DynAmb.completeAnalyze pl DynAmb.convertToken a b c >>> return
         analyze = case fromMaybe FastDyn dynAmbKind of
-          FastDyn -> DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken
-          CompleteDyn -> \a b -> DynAmb.completeAnalyze pl DynAmb.convertToken a b >>> return
-          RaceDyn -> \a b c -> race (fastAnalyze a b c) (completeAnalyze a b c) <&> either identity identity
+          FastDyn -> fastAnalyze
+          CompleteDyn -> completeAnalyze
+          RaceDyn -> \a b c d -> race (fastAnalyze a b c d) (completeAnalyze a b c d) <&> either identity identity
     srcNodes <- flip M.traverseWithKey sources $ \path _ -> do
       putStrLn $ "Parsing \"" <> path <> "\""
       handle (\(SourceFileException t) -> modifyIORef' failureFiles (+1) >> sourceFailureHandler t) $ do
         mNode <- timeout sourceTimeout $ do
-          forest@(nodeMap, _) <- Parser.parseFile preParse (toS path) >>= dataOrError' sources ()
+          (nodeMap, tops, Seq.fromList -> tokens) <- Parser.parseFile' preParse (toS path) >>= dataOrError' sources ()
+          let forest = (nodeMap, tops)
           forM_ dot $ \outPath -> do
             let fullPath = outPath </> toS path <.> "dot"
             putStrLn @Text $"Writing to \"" <> toS fullPath <> "\""
             createDirectoryIfMissing True $ takeDirectory fullPath
             Parser.forestToDot (Parser.n_nameF >>> coerce) forest
               & writeFile fullPath
+          let getBounds = DynAmb.getElidableBoundsEx nodeMap
+          let checkReparse elidable replacement
+                | not reparse = True
+                | otherwise =
+                  let bounds = case toList elidable of
+                        e : _ -> DynAmb.getNodeOrElidableBoundsEx nodeMap e
+                        [] -> compErr "Main.parseAction.checkReparse" "Empty elidable"
+                  in DynAmb.patch Parser.SingleLanguage getBounds bounds (Seq.fromList replacement) tokens
+                     & Parser.parseTokens preParse
+                     & first (const Seq.empty)
+                     >>= isolate
+                     & \case
+                       Data _ -> True
+                       Error _ -> False
           isolate forest & \case
             Data node -> modifyIORef' successfulFiles (+1) >> return node
             Error ambs ->
@@ -212,11 +231,13 @@ parseAction = do
                     , DynAmb.showTok = Forest.unlex
                     , DynAmb.tokRange = range
                     }
-              in ambs
-                 & mapM (foldMap S.singleton >>> analyze (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
-                 <&> fmap (formatError opts)
-                 <&> formatErrors sources
-                 >>= die'
+              in do
+                errs <- forM ambs $ foldMap S.singleton >>> \amb ->
+                  analyze (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap) (checkReparse amb) amb
+                  <&> formatError opts
+                errs
+                 & formatErrors sources
+                 & die'
         maybe (die' "        timeout when parsing file") return mNode
 
     numSuccesses <- readIORef successfulFiles
@@ -366,6 +387,9 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
       noIsolation <- Opt.switch
         $ Opt.long "no-isolation"
         <> Opt.help "Do not isolate ambiguities, instead treat the entire file as ambiguous."
+      reparse <- Opt.switch
+        $ Opt.long "reparse-resolution"
+        <> Opt.help "Sanity check, reparses each suggested ambiguity resolution to see if it does indeed solve the ambiguity. May give false positives on nested ambiguities."
       files <- some $ Opt.argument Opt.str $
         Opt.metavar "FILES..."
         <> Opt.help "The '.syncon' files that define the language to be tested."
@@ -383,11 +407,11 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
               UnresolvableAmbiguity -> RaceDyn
               Ambiguity -> FastDyn
             fastAnalyze = DynAmb.analyze (-1) pl DynAmb.convertToken
-            completeAnalyze = \a b -> DynAmb.completeAnalyze pl DynAmb.convertToken a b >>> return
+            completeAnalyze = \a b c -> DynAmb.completeAnalyze pl DynAmb.convertToken a b c >>> return
             analyze = case fromMaybe defDynAmbKind dynAmbKind of
-              FastDyn -> DynAmb.analyze (-1) pl DynAmb.convertToken
-              CompleteDyn -> \a b -> DynAmb.completeAnalyze pl DynAmb.convertToken a b >>> return
-              RaceDyn -> \a b c -> race (fastAnalyze a b c) (completeAnalyze a b c) <&> either identity identity
+              FastDyn -> fastAnalyze
+              CompleteDyn -> completeAnalyze
+              RaceDyn -> \a b c d -> race (fastAnalyze a b c d) (completeAnalyze a b c d) <&> either identity identity
         let gen = Parser.programGenerator df
             prop = Hedgehog.withDiscards (fromInteger numDiscards) $ Hedgehog.withTests (fromInteger numRuns) $ Hedgehog.property $ do
               (size, syncons, types, Lexer.makeFakeFile -> (sources, program)) <- Hedgehog.forAllWith ((\(_, _, _, x) -> x) >>> toList >>> fmap Forest.unlex >>> Text.intercalate " " >>> toS) gen
@@ -405,9 +429,24 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                   Data forest@(nodeMap, _) -> case isolate forest of
                     Data _ -> when showAmbDistr (Hedgehog.label "unambiguous") >> Hedgehog.success
                     Error ambs -> do
+                      let analyze' = analyze (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap)
+                      let getBounds = DynAmb.getElidableBoundsEx nodeMap
+                      let checkReparse elidable replacement
+                            | not reparse = True
+                            | otherwise =
+                              let bounds = case toList elidable of
+                                    e : _ -> DynAmb.getNodeOrElidableBoundsEx nodeMap e
+                                    [] -> compErr "Main.parseAction.checkReparse" "Empty elidable"
+                              in DynAmb.patch Parser.SingleLanguage getBounds bounds (Seq.fromList replacement) program
+                                 & Parser.parseTokens preParse
+                                 & first (const Seq.empty)
+                                 >>= isolate
+                                 & \case
+                                   Data _ -> True
+                                   Error _ -> False
                       when showAmbDistr $ Hedgehog.label "ambiguous"
                       errs <- ambs
-                        & mapM (foldMap S.singleton >>> analyze (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap))
+                        & mapM (\amb -> foldMap S.singleton amb & analyze' (checkReparse amb))
                         <&> Seq.filter (hasAmbStyle target)
                         & lift
                       if Seq.null errs
