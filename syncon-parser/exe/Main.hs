@@ -19,7 +19,7 @@ import System.Directory (createDirectoryIfMissing)
 import Control.Concurrent.Async.Lifted (race)
 
 import Data.Data (Data)
-import Data.IORef (newIORef, modifyIORef', readIORef)
+import Data.IORef (newIORef, modifyIORef', readIORef, atomicModifyIORef')
 import Data.List (partition)
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
@@ -35,6 +35,8 @@ import Codec.Serialise (writeFileSerialise, readFileDeserialise, DeserialiseFail
 
 import qualified Options.Applicative as Opt
 import qualified Hedgehog
+import qualified HedgehogExtra as Hedgehog
+import qualified System.Microtimer as Timer
 import qualified Text.Earley.Forest.Grammar as Forest
 
 import P1Lexing.Types (Range(..), range, textualRange)
@@ -344,6 +346,34 @@ hasAmbStyle UnresolvableAmbiguity err = case DynAmb.ambiguityStyle err of
   DynAmb.Mixed -> True
   DynAmb.Resolvable -> False
 
+type DynMetadata = (Int, Int, Seq Int)
+
+addDynMeta :: HashSet (DynAmb.NodeOrElide elidable t) -> [(DynMetadata, Maybe Double)] -> ([(DynMetadata, Maybe Double)], ())
+addDynMeta amb =
+  let numAlts = S.size amb
+      numNodesL = toList amb <&> DynAmb.countNodesInNodeOrElide & Seq.fromList
+      numNodes = sum numNodesL
+  in (((numAlts, numNodes, numNodesL), Nothing):) >>> (,())
+
+setDynTime :: Double -> [(DynMetadata, Maybe Double)] -> ([(DynMetadata, Maybe Double)], ())
+setDynTime _ [] = compErr "Main.setDynTime" "Tried to set time when there were no entries"
+setDynTime _ ((_, Just _) : _) = compErr "Main.setDynTime" "Tried to set time twice"
+setDynTime t ((meta, Nothing) : rest) = ((meta, Just t) : rest, ())
+
+formatDynEntry :: Text -> (DynMetadata, Maybe Double) -> Text
+formatDynEntry key ((alts, sumnodes, listnodes), timing) =
+  show key <> ", " <> show alts <> ", " <> show sumnodes <> ", " <> show @Text (show (toList listnodes))
+  <> ", " <> maybe "\"timeout\"" show timing
+
+summarize :: Text -> Ambiguity -> Double -> Hedgehog.Report Hedgehog.Result -> Text
+summarize key target time report =
+  show key <> ", " <> show (toInteger $ Hedgehog.reportTests report)
+  <> ", " <> show (toInteger $ Hedgehog.reportDiscards report)
+  <> ", " <> show target
+  <> ", " <> show (Hedgehog.wasSuccess report)
+  <> ", " <> show time
+  <> "\n"
+
 pbtCommand :: Opt.Mod Opt.CommandFields (IO ())
 pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambiguity of a language using property based testing.")
   where
@@ -390,6 +420,14 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
       reparse <- Opt.switch
         $ Opt.long "reparse-resolution"
         <> Opt.help "Sanity check, reparses each suggested ambiguity resolution to see if it does indeed solve the ambiguity. May give false positives on nested ambiguities."
+      dynLogFile <- optional $ Opt.option Opt.str
+        $ Opt.long "dyn-log-file"
+        <> Opt.help "File to log runtimes of the dynamic analysis to. Results will be appended."
+        <> Opt.metavar "FILE"
+      summaryLogFile <- optional $ Opt.option Opt.str
+        $ Opt.long "summary-log-file"
+        <> Opt.help "File to log a summary of this pbt run to. Result will be appended."
+        <> Opt.metavar "FILE"
       files <- some $ Opt.argument Opt.str $
         Opt.metavar "FILES..."
         <> Opt.help "The '.syncon' files that define the language to be tested."
@@ -412,6 +450,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
               FastDyn -> fastAnalyze
               CompleteDyn -> completeAnalyze
               RaceDyn -> \a b c d -> race (fastAnalyze a b c d) (completeAnalyze a b c d) <&> either identity identity
+        dynLog <- newIORef []
         let gen = Parser.programGenerator df
             prop = Hedgehog.withDiscards (fromInteger numDiscards) $ Hedgehog.withTests (fromInteger numRuns) $ Hedgehog.property $ do
               (size, syncons, types, Lexer.makeFakeFile -> (sources, program)) <- Hedgehog.forAllWith ((\(_, _, _, x) -> x) >>> toList >>> fmap Forest.unlex >>> Text.intercalate " " >>> toS) gen
@@ -429,7 +468,13 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                   Data forest@(nodeMap, _) -> case isolate forest of
                     Data _ -> when showAmbDistr (Hedgehog.label "unambiguous") >> Hedgehog.success
                     Error ambs -> do
-                      let analyze' = analyze (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap)
+                      let analyze' checkReparse amb = do
+                            forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (addDynMeta amb)
+                            (time, errs) <-
+                              analyze (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap) checkReparse amb
+                              & Timer.time
+                            forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (setDynTime time)
+                            return errs
                       let getBounds = DynAmb.getElidableBoundsEx nodeMap
                       let checkReparse elidable replacement
                             | not reparse = True
@@ -465,9 +510,20 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                           & toS
                           & Hedgehog.annotate
                         Hedgehog.failure
-        Hedgehog.check prop >>= \case
-          True -> exitSuccess
-          False -> exitFailure
+        (time, result) <- Timer.time $ Hedgehog.checkInformative prop
+        let key = Text.intercalate ", " $ toS <$> files
+        forM_ dynLogFile $ \dynLogFilePath ->
+          readIORef dynLog
+          <&> fmap (formatDynEntry key)
+          <&> Text.unlines
+          >>= appendFile dynLogFilePath
+        forM_ summaryLogFile $ \summaryLogFilePath ->
+          summarize key target time result
+          & appendFile summaryLogFilePath
+        pPrint result
+        if Hedgehog.wasSuccess result
+          then exitSuccess
+          else exitFailure
     discardSlow :: Int -> Hedgehog.TestT IO a -> Hedgehog.PropertyT IO a
     discardSlow timelimit v = do
       result <- Hedgehog.test $ race (liftIO $ threadDelay timelimit) v

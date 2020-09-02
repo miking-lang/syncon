@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module P5DynamicAmbiguity.Types where
 
 import Pre
@@ -13,6 +15,12 @@ data NodeOrElide elidable t
   = Node !(P4.NodeF t (NodeOrElide elidable t))
   | Elide !elidable
   deriving (Show, Generic, Eq)
+
+countNodesInNodeOrElide :: NodeOrElide elidable t -> Int
+countNodesInNodeOrElide = recur >>> getSum
+  where
+    recur (Node n) = Sum 1 <> foldMap recur n
+    recur (Elide _) = Sum 1
 
 data Token elidable
   = LitTok !Text
