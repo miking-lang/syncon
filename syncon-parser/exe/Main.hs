@@ -529,7 +529,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                         Hedgehog.failure
         putStrLn @Text "Running pbt test"
         (time, result) <- Timer.time $ Hedgehog.checkInformative prop
-        putStrLn @Text $ "Pbt test complete, took " <> show time <> "s"
+        putStrLn @Text $ "Pbt test complete, took " <> toS (Timer.formatSeconds time)
         let key = Text.intercalate ", " $ toS <$> files
         forM_ dynLogFile $ \dynLogFilePath -> do
           readIORef dynLog
