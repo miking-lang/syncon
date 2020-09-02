@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, ViewPatterns #-}
+{-# LANGUAGE TemplateHaskell, ViewPatterns, RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-unused-imports -fno-warn-deprecations #-}
 
 module Main where
@@ -191,8 +191,8 @@ parseAction = do
         isolate = if noIsolation
                   then DynAmb.dummyIsolate >>> first Seq.singleton
                   else DynAmb.isolate
-        fastAnalyze = DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken
-        completeAnalyze = \a b c -> DynAmb.completeAnalyze pl DynAmb.convertToken a b c >>> return
+        fastAnalyze = \a b c d -> DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken a b c d <&> DynAmb.forceResolutions >>= evaluate
+        completeAnalyze = \a b c -> DynAmb.completeAnalyze pl DynAmb.convertToken a b c >>> DynAmb.forceResolutions >>> return
         analyze = case fromMaybe FastDyn dynAmbKind of
           FastDyn -> fastAnalyze
           CompleteDyn -> completeAnalyze
@@ -346,14 +346,22 @@ hasAmbStyle UnresolvableAmbiguity err = case DynAmb.ambiguityStyle err of
   DynAmb.Mixed -> True
   DynAmb.Resolvable -> False
 
-type DynMetadata = (Int, Int, Seq Int)
+data DynMetadata = DynMetadata
+  { numAlts :: !Int
+  , numNodesTot :: !Int
+  , numNodesPer :: !(Seq Int)
+  , numToks :: !Int
+  }
 
-addDynMeta :: HashSet (DynAmb.NodeOrElide elidable t) -> [(DynMetadata, Maybe a)] -> ([(DynMetadata, Maybe a)], ())
-addDynMeta amb =
+addDynMeta :: (Eq l, t ~ Lexer.Token l LD.TypeName) => (elidable -> (t, t)) -> Seq t -> HashSet (DynAmb.NodeOrElide elidable t) -> [(DynMetadata, Maybe a)] -> ([(DynMetadata, Maybe a)], ())
+addDynMeta getBounds program amb =
   let numAlts = S.size amb
-      numNodesL = toList amb <&> DynAmb.countNodesInNodeOrElide & Seq.fromList
-      numNodes = sum numNodesL
-  in (((numAlts, numNodes, numNodesL), Nothing):) >>> (,())
+      numNodesPer = toList amb <&> DynAmb.countNodesInNodeOrElide & Seq.fromList
+      numNodesTot = sum numNodesPer
+      numToks = case toList amb of
+        a : _ -> DynAmb.ambiguityTokLength getBounds program a
+        [] -> compErr "Main.addDynMeta.numToks" "Empty ambiguity"
+  in ((DynMetadata{..}, Nothing):) >>> (,())
 
 setDynCompletion :: (Int, Double) -> [(DynMetadata, Maybe (Int, Double))] -> ([(DynMetadata, Maybe (Int, Double))], ())
 setDynCompletion _ [] = compErr "Main.setDynTime" "Tried to set time when there were no entries"
@@ -361,9 +369,9 @@ setDynCompletion _ ((_, Just _) : _) = compErr "Main.setDynTime" "Tried to set t
 setDynCompletion t ((meta, Nothing) : rest) = ((meta, Just t) : rest, ())
 
 formatDynEntry :: Text -> (DynMetadata, Maybe (Int, Double)) -> Text
-formatDynEntry key ((alts, sumnodes, listnodes), completionData) =
-  show key <> ", " <> show alts <> ", " <> show sumnodes <> ", " <> show @Text (show (toList listnodes))
-  <> ", " <> reparseFailures <> ", " <> timing
+formatDynEntry key (DynMetadata{numAlts, numNodesTot, numNodesPer, numToks}, completionData) =
+  show key <> ", " <> show numAlts <> ", " <> show numNodesTot <> ", " <> show @Text (show (toList numNodesPer))
+  <> ", " <> show numToks <> ", " <> reparseFailures <> ", " <> timing
   where
     timing = case completionData of
       Nothing -> "timeout"
@@ -451,8 +459,8 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
             defDynAmbKind = case target of
               UnresolvableAmbiguity -> RaceDyn
               Ambiguity -> FastDyn
-            fastAnalyze = DynAmb.analyze (-1) pl DynAmb.convertToken
-            completeAnalyze = \a b c -> DynAmb.completeAnalyze pl DynAmb.convertToken a b c >>> return
+            fastAnalyze = \a b c d -> DynAmb.analyze (-1) pl DynAmb.convertToken a b c d <&> DynAmb.forceResolutions >>= evaluate
+            completeAnalyze = \a b c -> DynAmb.completeAnalyze pl DynAmb.convertToken a b c >>> DynAmb.forceResolutions >>> evaluate
             analyze = case fromMaybe defDynAmbKind dynAmbKind of
               FastDyn -> fastAnalyze
               CompleteDyn -> completeAnalyze
@@ -475,21 +483,22 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                   Data forest@(nodeMap, _) -> case isolate forest of
                     Data _ -> when showAmbDistr (Hedgehog.label "unambiguous") >> Hedgehog.success
                     Error ambs -> do
+                      let getBounds = DynAmb.getElidableBoundsEx nodeMap
                       let analyze' checkReparse amb = do
-                            forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (addDynMeta amb)
+                            forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (addDynMeta getBounds program amb)
                             (time, err) <-
                               analyze (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap) checkReparse amb
+                              >>= evaluate
                               & Timer.time
                             let reparseFailureCount = DynAmb.countReparseFailures err
-                            forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (setDynCompletion (reparseFailureCount, time))
+                            forM_ dynLogFile $ \_ -> reparseFailureCount `seq` atomicModifyIORef' dynLog (setDynCompletion (reparseFailureCount, time))
                             return err
-                      let getBounds = DynAmb.getElidableBoundsEx nodeMap
                       let checkReparse elidable replacement
                             | not reparse = True
                             | otherwise =
                               let bounds = case toList elidable of
                                     e : _ -> DynAmb.getNodeOrElidableBoundsEx nodeMap e
-                                    [] -> compErr "Main.parseAction.checkReparse" "Empty elidable"
+                                    [] -> compErr "Main.pbtCommand.checkReparse" "Empty elidable"
                               in DynAmb.patch Parser.SingleLanguage getBounds bounds (Seq.fromList replacement) program
                                  & Parser.parseTokens preParse
                                  & first (const Seq.empty)
@@ -518,17 +527,20 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                           & toS
                           & Hedgehog.annotate
                         Hedgehog.failure
+        putStrLn @Text "Running pbt test"
         (time, result) <- Timer.time $ Hedgehog.checkInformative prop
+        putStrLn @Text $ "Pbt test complete, took " <> show time <> "s"
         let key = Text.intercalate ", " $ toS <$> files
-        forM_ dynLogFile $ \dynLogFilePath ->
+        forM_ dynLogFile $ \dynLogFilePath -> do
           readIORef dynLog
-          <&> fmap (formatDynEntry key)
-          <&> Text.unlines
-          >>= appendFile dynLogFilePath
-        forM_ summaryLogFile $ \summaryLogFilePath ->
+            <&> fmap (formatDynEntry key)
+            <&> Text.unlines
+            >>= appendFile dynLogFilePath
+          putStrLn @Text "Written dyn-log"
+        forM_ summaryLogFile $ \summaryLogFilePath -> do
           summarize key target time result
-          & appendFile summaryLogFilePath
-        pPrint result
+            & appendFile summaryLogFilePath
+          putStrLn @Text "Written sum-log"
         if Hedgehog.wasSuccess result
           then exitSuccess
           else exitFailure
