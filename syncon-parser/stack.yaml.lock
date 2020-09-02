@@ -11,6 +11,13 @@ packages:
       sha256: fecec01e618890c284e57cb873b8f9531f479562b7cf08497aef097da3ef90ec
   original:
     hackage: pretty-terminal-0.1.0.0
+- completed:
+    hackage: microtimer-0.0.1.2@sha256:daf649a763408f8dc118e0ac2cedd847b426252377a958e0d3aacc8cb4db2c34,1092
+    pantry-tree:
+      size: 431
+      sha256: 2739f80662e6d85ff22e7aab5a2623fd04e982d3bd9a7ea6175cecaac6d7e376
+  original:
+    hackage: microtimer-0.0.1.2@sha256:daf649a763408f8dc118e0ac2cedd847b426252377a958e0d3aacc8cb4db2c34,1092
 snapshots:
 - completed:
     size: 523443

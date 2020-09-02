@@ -12,6 +12,7 @@ executable syncon-parser
   default-language: Haskell2010
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -funbox-strict-fields
   other-modules: RandomCompose
+               , HedgehogExtra
   build-depends: base
                , random
                , array
@@ -31,6 +32,7 @@ executable syncon-parser
                , earley-forest
                , hedgehog
                , lifted-async
+               , microtimer
   default-extensions: NoImplicitPrelude
                     , EmptyCase
                     , FlexibleContexts

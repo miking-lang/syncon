@@ -41,6 +41,7 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - pretty-terminal-0.1.0.0
+- microtimer-0.0.1.2@sha256:daf649a763408f8dc118e0ac2cedd847b426252377a958e0d3aacc8cb4db2c34,1092
 
 
 # Override default flag values for local packages and extra-deps
