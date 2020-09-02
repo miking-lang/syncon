@@ -1,4 +1,13 @@
-module P5DynamicAmbiguity.Analysis (analyze, completeAnalyze, Error, ErrorOptions(..), ambiguityStyle, AmbiguityStyle(..), didTimeout) where
+module P5DynamicAmbiguity.Analysis
+( analyze
+, completeAnalyze
+, Error
+, ErrorOptions(..)
+, ambiguityStyle
+, AmbiguityStyle(..)
+, didTimeout
+, countReparseFailures
+) where
 
 import Pre hiding (reduce)
 
@@ -31,6 +40,12 @@ ambiguityStyle (Ambiguity _ _ [] []) = panic $ "Unexpectedly empty ambiguity err
 didTimeout :: Error elidable tok -> Bool
 didTimeout (Ambiguity _ DidTimeout _ _) = True
 didTimeout _ = False
+
+countReparseFailures :: Error elidable tok -> Int
+countReparseFailures (Ambiguity _ _ resolvable _) =
+  resolvable
+  & filter (snd >>> snd >>> not)
+  & length
 
 instance FormatError (Error elidable tok) where
   type ErrorOpts (Error elidable tok) = ErrorOptions elidable tok

@@ -348,22 +348,29 @@ hasAmbStyle UnresolvableAmbiguity err = case DynAmb.ambiguityStyle err of
 
 type DynMetadata = (Int, Int, Seq Int)
 
-addDynMeta :: HashSet (DynAmb.NodeOrElide elidable t) -> [(DynMetadata, Maybe Double)] -> ([(DynMetadata, Maybe Double)], ())
+addDynMeta :: HashSet (DynAmb.NodeOrElide elidable t) -> [(DynMetadata, Maybe a)] -> ([(DynMetadata, Maybe a)], ())
 addDynMeta amb =
   let numAlts = S.size amb
       numNodesL = toList amb <&> DynAmb.countNodesInNodeOrElide & Seq.fromList
       numNodes = sum numNodesL
   in (((numAlts, numNodes, numNodesL), Nothing):) >>> (,())
 
-setDynTime :: Double -> [(DynMetadata, Maybe Double)] -> ([(DynMetadata, Maybe Double)], ())
-setDynTime _ [] = compErr "Main.setDynTime" "Tried to set time when there were no entries"
-setDynTime _ ((_, Just _) : _) = compErr "Main.setDynTime" "Tried to set time twice"
-setDynTime t ((meta, Nothing) : rest) = ((meta, Just t) : rest, ())
+setDynCompletion :: (Int, Double) -> [(DynMetadata, Maybe (Int, Double))] -> ([(DynMetadata, Maybe (Int, Double))], ())
+setDynCompletion _ [] = compErr "Main.setDynTime" "Tried to set time when there were no entries"
+setDynCompletion _ ((_, Just _) : _) = compErr "Main.setDynTime" "Tried to set time twice"
+setDynCompletion t ((meta, Nothing) : rest) = ((meta, Just t) : rest, ())
 
-formatDynEntry :: Text -> (DynMetadata, Maybe Double) -> Text
-formatDynEntry key ((alts, sumnodes, listnodes), timing) =
+formatDynEntry :: Text -> (DynMetadata, Maybe (Int, Double)) -> Text
+formatDynEntry key ((alts, sumnodes, listnodes), completionData) =
   show key <> ", " <> show alts <> ", " <> show sumnodes <> ", " <> show @Text (show (toList listnodes))
-  <> ", " <> maybe "\"timeout\"" show timing
+  <> ", " <> reparseFailures <> ", " <> timing
+  where
+    timing = case completionData of
+      Nothing -> "timeout"
+      Just (_, time) -> show time
+    reparseFailures = case completionData of
+      Nothing -> "timeout"
+      Just (count, _) -> show count
 
 summarize :: Text -> Ambiguity -> Double -> Hedgehog.Report Hedgehog.Result -> Text
 summarize key target time report =
@@ -470,11 +477,12 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                     Error ambs -> do
                       let analyze' checkReparse amb = do
                             forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (addDynMeta amb)
-                            (time, errs) <-
+                            (time, err) <-
                               analyze (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap) checkReparse amb
                               & Timer.time
-                            forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (setDynTime time)
-                            return errs
+                            let reparseFailureCount = DynAmb.countReparseFailures err
+                            forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (setDynCompletion (reparseFailureCount, time))
+                            return err
                       let getBounds = DynAmb.getElidableBoundsEx nodeMap
                       let checkReparse elidable replacement
                             | not reparse = True
