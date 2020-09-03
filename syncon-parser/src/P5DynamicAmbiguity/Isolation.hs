@@ -1,4 +1,12 @@
-module P5DynamicAmbiguity.Isolation (isolate, dummyIsolate, getElidable, showElidable, getElidableBoundsEx, getNodeOrElidableBoundsEx, Elidable) where
+module P5DynamicAmbiguity.Isolation
+( isolate
+, dummyIsolate
+, getElidable
+, showElidable
+, getElidableBoundsEx
+, getNodeOrElidableBoundsEx
+, Elidable
+) where
 
 import Pre hiding (reduce, State, state, orElse)
 import Result (Result(..))

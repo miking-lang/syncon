@@ -1,6 +1,7 @@
 module P5DynamicAmbiguity.Analysis
 ( analyze
-, completeAnalyze
+, DynAnalysisKind(..)
+, DynConfig(..)
 , Error
 , ErrorOptions(..)
 , ambiguityStyle
@@ -16,6 +17,7 @@ import Text.Printf (printf)
 import qualified Data.Text as Text
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as M
+import qualified Data.Sequence as Seq
 import Data.Semigroup (Max(..))
 
 import Data.Automaton.NVA (NVA, shortestUniqueWord, shortestWord, unions, reduce, TimeoutInfo(..))
@@ -30,7 +32,13 @@ import P4Parsing.Types (NodeF(..), allNodeFChildren)
 import P5DynamicAmbiguity.TreeLanguage (treeLanguage, PreLanguage)
 import P5DynamicAmbiguity.Types
 
-data Error elidable tok = Ambiguity !Range !TimeoutInfo ![(NodeOrElide elidable tok, (Text, Bool))] ![NodeOrElide elidable tok]  -- ^ Resolvable alternatives, and unresolvable alternatives
+type AmbTree elidable tok = Either (Either Range (NodeF tok Range)) (NodeOrElide elidable tok)
+
+data Error elidable tok = Ambiguity
+  !Range
+  !TimeoutInfo
+  ![(AmbTree elidable tok, (Text, Bool))]  -- ^ Resolvable alternatives
+  ![AmbTree elidable tok]  -- ^ Unresolvable alternatives
 data AmbiguityStyle = Resolvable | Unresolvable | Mixed
 ambiguityStyle :: Error elidable tok -> AmbiguityStyle
 ambiguityStyle (Ambiguity _ _ (_:_) (_:_)) = Mixed
@@ -90,9 +98,9 @@ instance FormatError (Error elidable tok) where
         | hasResolvable = "\nUnresolvable alternatives:\n" <> formattedUnresolvable
         | otherwise = "\n" <> formattedUnresolvable
       formattedUnresolvable = trees <&> twoLevel & S.fromList & fold
-      twoLevel :: NodeOrElide elidable tok -> Text
-      twoLevel (Elide elided) = "  " <> showElided elided <> "\n"
-      twoLevel (Node n@NodeF{n_nameF}) = "  " <> coerce n_nameF <> formatChildren (allNodeFChildren n) <> "\n"
+      twoLevel :: AmbTree elidable tok -> Text
+      twoLevel (Right (Elide elided)) = "  " <> showElided elided <> "\n"
+      twoLevel (Right (Node n@NodeF{n_nameF})) = "  " <> coerce n_nameF <> formatChildren (allNodeFChildren n) <> "\n"
         where
           range (Node NodeF{n_rangeF}) = n_rangeF
           range (Elide elided) = elidedRange elided
@@ -101,6 +109,14 @@ instance FormatError (Error elidable tok) where
             printf "\n   - %- 20s %s" (showElided elided) (textualRange $ elidedRange elided) & Text.pack
           formatNode (Right (Node NodeF{n_nameF = Name name, n_rangeF})) =
             printf "\n   - %- 20s %s" name (textualRange n_rangeF) & Text.pack
+          formatNode (Left t) =
+            printf "\n   - %- 20s %s" (showTok t) (textualRange (tokRange t)) & Text.pack
+      twoLevel (Left (Left topRange)) = "  " <> textualRange topRange <> "\n"
+      twoLevel (Left (Right n@NodeF{n_nameF})) = "  " <> coerce n_nameF <> formatChildren (allNodeFChildren n) <> "\n"
+        where
+          formatChildren = sortBy (comparing $ either tokRange identity) >>> foldMap formatNode
+          formatNode (Right childRange) =
+            printf "\n   - %- 20s %s" ("..." :: Text) (textualRange childRange) & Text.pack
           formatNode (Left t) =
             printf "\n   - %- 20s %s" (showTok t) (textualRange (tokRange t)) & Text.pack
 
@@ -112,105 +128,107 @@ data ErrorOptions elidable tok = EO
   , tokRange :: tok -> Range
   }
 
+data DynAnalysisKind = FastDyn | CompleteDyn | RaceDyn
+
+data DynConfig elidable tok = DynConfig
+  { dTimeout :: Int  -- ^ Timeout in microseconds. Negative to never timeout. Only honored by FastDyn.
+  , dPl :: PreLanguage elidable
+  , dMkToken :: tok -> Token elidable
+  , dGetElided :: elidable -> (Range, TypeName)
+  , dShowElided :: elidable -> Text
+  , dCheckReparses :: [Token elidable] -> Bool
+  , dKind :: DynAnalysisKind
+  , dGroupByTop :: Bool
+  }
+
 type ResLang elidable = NVA Int Int (Token elidable) (Token elidable) (Token elidable)
 type ResStr elidable = [TaggedTerminal (Token elidable) (Token elidable) (Token elidable)]
 
-analyze :: forall elidable tok. (Eq elidable, Hashable elidable, Show elidable, Show tok, Ranged tok)
-        => Int  -- ^ Timeout in microseconds. Negative to never timeout.
-        -> PreLanguage elidable
-        -> (tok -> Token elidable)
-        -> (elidable -> (Range, TypeName))
-        -> (elidable -> Text)
-        -> ([Token elidable] -> Bool)
+analyze :: forall elidable tok. (Eq elidable, Hashable elidable, Show elidable, Show tok, Ranged tok, Eq tok, Hashable tok, NFData tok, NFData elidable)
+        => DynConfig elidable tok
         -> HashSet (NodeOrElide elidable tok)
         -> IO (Error elidable tok)
-analyze timeout pl mkToken getElided showElided checkReparses alts = do
-  (timeoutInfo, res) <- shortest
-  M.toList languages
-    <&> (\(node, lang) ->
-           case M.lookup lang res of
-             Nothing -> Right node
-             Just w ->
-               let stream = untag identity identity identity <$> w
-               in textualToken showElided <$> stream
-                  & Text.unwords
-                  & (, checkReparses stream)
-                  & (node,)
-                  & Left)
-    & partitionEithers
-    & uncurry (Ambiguity range timeoutInfo)
-    & return
+analyze config@DynConfig{dPl, dGetElided, dMkToken, dKind, dCheckReparses, dShowElided, dGroupByTop} alts =
+  (if dGroupByTop then (first Left <$> groupedLanguages) else (first Right <$> languages))
+  & analyze'
+  <&> second prepareForAmbiguity
+  <&> \(timeoutInfo, (res, unres)) -> Ambiguity range timeoutInfo res unres
   where
     range = toList alts & \case
       Node NodeF{n_rangeF} : _ -> n_rangeF
-      Elide elidable : _ -> getElided elidable & fst
+      Elide elidable : _ -> dGetElided elidable & fst
       [] -> compErr "P5DynamicAmbiguity.analyze.range" "got zero alternatives"
-    mkLanguage = treeLanguage pl mkToken getElided
+    mkLanguage = treeLanguage dPl dMkToken dGetElided
 
-    languages :: HashMap (NodeOrElide elidable tok) (ResLang elidable)
-    languages = S.toMap alts & M.mapWithKey (\node _ -> mkLanguage node)
+    languages :: [(NodeOrElide elidable tok, ResLang elidable)]
+    languages = toList alts
+      <&> (identity &&& mkLanguage)
 
-    shortest :: IO (TimeoutInfo, HashMap (ResLang elidable) (ResStr elidable))
-    shortest = do
-      (timeoutInfo, result) <- shortestUniqueWord timeout (len + 10) nvas
-      S.toMap nvas
-        & M.mapMaybeWithKey (getResult result)
-        & (timeoutInfo,)
-        & return
-      where
-        Max len = foldMap (shortestWord >>> fmap (length >>> Max) >>> fold) nvas
-        langsWithCounts = toList languages
-          <&> (, Sum @Int 1)
-          & M.fromListWith (<>)  -- TODO: OPTIMIZE: I believe this is actually quite expensive, each NVA is quite large
-        nvas = M.keysSet langsWithCounts
-        duplicateLangs = langsWithCounts
-          & M.filter (getSum >>> (> 1))
-        getResult result nva _
-          | M.member nva duplicateLangs = Nothing
-          | otherwise = M.lookup nva result
+    groupedLanguages :: [(Either Range (NodeF tok Range), ResLang elidable)]
+    groupedLanguages = languages
+      <&> (extractTop *** Seq.singleton)
+      & M.fromListWith (<>)
+      <&> unions
+      & M.toList
 
-completeAnalyze :: forall elidable tok. (Eq elidable, Hashable elidable, Show elidable, Show tok, Ranged tok)
-                => PreLanguage elidable
-                -> (tok -> Token elidable)
-                -> (elidable -> (Range, TypeName))
-                -> (elidable -> Text)
-                -> ([Token elidable] -> Bool)
-                -> HashSet (NodeOrElide elidable tok)
-                -> Error elidable tok
-completeAnalyze pl mkToken getElided showElided checkReparses alts = toList alts
-  <&> (identity &&& mkLanguage)
+    mkErrorEntry :: forall tree. (tree, Maybe (ResStr elidable)) -> Either (tree, (Text, Bool)) tree
+    mkErrorEntry (t, Nothing) = Right t
+    mkErrorEntry (t, Just w) =
+      let stream = untag identity identity identity <$> w
+      in textualToken dShowElided <$> stream
+         & Text.unwords
+         & (, dCheckReparses stream)
+         & (t,)
+         & Left
+
+    prepareForAmbiguity :: forall tree. [(tree, Maybe (ResStr elidable))]
+                        -> ([(tree, (Text, Bool))], [tree])
+    prepareForAmbiguity = fmap mkErrorEntry >>> partitionEithers
+
+    extractTop :: NodeOrElide elidable tok -> Either Range (NodeF tok Range)
+    extractTop (Elide e) = dGetElided e & fst & Left
+    extractTop (Node n) = n <&> mkRange & Right
+    mkRange :: NodeOrElide elidable tok -> Range
+    mkRange (Elide e) = dGetElided e & fst
+    mkRange (Node n) = n_rangeF n
+
+    analyze' :: forall tree. NFData tree => [(tree, ResLang elidable)] -> IO (TimeoutInfo, [(tree, Maybe (ResStr elidable))])
+    analyze' = case dKind of
+      FastDyn -> fastAnalyze config
+      CompleteDyn -> completeAnalyze config
+      RaceDyn -> \tree -> race (fastAnalyze config tree) (completeAnalyze config tree)
+        <&> either identity identity
+
+fastAnalyze :: forall tree elidable tok. (Eq elidable, Hashable elidable)
+            => DynConfig elidable tok -> [(tree, ResLang elidable)]
+            -> IO (TimeoutInfo, [(tree, Maybe (ResStr elidable))])
+fastAnalyze DynConfig{dTimeout} alts = do
+  (timeoutInfo, res) <- shortestUniqueWord dTimeout (longestShortestAmbiguous + 10) nvas
+  return (timeoutInfo, zip trees (snd <$> res))
+  where
+    (trees, nvas) = unzip alts
+
+    Max longestShortestAmbiguous = foldMap (shortestWord >>> fmap (length >>> Max) >>> fold) nvas
+
+completeAnalyze :: forall tree elidable tok. (Eq elidable, Hashable elidable, NFData tree, NFData elidable)
+                => DynConfig elidable tok -> [(tree, ResLang elidable)]
+                -> IO (TimeoutInfo, [(tree, Maybe (ResStr elidable))])
+completeAnalyze DynConfig{} alts = alts
   & oneAndOthers
   <&> second (fmap snd)
   <&> findShortest
-  <&> classify
-  & partitionEithers
-  & uncurry (Ambiguity range DidNotTimeout)
+  & force
+  & evaluate
+  <&> (DidNotTimeout,)
   where
-    range = toList alts & \case
-      Node NodeF{n_rangeF} : _ -> n_rangeF
-      Elide elidable : _ -> getElided elidable & fst
-      [] -> compErr "P5DynamicAmbiguity.analyze.range" "got zero alternatives"
-    mkLanguage = treeLanguage pl mkToken getElided
-
     oneAndOthers :: [a] -> [(a, [a])]
     oneAndOthers [] = []
     oneAndOthers (a : as) = (a, as) : (second (a:) <$> oneAndOthers as)
 
-    findShortest ((node, this), others) = unions others
+    findShortest ((t, this), others) = unions others
       & DVA.determinize
       & DVA.difference (DVA.determinize this)
       & DVA.asNVA
       & reduce
       & shortestWord
-      & (node,)
-
-    classify :: (NodeOrElide elidable tok, Maybe (ResStr elidable))
-             -> Either (NodeOrElide elidable tok, (Text, Bool)) (NodeOrElide elidable tok)
-    classify (node, Nothing) = Right node
-    classify (node, Just w) =
-      let stream = untag identity identity identity <$> w
-      in textualToken showElided <$> stream
-         & Text.unwords
-         & (, checkReparses stream)
-         & (node, )
-         & Left
+      & (t,)

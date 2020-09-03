@@ -165,6 +165,9 @@ parseAction = do
     <> Opt.help "Timeout for attempting to parse a single source file, in seconds. A negative value means 'wait forever'."
     <> Opt.value (-1)
   dynAmbKind <- dynOptFlag
+  groupByTop <- Opt.switch
+    $ Opt.long "group-by-top"
+    <> Opt.help "Don't try to solve the entire ambiguity, only disambiguate the top node of the tree"
   dynAmbTimeout <- fmap (*1_000) $ Opt.option Opt.auto
     $ Opt.long "dynamic-resolvability-timeout"
     <> Opt.metavar "MS"
@@ -191,12 +194,6 @@ parseAction = do
         isolate = if noIsolation
                   then DynAmb.dummyIsolate >>> first Seq.singleton
                   else DynAmb.isolate
-        fastAnalyze = \a b c d -> DynAmb.analyze dynAmbTimeout pl DynAmb.convertToken a b c d <&> DynAmb.forceResolutions >>= evaluate
-        completeAnalyze = \a b c -> DynAmb.completeAnalyze pl DynAmb.convertToken a b c >>> DynAmb.forceResolutions >>> return
-        analyze = case fromMaybe FastDyn dynAmbKind of
-          FastDyn -> fastAnalyze
-          CompleteDyn -> completeAnalyze
-          RaceDyn -> \a b c d -> race (fastAnalyze a b c d) (completeAnalyze a b c d) <&> either identity identity
     srcNodes <- flip M.traverseWithKey sources $ \path _ -> do
       putStrLn $ "Parsing \"" <> path <> "\""
       handle (\(SourceFileException t) -> modifyIORef' failureFiles (+1) >> sourceFailureHandler t) $ do
@@ -210,6 +207,16 @@ parseAction = do
             Parser.forestToDot (Parser.n_nameF >>> coerce) forest
               & writeFile fullPath
           let getBounds = DynAmb.getElidableBoundsEx nodeMap
+          let dynConfig checkReparse = DynAmb.DynConfig
+                { dTimeout = dynAmbTimeout
+                , dPl = pl
+                , dMkToken = DynAmb.convertToken
+                , dGetElided = DynAmb.getElidable pl nodeMap
+                , dShowElided = DynAmb.showElidable nodeMap
+                , dCheckReparses = checkReparse
+                , dKind = dynAmbKind
+                , dGroupByTop = groupByTop
+                }
           let checkReparse elidable replacement
                 | not reparse = True
                 | otherwise =
@@ -235,7 +242,7 @@ parseAction = do
                     }
               in do
                 errs <- forM ambs $ foldMap S.singleton >>> \amb ->
-                  analyze (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap) (checkReparse amb) amb
+                  DynAmb.analyze (dynConfig (checkReparse amb)) amb
                   <&> formatError opts
                 errs
                  & formatErrors sources
@@ -291,17 +298,16 @@ compileCommand = Opt.command "compile" (Opt.info compileCmd $ Opt.progDesc "Comp
         let serialisable = (Parser.precomputeToSerialisable preParse, pl)
         writeFileSerialise outputFile serialisable
 
-data DynAnalysisKind = FastDyn | CompleteDyn | RaceDyn
-dynOptFlag :: Opt.Parser (Maybe DynAnalysisKind)
-dynOptFlag = optional $ fast <|> complete <|> race'
+dynOptFlag :: Opt.Parser (DynAmb.DynAnalysisKind)
+dynOptFlag = fast <|> complete <|> race' <|> pure DynAmb.RaceDyn
   where
-    fast = Opt.flag' FastDyn
+    fast = Opt.flag' DynAmb.FastDyn
       $ Opt.long "fast-dyn"
       <> Opt.help "Use the fast dynamic analysis that might not terminate (except for timeout) on unresolvable input"
-    complete = Opt.flag' CompleteDyn
+    complete = Opt.flag' DynAmb.CompleteDyn
       $ Opt.long "complete-dyn"
       <> Opt.help "Use the complete dynamic analysis that will always terminate, but that might be very slow"
-    race' = Opt.flag' RaceDyn
+    race' = Opt.flag' DynAmb.RaceDyn
       $ Opt.long "race-dyn"
       <> Opt.help "Run both dynamic analyses and use the one that terminates first."
 
@@ -426,6 +432,9 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
         <> Opt.help "Timeout before discarding a test case, in milliseconds. A negative value means 'wait forever'."
         <> Opt.value 4_000
       dynAmbKind <- dynOptFlag
+      groupByTop <- Opt.switch
+        $ Opt.long "group-by-top"
+        <> Opt.help "Don't try to solve the entire ambiguity, only disambiguate the top node of the tree"
       showTwoLevel <- Opt.switch
         $ Opt.long "two-level"
         <> Opt.help "Always show the two level representation, even if some alternatives are resolvable."
@@ -456,15 +465,6 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
             isolate = if noIsolation
                       then DynAmb.dummyIsolate >>> first Seq.singleton
                       else DynAmb.isolate
-            defDynAmbKind = case target of
-              UnresolvableAmbiguity -> RaceDyn
-              Ambiguity -> FastDyn
-            fastAnalyze = \a b c d -> DynAmb.analyze (-1) pl DynAmb.convertToken a b c d <&> DynAmb.forceResolutions >>= evaluate
-            completeAnalyze = \a b c -> DynAmb.completeAnalyze pl DynAmb.convertToken a b c >>> DynAmb.forceResolutions >>> evaluate
-            analyze = case fromMaybe defDynAmbKind dynAmbKind of
-              FastDyn -> fastAnalyze
-              CompleteDyn -> completeAnalyze
-              RaceDyn -> \a b c d -> race (fastAnalyze a b c d) (completeAnalyze a b c d) <&> either identity identity
         dynLog <- newIORef []
         let gen = Parser.programGenerator df
             prop = Hedgehog.withDiscards (fromInteger numDiscards) $ Hedgehog.withTests (fromInteger numRuns) $ Hedgehog.property $ do
@@ -484,10 +484,20 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                     Data _ -> when showAmbDistr (Hedgehog.label "unambiguous") >> Hedgehog.success
                     Error ambs -> do
                       let getBounds = DynAmb.getElidableBoundsEx nodeMap
+                      let dynConf checkReparse = DynAmb.DynConfig
+                            { dTimeout = dynAmbTimeout
+                            , dPl = pl
+                            , dMkToken = DynAmb.convertToken
+                            , dGetElided = DynAmb.getElidable pl nodeMap
+                            , dShowElided = DynAmb.showElidable nodeMap
+                            , dCheckReparses = checkReparse
+                            , dKind = dynAmbKind
+                            , dGroupByTop = groupByTop
+                            }
                       let analyze' checkReparse amb = do
                             forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (addDynMeta getBounds program amb)
                             (time, err) <-
-                              analyze (DynAmb.getElidable pl nodeMap) (DynAmb.showElidable nodeMap) checkReparse amb
+                              DynAmb.analyze (dynConf checkReparse) amb
                               >>= evaluate
                               & Timer.time
                             let reparseFailureCount = DynAmb.countReparseFailures err
