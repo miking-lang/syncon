@@ -98,8 +98,9 @@ tops = mdo
   syn <- fmap (SynconTop >>> pure) <$> synconDef
   pre <- fmap (SynconTop >>> pure) <$> prefixDef
   post <- fmap (SynconTop >>> pure) <$> postfixDef
+  aa <- fmap (AcceptedAmbiguityTop >>> pure) <$> ambiguityDef
   inf <- fmap (\(s, f') -> foldr (:) [SynconTop s] $ ForbidTop <$> f') <$> infixDef
-  return . fmap concat . many $ st <|> tt <|> c <|> syn <|> pre <|> post <|> inf <|> f <|> pl <|> g
+  return . fmap concat . many $ st <|> tt <|> c <|> syn <|> pre <|> post <|> inf <|> f <|> pl <|> g <|> aa
 
 -- | Parse a syntax type declaration
 syntaxTypeDef :: Grammar r (Prod r SyntaxType)
@@ -159,6 +160,17 @@ groupingDef = rule . (<?> "grouping disambiguation") $ do
     , g_close = close
     , g_syntaxType = tyn
     , g_range = range start <> fst close
+    }
+
+ambiguityDef :: Grammar r (Prod r AcceptedAmbiguity)
+ambiguityDef = rule . (<?> "acceptable ambiguity declaration") $ do
+  start <- lit "ambiguity" <* lit "{"
+  aList <- Seq.fromList <$> some name <* lit ";"
+    & some <&> Seq.fromList
+  end <- lit "}"
+  pure $ AcceptedAmbiguity
+    { aa_range = range start <> range end
+    , aa_accepted = aList
     }
 
 -- |

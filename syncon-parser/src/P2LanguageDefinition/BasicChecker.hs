@@ -146,6 +146,7 @@ mkDefinitionFile :: PrecedenceKind -> [Top] -> Res DefinitionFile
 mkDefinitionFile precedenceKind (addImplicits >>> Seq.fromList -> tops) = do
   findDuplicates s_name synconTops
   findDuplicates getTypeName typeTops
+  acceptedAmbiguities <- checkAcceptedAmbiguities syncons tops
   (bracketKindInfo, Groupings groupings) <- checkGroupings syntaxTypes tops
   traverse_ (checkSyncon syntaxTypes (bracketKind bracketKindInfo)) synconTops
   traverse_ (checkForbid synconAndSDNames) forbids
@@ -411,6 +412,20 @@ checkGroupings types tops = do
     checkTokTy kind (r, t@(Right tyn)) = do
       checkIsTokTy types (r, tyn)
       pure $ TokenClassifications $ M.singleton t $ M.singleton kind $ S.singleton r
+
+checkAcceptedAmbiguities :: Foldable t => HashMap Name Syncon -> t Top -> Res (HashSet (HashSet Name))
+checkAcceptedAmbiguities syncons tops = [ a | AcceptedAmbiguityTop a <- toList tops ]
+  & traverse checkAmb
+  <&> foldl' S.union S.empty
+  where
+    checkAmb (AcceptedAmbiguity _ as) = as
+      & traverse (traverse checkDefined)
+      <&> fmap (toList >>> S.fromList)
+      <&> (toList >>> S.fromList)
+    checkDefined (r, n)
+      | n `M.member` syncons = return n
+      | otherwise = Error [Undefined (coerce n) r]
+
 
 -- |
 -- = Helpers
