@@ -75,7 +75,7 @@ synconTokens = Lexer.LanguageTokens
   -- Literal tokens
   [ "token", "=", "syncon", ":", "{", ";", "}", "prefix", "postfix", "infix"
   , "(", ")", "*", "+", "?", ".", "comment", "left", "right", "precedence", "except"
-  , "type", "builtin", "forbid", "|", "rec", "grouping", "!" ]
+  , "type", "builtin", "forbid", "|", "rec", "grouping", "!", "ambiguity" ]
   -- Regex tokens
   [ (NameTok, (Nowhere, "[[:lower:]][[:word:]]*"))
   , (TypeNameTok, (Nowhere, "[[:upper:]][[:word:]]*"))

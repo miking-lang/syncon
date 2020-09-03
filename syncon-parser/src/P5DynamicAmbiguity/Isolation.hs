@@ -6,6 +6,7 @@ module P5DynamicAmbiguity.Isolation
 , getElidableBoundsEx
 , getNodeOrElidableBoundsEx
 , Elidable
+, isAccepted
 ) where
 
 import Pre hiding (reduce, State, state, orElse)
@@ -21,7 +22,7 @@ import Text.Earley.Forest.Grammar (unlex, Parseable)
 import Text.Earley.Forest.Parser (Node)
 
 import P1Lexing.Types (Range)
-import P2LanguageDefinition.Types (TypeName(..))
+import P2LanguageDefinition.Types (TypeName(..), Name)
 import P4Parsing.Types (NodeF(NodeF), n_nameF, n_rangeF, n_beginEndF)
 import qualified P4Parsing.Types as P4
 import P5DynamicAmbiguity.Types hiding (NodeOrElide)
@@ -42,6 +43,13 @@ type IsolationM s tok a = ReaderT (State s tok) (ST s) a
 
 type FullNode = P4.Node
 type Res tok = Result (HashMap (HashSet Node) (Seq (NodeOrElide tok)))
+
+isAccepted :: HashSet (HashSet Name) -> Seq (NodeOrElide tok) -> Bool
+isAccepted accepted = foldMap getNames >>> (`S.member` accepted)
+  where
+    getNames :: NodeOrElide tok -> HashSet Name
+    getNames (Node n) = S.insert (n_nameF n) $ foldMap getNames n
+    getNames Elide{} = S.empty
 
 -- TODO: Bail out if a single ambiguity gets too large
 -- | Produce a single parse tree, or a disjoint set of minimal ambiguities.

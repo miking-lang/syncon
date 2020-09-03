@@ -461,6 +461,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
         (df, preParse, pl) <- compileAction precKind files
         let allSyncons = LD.syncons df & M.keysSet
             allSyTys = LD.syntaxTypes df & M.keysSet
+            acceptedAmbiguities = LD.acceptedAmbiguities df
             classifySyncon present n = Hedgehog.classify (coerce n & toS @Text & fromString) $ S.member n present
             classifySyTy present n = Hedgehog.classify (coerce n & toS @Text & fromString) $ S.member n present
             isolate = if noIsolation
@@ -519,8 +520,11 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                                    Data _ -> True
                                    Error _ -> False
                       when showAmbDistr $ Hedgehog.label "ambiguous"
-                      errs <- ambs
-                        & mapM (\amb -> foldMap S.singleton amb & analyze' (checkReparse amb))
+                      let ambs' = case target of
+                            Ambiguity -> Seq.filter (DynAmb.isAccepted acceptedAmbiguities >>> not) ambs
+                            _ -> ambs
+                      errs <- ambs'
+                        & mapM (\amb -> toList amb & S.fromList & analyze' (checkReparse amb))
                         <&> Seq.filter (hasAmbStyle target)
                         & lift
                       if Seq.null errs
