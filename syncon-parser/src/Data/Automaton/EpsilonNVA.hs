@@ -33,6 +33,7 @@ data TaggedTerminal i o c
   | Close c
   deriving (Eq, Generic, Show)
 instance (Hashable i, Hashable o, Hashable c) => Hashable (TaggedTerminal i o c)
+instance (NFData i, NFData o, NFData c) => NFData (TaggedTerminal i o c)
 
 recognizes :: forall s sta i o c. (Eq s, Hashable s, Eq sta, Hashable sta, Eq i, Hashable i, Eq o, Hashable o, Eq c, Hashable c)
            => EpsNVA s sta i o c -> [TaggedTerminal i o c] -> Bool

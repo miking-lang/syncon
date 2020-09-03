@@ -15,6 +15,7 @@ data NodeOrElide elidable t
   = Node !(P4.NodeF t (NodeOrElide elidable t))
   | Elide !elidable
   deriving (Show, Generic, Eq)
+instance (NFData elidable, NFData t) => NFData (NodeOrElide elidable t)
 
 countNodesInNodeOrElide :: NodeOrElide elidable t -> Int
 countNodesInNodeOrElide = recur >>> getSum
@@ -29,6 +30,7 @@ data Token elidable
   | ElidedTok !elidable
   deriving (Show, Generic)
 instance Serialise elidable => Serialise (Token elidable)
+instance NFData elidable => NFData (Token elidable)
 
 eitherRepr :: Token elidable -> Either Text (Either P2.TypeName elidable)
 eitherRepr (LitTok t) = Left t
