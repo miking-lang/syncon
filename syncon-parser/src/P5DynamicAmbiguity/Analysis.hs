@@ -32,7 +32,7 @@ import P4Parsing.Types (NodeF(..), allNodeFChildren)
 import P5DynamicAmbiguity.TreeLanguage (treeLanguage, PreLanguage)
 import P5DynamicAmbiguity.Types
 
-type AmbTree elidable tok = Either (Either Range (NodeF tok Range)) (NodeOrElide elidable tok)
+type AmbTree elidable tok = Either (Either (tok, tok) (NodeF tok (tok, tok))) (NodeOrElide elidable tok)
 
 data Error elidable tok = Ambiguity
   !Range
@@ -61,7 +61,7 @@ forceResolutions e@(Ambiguity _ _ resolvable _) = concatted `seq` e
   where
     concatted = foldMap (snd >>> fst) resolvable
 
-instance FormatError (Error elidable tok) where
+instance Eq tok => FormatError (Error elidable tok) where
   type ErrorOpts (Error elidable tok) = ErrorOptions elidable tok
   formatError EO{showTwoLevel, elidedRange, showElided, showTok, tokRange} (Ambiguity r timeoutInfo resolvable trees) = simpleErrorMessage r $
     kind <> " with " <> show (length trees + length resolvable) <> " alternatives.\n" <>
@@ -98,6 +98,10 @@ instance FormatError (Error elidable tok) where
         | hasResolvable = "\nUnresolvable alternatives:\n" <> formattedUnresolvable
         | otherwise = "\n" <> formattedUnresolvable
       formattedUnresolvable = trees <&> twoLevel & S.fromList & fold
+      showTokRange (t1, t2)
+        | t1 == t2 = showTok t1
+        | otherwise = "..."
+      tokRangeRange (t1, t2) = tokRange t1 <> tokRange t2
       twoLevel :: AmbTree elidable tok -> Text
       twoLevel (Right (Elide elided)) = "  " <> showElided elided <> "\n"
       twoLevel (Right (Node n@NodeF{n_nameF})) = "  " <> coerce n_nameF <> formatChildren (allNodeFChildren n) <> "\n"
@@ -111,12 +115,12 @@ instance FormatError (Error elidable tok) where
             printf "\n   - %- 20s %s" name (textualRange n_rangeF) & Text.pack
           formatNode (Left t) =
             printf "\n   - %- 20s %s" (showTok t) (textualRange (tokRange t)) & Text.pack
-      twoLevel (Left (Left topRange)) = "  " <> textualRange topRange <> "\n"
+      twoLevel (Left (Left tokPair)) = "  " <> showTokRange tokPair <> "\n"
       twoLevel (Left (Right n@NodeF{n_nameF})) = "  " <> coerce n_nameF <> formatChildren (allNodeFChildren n) <> "\n"
         where
-          formatChildren = sortBy (comparing $ either tokRange identity) >>> foldMap formatNode
-          formatNode (Right childRange) =
-            printf "\n   - %- 20s %s" ("..." :: Text) (textualRange childRange) & Text.pack
+          formatChildren = sortBy (comparing $ either tokRange tokRangeRange) >>> foldMap formatNode
+          formatNode (Right tokPair) =
+            printf "\n   - %- 20s %s" (showTokRange tokPair) (textualRange $ tokRangeRange tokPair) & Text.pack
           formatNode (Left t) =
             printf "\n   - %- 20s %s" (showTok t) (textualRange (tokRange t)) & Text.pack
 
@@ -135,6 +139,7 @@ data DynConfig elidable tok = DynConfig
   , dPl :: PreLanguage elidable
   , dMkToken :: tok -> Token elidable
   , dGetElided :: elidable -> (Range, TypeName)
+  , dGetElidedTokRange :: elidable -> (tok, tok)
   , dShowElided :: elidable -> Text
   , dCheckReparses :: [Token elidable] -> Bool
   , dKind :: DynAnalysisKind
@@ -148,7 +153,7 @@ analyze :: forall elidable tok. (Eq elidable, Hashable elidable, Show elidable, 
         => DynConfig elidable tok
         -> HashSet (NodeOrElide elidable tok)
         -> IO (Error elidable tok)
-analyze config@DynConfig{dPl, dGetElided, dMkToken, dKind, dCheckReparses, dShowElided, dGroupByTop} alts =
+analyze config@DynConfig{dPl, dGetElided, dMkToken, dKind, dCheckReparses, dShowElided, dGroupByTop, dGetElidedTokRange} alts =
   (if dGroupByTop then (first Left <$> groupedLanguages) else (first Right <$> languages))
   & analyze'
   <&> second prepareForAmbiguity
@@ -164,7 +169,7 @@ analyze config@DynConfig{dPl, dGetElided, dMkToken, dKind, dCheckReparses, dShow
     languages = toList alts
       <&> (identity &&& mkLanguage)
 
-    groupedLanguages :: [(Either Range (NodeF tok Range), ResLang elidable)]
+    groupedLanguages :: [(Either (tok, tok) (NodeF tok (tok, tok)), ResLang elidable)]
     groupedLanguages = languages
       <&> (extractTop *** Seq.singleton)
       & M.fromListWith (<>)
@@ -185,12 +190,13 @@ analyze config@DynConfig{dPl, dGetElided, dMkToken, dKind, dCheckReparses, dShow
                         -> ([(tree, (Text, Bool))], [tree])
     prepareForAmbiguity = fmap mkErrorEntry >>> partitionEithers
 
-    extractTop :: NodeOrElide elidable tok -> Either Range (NodeF tok Range)
-    extractTop (Elide e) = dGetElided e & fst & Left
-    extractTop (Node n) = n <&> mkRange & Right
-    mkRange :: NodeOrElide elidable tok -> Range
-    mkRange (Elide e) = dGetElided e & fst
-    mkRange (Node n) = n_rangeF n
+    extractTop :: NodeOrElide elidable tok -> Either (tok, tok) (NodeF tok (tok, tok))
+    extractTop (Elide e) = dGetElidedTokRange e & Left
+    extractTop (Node n) = n <&> mkTokRange & Right
+    mkTokRange :: NodeOrElide elidable tok -> (tok, tok)
+    mkTokRange (Elide e) = dGetElidedTokRange e
+    mkTokRange (Node n) = n_beginEndF n
+      & compFromJust "P5DynamicAmbiguity.Analysis.analyze.mkTokRange" "Missing beginEnd on NodeF"
 
     analyze' :: forall tree. NFData tree => [(tree, ResLang elidable)] -> IO (TimeoutInfo, [(tree, Maybe (ResStr elidable))])
     analyze' = case dKind of
