@@ -154,7 +154,7 @@ instance Hashable OpOrNot
 -- | A list of acceptable ambiguities
 data AcceptedAmbiguity = AcceptedAmbiguity
   { aa_range :: !Range
-  , aa_accepted :: !(Seq (Seq (Range, Name)))
+  , aa_accepted :: !(Seq (Maybe (Seq (Range, Int)), Seq (Range, Name)))
   } deriving (Show, Data)
 
 -- | A (sparse) matrix of precedences. Should only ever contain references to syncons

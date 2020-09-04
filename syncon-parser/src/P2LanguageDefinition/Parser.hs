@@ -42,7 +42,7 @@ instance FormatError Error where
 
 data SynconDefinitionLanguage = SynconDefinitionLanguage deriving (Eq, Generic, Show)
 
-data TokenKind = NameTok | TypeNameTok | StringTok deriving (Eq, Generic, Show)
+data TokenKind = NameTok | TypeNameTok | StringTok | IntTok deriving (Eq, Generic, Show)
 
 instance Hashable SynconDefinitionLanguage
 instance Hashable TokenKind
@@ -79,7 +79,8 @@ synconTokens = Lexer.LanguageTokens
   -- Regex tokens
   [ (NameTok, (Nowhere, "[[:lower:]][[:word:]]*"))
   , (TypeNameTok, (Nowhere, "[[:upper:]][[:word:]]*"))
-  , (StringTok, (Nowhere, "\"(\\\\.|[^\"\\\\])*\"")) ]
+  , (StringTok, (Nowhere, "\"(\\\\.|[^\"\\\\])*\""))
+  , (IntTok, (Nowhere, "[[:digit:]]+"))]
   -- Comment regex
   [((Nowhere, "//[^\\n]*(\\n|$)"), (Nowhere, "^"))]
 
@@ -165,7 +166,7 @@ groupingDef = rule . (<?> "grouping disambiguation") $ do
 ambiguityDef :: Grammar r (Prod r AcceptedAmbiguity)
 ambiguityDef = rule . (<?> "acceptable ambiguity declaration") $ do
   start <- lit "ambiguity" <* lit "{"
-  aList <- Seq.fromList <$> some name <* lit ";"
+  aList <- (,) <$> (optional $ Seq.fromList <$> some int <* lit ":") <*> (Seq.fromList <$> some name <* lit ";")
     & some <&> Seq.fromList
   end <- lit "}"
   pure $ AcceptedAmbiguity
@@ -332,3 +333,9 @@ lit :: Text -> Prod r Tok
 lit t = (<?> show t) . satisfy $ \case
   LitTok _ _ t' | t == t' -> True
   _ -> False
+
+-- | Parse an integer
+int :: Prod r (Range, Int)
+int = (<?> "integer") . terminal $ \case
+  OtherTok r _ IntTok str -> readMaybe (toS str) <&> (r,)
+  _ -> Nothing

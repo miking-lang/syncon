@@ -42,6 +42,7 @@ data Error
   | UnbalancedDescription Range [Range] [Range]  -- ^ unpaired closing bracket locations, unpaired opening bracket locations
   | NullableSyntaxDescription Range
   | NonProductiveCycle (Seq (Name, Range, TypeName))
+  | IncorrectSubsetCardinality Int Range Int  -- ^ stated cardinality at range, size of full set
   deriving (Show, Eq)
 
 instance FormatError Error where
@@ -131,6 +132,8 @@ instance FormatError Error where
     , e_ranges = toList syncons
       <&> \(n', r, _) -> (r, coerce n' <> " is defined here:")
     }  -- TODO: maybe special case error message when it's a cycle of length 1?
+  formatError _ (IncorrectSubsetCardinality stated r upperBound) = simpleErrorMessage r $
+    "Requested all subsets of size " <> show stated <> ", but the only valid sizes are 0-" <> show upperBound <> "."
 
 -- | Add the implicitly defined things.
 addImplicits :: [Top] -> [Top]
@@ -416,14 +419,28 @@ checkGroupings types tops = do
 checkAcceptedAmbiguities :: Foldable t => HashMap Name Syncon -> t Top -> Res (HashSet (HashSet Name))
 checkAcceptedAmbiguities syncons tops = [ a | AcceptedAmbiguityTop a <- toList tops ]
   & traverse checkAmb
-  <&> foldl' S.union S.empty
+  <&> fold
   where
-    checkAmb (AcceptedAmbiguity _ as) = as
-      & traverse (traverse checkDefined)
-      <&> fmap (toList >>> S.fromList)
-      <&> (toList >>> S.fromList)
+    checkAmb :: AcceptedAmbiguity -> Res (HashSet (HashSet Name))
+    checkAmb (AcceptedAmbiguity _ as) = do
+      traverse_ (traverse $ traverse checkDefined) as
+      foldMap mkSubsets as
+    mkSubsets :: (Maybe (Seq (Range, Int)), Seq (Range, Name)) -> Res (HashSet (HashSet Name))
+    mkSubsets (Nothing, as) = return $ S.singleton $ S.fromList $ snd <$> toList as
+    mkSubsets (Just ns, as) = do
+      forM_ ns $ \(r, n) ->
+        when (n < 0 || Seq.length as < n) $
+          Error [IncorrectSubsetCardinality n r (Seq.length as)]
+      let ns' = toList ns <&> snd & S.fromList
+      toList as
+        <&> snd
+        & filterM (const [True, False])
+        <&> S.fromList
+        & filter (S.size >>> (`S.member` ns'))
+        & S.fromList
+        & return
     checkDefined (r, n)
-      | n `M.member` syncons = return n
+      | n `M.member` syncons = return ()
       | otherwise = Error [Undefined (coerce n) r]
 
 
