@@ -346,22 +346,31 @@ devCommand = Opt.command "dev" (Opt.info devCmd $ Opt.progDesc "Compile and pars
         parseAction' (preParse, pl) srcFiles
 
 data Ambiguity = UnresolvableAmbiguity | Ambiguity deriving (Show)
-hasAmbStyle :: Ambiguity -> DynAmb.Error a b -> Bool
-hasAmbStyle Ambiguity _ = True
-hasAmbStyle UnresolvableAmbiguity err = case DynAmb.ambiguityStyle err of
-  DynAmb.Unresolvable -> True
-  DynAmb.Mixed -> True
-  DynAmb.Resolvable -> False
+shouldReportWhenLookingFor :: Ambiguity -> DynAmb.Error a b -> Bool
+shouldReportWhenLookingFor Ambiguity _ = True
+shouldReportWhenLookingFor UnresolvableAmbiguity err = rightStyle || hasReparseFailure
+  where
+    hasReparseFailure = DynAmb.countReparseFailures err > 0
+    rightStyle = case DynAmb.ambiguityStyle err of
+      DynAmb.Unresolvable -> True
+      DynAmb.Mixed -> True
+      DynAmb.Resolvable -> False
 
 data DynMetadata = DynMetadata
   { numAlts :: !Int
   , numNodesTot :: !Int
   , numNodesPer :: !(Seq Int)
   , numToks :: !Int
+  , ambSize :: !DynAmb.AmbiguitySize
   }
 
-addDynMeta :: (Eq l, t ~ Lexer.Token l LD.TypeName) => (elidable -> (t, t)) -> Seq t -> HashSet (DynAmb.NodeOrElide elidable t) -> [(DynMetadata, Maybe a)] -> ([(DynMetadata, Maybe a)], ())
-addDynMeta getBounds program amb =
+addDynMeta :: (Eq l, t ~ Lexer.Token l LD.TypeName)
+           => DynAmb.AmbiguitySize
+           -> (elidable -> (t, t))
+           -> Seq t
+           -> HashSet (DynAmb.NodeOrElide elidable t)
+           -> [(DynMetadata, Maybe a)] -> ([(DynMetadata, Maybe a)], ())
+addDynMeta ambSize getBounds program amb =
   let numAlts = S.size amb
       numNodesPer = toList amb <&> DynAmb.countNodesInNodeOrElide & Seq.fromList
       numNodesTot = sum numNodesPer
@@ -485,6 +494,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                   Data forest@(nodeMap, _) -> case isolate forest of
                     Data _ -> when showAmbDistr (Hedgehog.label "unambiguous") >> Hedgehog.success
                     Error ambs -> do
+                      let originalSize = DynAmb.ambiguitySize (Error ambs)
                       let getBounds = DynAmb.getElidableBoundsEx nodeMap
                       let dynConf checkReparse = DynAmb.DynConfig
                             { dTimeout = dynAmbTimeout
@@ -498,7 +508,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                             , dGetElidedTokRange = DynAmb.getElidableBoundsEx nodeMap
                             }
                       let analyze' checkReparse amb = do
-                            forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (addDynMeta getBounds program amb)
+                            forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (addDynMeta originalSize getBounds program amb)
                             (time, err) <-
                               DynAmb.analyze (dynConf checkReparse) amb
                               >>= evaluate
@@ -516,16 +526,15 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                                  & Parser.parseTokens preParse
                                  & first (const Seq.empty)
                                  >>= isolate
-                                 & \case
-                                   Data _ -> True
-                                   Error _ -> False
+                                 & DynAmb.ambiguitySize
+                                 & (< originalSize)
                       when showAmbDistr $ Hedgehog.label "ambiguous"
                       let ambs' = case target of
                             Ambiguity -> Seq.filter (DynAmb.isAccepted acceptedAmbiguities >>> not) ambs
                             _ -> ambs
                       errs <- ambs'
                         & mapM (\amb -> toList amb & S.fromList & analyze' (checkReparse amb))
-                        <&> Seq.filter (hasAmbStyle target)
+                        <&> Seq.filter (shouldReportWhenLookingFor target)
                         & lift
                       if Seq.null errs
                         then Hedgehog.success
