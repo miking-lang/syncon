@@ -218,7 +218,7 @@ parseAction = do
                 , dGroupByTop = groupByTop
                 , dGetElidedTokRange = DynAmb.getElidableBoundsEx nodeMap
                 }
-          let checkReparse elidable replacement
+          let checkReparse originalSize elidable replacement
                 | not reparse = True
                 | otherwise =
                   let bounds = case toList elidable of
@@ -228,12 +228,12 @@ parseAction = do
                      & Parser.parseTokens preParse
                      & first (const Seq.empty)
                      >>= isolate
-                     & \case
-                       Data _ -> True
-                       Error _ -> False
+                     & DynAmb.ambiguitySize
+                     & (< originalSize)
           isolate forest & \case
             Data node -> modifyIORef' successfulFiles (+1) >> return node
-            Error ambs ->
+            Error ambs -> do
+              let originalSize = DynAmb.ambiguitySize (Error ambs)
               let opts = DynAmb.EO
                     { DynAmb.showTwoLevel
                     , DynAmb.showElided = DynAmb.showElidable nodeMap
@@ -241,13 +241,12 @@ parseAction = do
                     , DynAmb.showTok = Forest.unlex
                     , DynAmb.tokRange = range
                     }
-              in do
-                errs <- forM ambs $ foldMap S.singleton >>> \amb ->
-                  DynAmb.analyze (dynConfig (checkReparse amb)) amb
-                  <&> formatError opts
-                errs
-                 & formatErrors sources
-                 & die'
+              errs <- forM ambs $ foldMap S.singleton >>> \amb ->
+                DynAmb.analyze (dynConfig (checkReparse originalSize amb)) amb
+                <&> formatError opts
+              errs
+                & formatErrors sources
+                & die'
         maybe (die' "        timeout when parsing file") return mNode
 
     numSuccesses <- readIORef successfulFiles
@@ -386,8 +385,8 @@ setDynCompletion t ((meta, Nothing) : rest) = ((meta, Just t) : rest, ())
 
 formatDynEntry :: Text -> (DynMetadata, Maybe (Int, Double)) -> Text
 formatDynEntry key (DynMetadata{numAlts, numNodesTot, numNodesPer, numToks}, completionData) =
-  show key <> ", " <> show numAlts <> ", " <> show numNodesTot <> ", " <> show @Text (show (toList numNodesPer))
-  <> ", " <> show numToks <> ", " <> reparseFailures <> ", " <> timing
+  show key <> "," <> show numAlts <> "," <> show numNodesTot <> "," <> show @Text (show (toList numNodesPer))
+  <> "," <> show numToks <> "," <> reparseFailures <> "," <> timing
   where
     timing = case completionData of
       Nothing -> "timeout"
@@ -398,11 +397,11 @@ formatDynEntry key (DynMetadata{numAlts, numNodesTot, numNodesPer, numToks}, com
 
 summarize :: Text -> Ambiguity -> Double -> Hedgehog.Report Hedgehog.Result -> Text
 summarize key target time report =
-  show key <> ", " <> show (toInteger $ Hedgehog.reportTests report)
-  <> ", " <> show (toInteger $ Hedgehog.reportDiscards report)
-  <> ", " <> show target
-  <> ", " <> show (Hedgehog.wasSuccess report)
-  <> ", " <> show time
+  show key <> "," <> show (toInteger $ Hedgehog.reportTests report)
+  <> "," <> show (toInteger $ Hedgehog.reportDiscards report)
+  <> "," <> show target
+  <> "," <> show (Hedgehog.wasSuccess report)
+  <> "," <> show time
   <> "\n"
 
 pbtCommand :: Opt.Mod Opt.CommandFields (IO ())

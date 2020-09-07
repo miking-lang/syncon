@@ -112,3 +112,4 @@ toAutomaton regex = evalState (cata alg regex) 1 & toEpsNFA
     alg (KleeneF r) = do
       a@Automaton{initial, final} <- r
       return $ addEdge final Nothing initial a
+        & addEdge initial Nothing final
