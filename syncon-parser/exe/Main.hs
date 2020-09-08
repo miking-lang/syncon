@@ -218,7 +218,7 @@ parseAction = do
                 , dGroupByTop = groupByTop
                 , dGetElidedTokRange = DynAmb.getElidableBoundsEx nodeMap
                 }
-          let checkReparse elidable replacement
+          let checkReparse originalSize elidable replacement
                 | not reparse = True
                 | otherwise =
                   let bounds = case toList elidable of
@@ -228,12 +228,12 @@ parseAction = do
                      & Parser.parseTokens preParse
                      & first (const Seq.empty)
                      >>= isolate
-                     & \case
-                       Data _ -> True
-                       Error _ -> False
+                     & DynAmb.ambiguitySize
+                     & (< originalSize)
           isolate forest & \case
             Data node -> modifyIORef' successfulFiles (+1) >> return node
-            Error ambs ->
+            Error ambs -> do
+              let originalSize = DynAmb.ambiguitySize (Error ambs)
               let opts = DynAmb.EO
                     { DynAmb.showTwoLevel
                     , DynAmb.showElided = DynAmb.showElidable nodeMap
@@ -241,13 +241,12 @@ parseAction = do
                     , DynAmb.showTok = Forest.unlex
                     , DynAmb.tokRange = range
                     }
-              in do
-                errs <- forM ambs $ foldMap S.singleton >>> \amb ->
-                  DynAmb.analyze (dynConfig (checkReparse amb)) amb
-                  <&> formatError opts
-                errs
-                 & formatErrors sources
-                 & die'
+              errs <- forM ambs $ foldMap S.singleton >>> \amb ->
+                DynAmb.analyze (dynConfig (checkReparse originalSize amb)) amb
+                <&> formatError opts
+              errs
+                & formatErrors sources
+                & die'
         maybe (die' "        timeout when parsing file") return mNode
 
     numSuccesses <- readIORef successfulFiles
@@ -346,22 +345,31 @@ devCommand = Opt.command "dev" (Opt.info devCmd $ Opt.progDesc "Compile and pars
         parseAction' (preParse, pl) srcFiles
 
 data Ambiguity = UnresolvableAmbiguity | Ambiguity deriving (Show)
-hasAmbStyle :: Ambiguity -> DynAmb.Error a b -> Bool
-hasAmbStyle Ambiguity _ = True
-hasAmbStyle UnresolvableAmbiguity err = case DynAmb.ambiguityStyle err of
-  DynAmb.Unresolvable -> True
-  DynAmb.Mixed -> True
-  DynAmb.Resolvable -> False
+shouldReportWhenLookingFor :: Ambiguity -> DynAmb.Error a b -> Bool
+shouldReportWhenLookingFor Ambiguity _ = True
+shouldReportWhenLookingFor UnresolvableAmbiguity err = rightStyle || hasReparseFailure
+  where
+    hasReparseFailure = DynAmb.countReparseFailures err > 0
+    rightStyle = case DynAmb.ambiguityStyle err of
+      DynAmb.Unresolvable -> True
+      DynAmb.Mixed -> True
+      DynAmb.Resolvable -> False
 
 data DynMetadata = DynMetadata
   { numAlts :: !Int
   , numNodesTot :: !Int
   , numNodesPer :: !(Seq Int)
   , numToks :: !Int
+  , ambSize :: !DynAmb.AmbiguitySize
   }
 
-addDynMeta :: (Eq l, t ~ Lexer.Token l LD.TypeName) => (elidable -> (t, t)) -> Seq t -> HashSet (DynAmb.NodeOrElide elidable t) -> [(DynMetadata, Maybe a)] -> ([(DynMetadata, Maybe a)], ())
-addDynMeta getBounds program amb =
+addDynMeta :: (Eq l, t ~ Lexer.Token l LD.TypeName)
+           => DynAmb.AmbiguitySize
+           -> (elidable -> (t, t))
+           -> Seq t
+           -> HashSet (DynAmb.NodeOrElide elidable t)
+           -> [(DynMetadata, Maybe a)] -> ([(DynMetadata, Maybe a)], ())
+addDynMeta ambSize getBounds program amb =
   let numAlts = S.size amb
       numNodesPer = toList amb <&> DynAmb.countNodesInNodeOrElide & Seq.fromList
       numNodesTot = sum numNodesPer
@@ -377,8 +385,8 @@ setDynCompletion t ((meta, Nothing) : rest) = ((meta, Just t) : rest, ())
 
 formatDynEntry :: Text -> (DynMetadata, Maybe (Int, Double)) -> Text
 formatDynEntry key (DynMetadata{numAlts, numNodesTot, numNodesPer, numToks}, completionData) =
-  show key <> ", " <> show numAlts <> ", " <> show numNodesTot <> ", " <> show @Text (show (toList numNodesPer))
-  <> ", " <> show numToks <> ", " <> reparseFailures <> ", " <> timing
+  show key <> "," <> show numAlts <> "," <> show numNodesTot <> "," <> show @Text (show (toList numNodesPer))
+  <> "," <> show numToks <> "," <> reparseFailures <> "," <> timing
   where
     timing = case completionData of
       Nothing -> "timeout"
@@ -389,11 +397,11 @@ formatDynEntry key (DynMetadata{numAlts, numNodesTot, numNodesPer, numToks}, com
 
 summarize :: Text -> Ambiguity -> Double -> Hedgehog.Report Hedgehog.Result -> Text
 summarize key target time report =
-  show key <> ", " <> show (toInteger $ Hedgehog.reportTests report)
-  <> ", " <> show (toInteger $ Hedgehog.reportDiscards report)
-  <> ", " <> show target
-  <> ", " <> show (Hedgehog.wasSuccess report)
-  <> ", " <> show time
+  show key <> "," <> show (toInteger $ Hedgehog.reportTests report)
+  <> "," <> show (toInteger $ Hedgehog.reportDiscards report)
+  <> "," <> show target
+  <> "," <> show (Hedgehog.wasSuccess report)
+  <> "," <> show time
   <> "\n"
 
 pbtCommand :: Opt.Mod Opt.CommandFields (IO ())
@@ -485,6 +493,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                   Data forest@(nodeMap, _) -> case isolate forest of
                     Data _ -> when showAmbDistr (Hedgehog.label "unambiguous") >> Hedgehog.success
                     Error ambs -> do
+                      let originalSize = DynAmb.ambiguitySize (Error ambs)
                       let getBounds = DynAmb.getElidableBoundsEx nodeMap
                       let dynConf checkReparse = DynAmb.DynConfig
                             { dTimeout = dynAmbTimeout
@@ -498,7 +507,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                             , dGetElidedTokRange = DynAmb.getElidableBoundsEx nodeMap
                             }
                       let analyze' checkReparse amb = do
-                            forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (addDynMeta getBounds program amb)
+                            forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (addDynMeta originalSize getBounds program amb)
                             (time, err) <-
                               DynAmb.analyze (dynConf checkReparse) amb
                               >>= evaluate
@@ -516,16 +525,15 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                                  & Parser.parseTokens preParse
                                  & first (const Seq.empty)
                                  >>= isolate
-                                 & \case
-                                   Data _ -> True
-                                   Error _ -> False
+                                 & DynAmb.ambiguitySize
+                                 & (< originalSize)
                       when showAmbDistr $ Hedgehog.label "ambiguous"
                       let ambs' = case target of
                             Ambiguity -> Seq.filter (DynAmb.isAccepted acceptedAmbiguities >>> not) ambs
                             _ -> ambs
                       errs <- ambs'
                         & mapM (\amb -> toList amb & S.fromList & analyze' (checkReparse amb))
-                        <&> Seq.filter (hasAmbStyle target)
+                        <&> Seq.filter (shouldReportWhenLookingFor target)
                         & lift
                       if Seq.null errs
                         then Hedgehog.success

@@ -7,6 +7,8 @@ module P5DynamicAmbiguity.Isolation
 , getNodeOrElidableBoundsEx
 , Elidable
 , isAccepted
+, AmbiguitySize
+, ambiguitySize
 ) where
 
 import Pre hiding (reduce, State, state, orElse)
@@ -165,6 +167,14 @@ dummyIsolate (dag, roots) = runST $ do
   where
     mkElide :: FullNode tok -> NodeOrElide tok
     mkElide = project >>> fmap mkElide >>> Node
+
+newtype AmbiguitySize = AmbiguitySize (Int, Int) deriving (Eq, Ord)
+
+ambiguitySize :: Result (Seq (Seq (NodeOrElide tok))) (FullNode tok) -> AmbiguitySize
+ambiguitySize (Data _) = AmbiguitySize (0, 0)
+ambiguitySize (Error ambs) = AmbiguitySize
+  ( ambs <&> Seq.length & product
+  , ambs <&> fmap countNodesInNodeOrElide <&> sum & sum)
 
 dummyAmb :: HashSet Node -> IsolationM s tok (Seq (FullNode tok))
 dummyAmb = toList
