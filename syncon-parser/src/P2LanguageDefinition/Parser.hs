@@ -42,7 +42,7 @@ instance FormatError Error where
 
 data SynconDefinitionLanguage = SynconDefinitionLanguage deriving (Eq, Generic, Show)
 
-data TokenKind = NameTok | TypeNameTok | StringTok deriving (Eq, Generic, Show)
+data TokenKind = NameTok | TypeNameTok | StringTok | IntTok deriving (Eq, Generic, Show)
 
 instance Hashable SynconDefinitionLanguage
 instance Hashable TokenKind
@@ -75,11 +75,12 @@ synconTokens = Lexer.LanguageTokens
   -- Literal tokens
   [ "token", "=", "syncon", ":", "{", ";", "}", "prefix", "postfix", "infix"
   , "(", ")", "*", "+", "?", ".", "comment", "left", "right", "precedence", "except"
-  , "type", "builtin", "forbid", "|", "rec", "grouping", "!" ]
+  , "type", "builtin", "forbid", "|", "rec", "grouping", "!", "ambiguity" ]
   -- Regex tokens
   [ (NameTok, (Nowhere, "[[:lower:]][[:word:]]*"))
   , (TypeNameTok, (Nowhere, "[[:upper:]][[:word:]]*"))
-  , (StringTok, (Nowhere, "\"(\\\\.|[^\"\\\\])*\"")) ]
+  , (StringTok, (Nowhere, "\"(\\\\.|[^\"\\\\])*\""))
+  , (IntTok, (Nowhere, "[[:digit:]]+"))]
   -- Comment regex
   [((Nowhere, "//[^\\n]*(\\n|$)"), (Nowhere, "^"))]
 
@@ -98,8 +99,9 @@ tops = mdo
   syn <- fmap (SynconTop >>> pure) <$> synconDef
   pre <- fmap (SynconTop >>> pure) <$> prefixDef
   post <- fmap (SynconTop >>> pure) <$> postfixDef
+  aa <- fmap (AcceptedAmbiguityTop >>> pure) <$> ambiguityDef
   inf <- fmap (\(s, f') -> foldr (:) [SynconTop s] $ ForbidTop <$> f') <$> infixDef
-  return . fmap concat . many $ st <|> tt <|> c <|> syn <|> pre <|> post <|> inf <|> f <|> pl <|> g
+  return . fmap concat . many $ st <|> tt <|> c <|> syn <|> pre <|> post <|> inf <|> f <|> pl <|> g <|> aa
 
 -- | Parse a syntax type declaration
 syntaxTypeDef :: Grammar r (Prod r SyntaxType)
@@ -159,6 +161,17 @@ groupingDef = rule . (<?> "grouping disambiguation") $ do
     , g_close = close
     , g_syntaxType = tyn
     , g_range = range start <> fst close
+    }
+
+ambiguityDef :: Grammar r (Prod r AcceptedAmbiguity)
+ambiguityDef = rule . (<?> "acceptable ambiguity declaration") $ do
+  start <- lit "ambiguity" <* lit "{"
+  aList <- (,) <$> (optional $ Seq.fromList <$> some int <* lit ":") <*> (Seq.fromList <$> some name <* lit ";")
+    & some <&> Seq.fromList
+  end <- lit "}"
+  pure $ AcceptedAmbiguity
+    { aa_range = range start <> range end
+    , aa_accepted = aList
     }
 
 -- |
@@ -320,3 +333,9 @@ lit :: Text -> Prod r Tok
 lit t = (<?> show t) . satisfy $ \case
   LitTok _ _ t' | t == t' -> True
   _ -> False
+
+-- | Parse an integer
+int :: Prod r (Range, Int)
+int = (<?> "integer") . terminal $ \case
+  OtherTok r _ IntTok str -> readMaybe (toS str) <&> (r,)
+  _ -> Nothing

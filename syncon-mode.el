@@ -22,6 +22,7 @@
        "syncon"
        "token"
        "type"
+       "ambiguity"
       ))
 
 (setq syncon-operators

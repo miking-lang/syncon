@@ -6,6 +6,7 @@
 token Name = "[[:lower:]][[:word:]]*"
 token TypeName = "[[:upper:]][[:word:]]*"
 token String = "\"(\\\\.|[^\"\\\\])*\""
+token Integer = "[[:digit:]]+"
 
 comment "//[^\\n]*(\\n|$)"
 
@@ -29,6 +30,13 @@ syncon blockCommentDef: Decl = "comment" openRegex:String closeRegex:String
 
 syncon groupingDef: Decl =
   "grouping" (oStr:String | oTy:TypeName) ty:TypeName (cStr:String | cTy:TypeName)
+
+// === Acceptable Ambiguity Definitions ===
+
+syncon ambiguityDef: Decl =
+  "ambiguity" "{"
+    line:((sizes:Integer+ ":")? name:Name+ ";")+
+  "}"
 
 // === Syncon Definitions (including operators) ===
 

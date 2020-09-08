@@ -60,6 +60,13 @@ syncon blockCommentDef: Decl = "comment" openRegex:Regex closeRegex:Regex
 syncon groupingDef: Decl =
   "grouping" (oStr:String | oTy:TypeName) ty:TypeName (cStr:String | cTy:TypeName)
 
+// === Acceptable Ambiguity Definitions ===
+
+syncon ambiguityDef: Decl =
+  "ambiguity" "{"
+    line:((sizes:Integer+ ":")? name:Name+ ";")+
+  "}"
+
 // === Syncon Definitions (including operators) ===
 
 syncon synconDef: Decl =
