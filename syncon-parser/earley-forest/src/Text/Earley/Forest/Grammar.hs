@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, GADTs, LambdaCase, RankNTypes, AllowAmbiguousTypes, DataKinds, FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies, GADTs, LambdaCase, RankNTypes, AllowAmbiguousTypes, DataKinds, FlexibleInstances, StandaloneDeriving #-}
 
 module Text.Earley.Forest.Grammar
 ( Parseable(..)
@@ -29,9 +29,10 @@ import Prelude
 import Control.Arrow ((>>>))
 import Control.Monad (ap, (>=>))
 import Control.Monad.Fix (MonadFix(..))
-import Data.Foldable (fold)
+import Data.Foldable (fold, toList)
 import Data.Function ((&))
 import Data.Functor ((<&>))
+import Data.List (intercalate)
 import Data.List.NonEmpty (NonEmpty, (<|))
 import Data.Sequence (Seq((:|>), (:<|)))
 import Data.Text (Text)
@@ -119,6 +120,14 @@ data Prod r intLabel tok (k :: NodeKind) where
   NonTerminal :: !(Seq tok) -> !r -> !(Seq tok) -> Prod r intLabel tok 'Node
   Alts :: ![Prod r intLabel tok 'Interior] -> Prod r intLabel tok 'Interior
   Many :: ![intLabel] -> !(Prod r intLabel tok 'Interior) -> Prod r intLabel tok 'Interior
+
+instance (Show intLabel, Show tok) => Show (Prod r intLabel tok k) where
+  show (Sequence ss) = "[" <> intercalate ", " (show <$> toList ss) <> "]"
+  show (Terminal mls t) = "(t, " <> show mls <> ", " <> show t <> ")"
+  show (NonTerminalWrap ls p) = "(nw, " <> show ls <> ", " <> show p <> ")"
+  show (NonTerminal pre _ post) = "(n, " <> show (toList pre) <> ", r, " <> show (toList post) <> ")"
+  show (Alts as) = "(a, " <> intercalate " | " (show <$> toList as) <> ")"
+  show (Many ls p) = "(m, " <> show ls <> ", " <> show p <> ")"
 
 instance Semigroup (Prod r intLabel tok 'Interior) where
   {-# INLINE (<>) #-}

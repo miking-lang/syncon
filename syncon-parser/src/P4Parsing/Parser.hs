@@ -11,6 +11,7 @@ module P4Parsing.Parser
 , precomputeToSerialisable
 , serialisableToPrecompute
 , Precomputed
+, forestToDebugText
 ) where
 
 import Pre hiding (from, some, many, optional)
@@ -35,9 +36,9 @@ import ErrorMessage (FormatError(..), simpleErrorMessage)
 import P1Lexing.Types (Token(..), TokenKind(..), Ranged(..))
 import P1Lexing.Lexer (LanguageTokens(..))
 import qualified P1Lexing.Lexer as Lexer
-import P2LanguageDefinition.Types (DefinitionFile(..), TypeName(..), Name(..), Syncon(..), Comment(..), Elaboration, SyntaxDescription(..), SyntaxDescriptionF(..), TokenType(..), SDName, SyntaxType, Repetition(..), Rec(..))
+import P2LanguageDefinition.Types (DefinitionFile(..), TypeName(..), Name(..), Syncon(..), Comment(..), Elaboration, SyntaxDescription(..), SyntaxDescriptionF(..), TokenType(..), SDName(..), SyntaxType, Repetition(..), Rec(..))
 import P2LanguageDefinition.Elaborator (elaborate)
-import P4Parsing.Types (NodeF, SL, SingleLanguage(..))
+import P4Parsing.Types (NodeF(NodeF,n_nameF, n_contentsF), SL, SingleLanguage(..), NodeInternals(..))
 
 data Error l tok
   = LexingError (Lexer.Error l TypeName)
@@ -275,6 +276,26 @@ forestToDot showNode (nodeMap, roots) = "digraph {\n"
       (altId, altDesc) <- genAlt alternatives
       return $ altDesc
         <> "  " <> show from <> " -> " <> show altId <> "[arrowhead=none];\n"
+
+forestToDebugText :: (Show n) => (t -> Text) -> (HashMap n (NodeF t (HashSet n)), HashSet n) -> Text
+forestToDebugText showTok (nodeMap, roots) =
+  "Roots: " <> show (toList roots) <> "\n\n"
+  <> Text.unlines (debugNodeF <$> M.toList nodeMap)
+  where
+    debugNodeF (n, NodeF{n_nameF,n_contentsF}) = show n <> ": " <> coerce n_nameF <> " " <> debugStruct n_contentsF
+    debugStruct m = M.toList m
+      <&> (\(sdname, int) -> toList int
+            <&> debugInt
+            & Text.intercalate "\n"
+            & indent
+            & \x -> coerce sdname <> ": [\n" <> x <> "\n]")
+      & Text.intercalate "\n"
+      & indent
+      & \x -> "{\n" <> x <> "\n}"
+    debugInt (NodeLeaf n) = show $ toList n
+    debugInt (TokenLeaf t) = showTok t
+    debugInt (Struct s) = debugStruct s
+    indent = Text.splitOn "\n" >>> fmap ("  " <>) >>> Text.intercalate "\n"
 
 escape :: Text -> Text
 escape = Text.concatMap f
