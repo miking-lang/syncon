@@ -124,8 +124,11 @@ mkGrammar unfixedGrammar = runST $ do
               -> ReaderT (MkGrammarState s nodeLabel intLabel tok) (ST s) (Seq (Sym intLabel NT tok))
     buildProd (Sequence ps) = mapM buildProd ps <&> fold
     buildProd (Terminal mLabels tk) =
-      Sym tk (NE.head <$> mLabels) (maybe mempty NE.tail mLabels & Seq.fromList)
-      & Seq.singleton & return
+      let unsnoc Seq.Empty = Nothing
+          unsnoc (xs :|> x) = Just (xs, x)
+          juggledLabels = mLabels >>= (toList >>> Seq.fromList >>> unsnoc)
+      in Sym tk (juggledLabels <&> snd) (juggledLabels <&> fst & fold)
+         & Seq.singleton & return
     buildProd (NonTerminalWrap labels (NonTerminal l wp r)) = buildWrappedProd wp
       <&> (\nt -> Nt nt (toList labels & Seq.fromList))
       <&> Seq.singleton

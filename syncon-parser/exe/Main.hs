@@ -156,6 +156,10 @@ parseAction = do
     $ Opt.long "dot"
     <> Opt.metavar "DIR"
     <> Opt.help "Output the parse forests as graphviz dot files relative to DIR. Only works if all files were given as relative paths."
+  debugForests <- optional $ Opt.strOption
+    $ Opt.long "debug-forest"
+    <> Opt.metavar "DIR"
+    <> Opt.help "Output the parse forests as a detailed list of nodes in files relative to DIR. Only works of all files were given as relative paths."
   showTwoLevel <- Opt.switch
     $ Opt.long "two-level"
     <> Opt.help "Always show the two level representation, even if some alternatives are resolvable."
@@ -171,7 +175,7 @@ parseAction = do
   dynAmbTimeout <- fmap (*1_000) $ Opt.option Opt.auto
     $ Opt.long "dynamic-resolvability-timeout"
     <> Opt.metavar "MS"
-    <> Opt.help "Timeout for determining if a single ambiguity is resolvable, in milliseconds. A negative value means 'wait forever'. Only used by '--fast'."
+    <> Opt.help "Timeout for determining if a single ambiguity is resolvable, in milliseconds. A negative value means 'wait forever'. Only used by '--fast-dyn'."
     <> Opt.value 1_000
   noIsolation <- Opt.switch
     $ Opt.long "no-isolation"
@@ -205,6 +209,12 @@ parseAction = do
             putStrLn @Text $"Writing to \"" <> toS fullPath <> "\""
             createDirectoryIfMissing True $ takeDirectory fullPath
             Parser.forestToDot (Parser.n_nameF >>> coerce) forest
+              & writeFile fullPath
+          forM_ debugForests $ \outPath -> do
+            let fullPath = outPath </> toS path <.> "txt"
+            putStrLn @Text $ "Writing to \"" <> toS fullPath <> "\""
+            createDirectoryIfMissing True $ takeDirectory fullPath
+            Parser.forestToDebugText Lexer.textualToken forest
               & writeFile fullPath
           let getBounds = DynAmb.getElidableBoundsEx nodeMap
           let dynConfig checkReparse = DynAmb.DynConfig
@@ -334,6 +344,9 @@ devCommand = Opt.command "dev" (Opt.info devCmd $ Opt.progDesc "Compile and pars
       precKind <- Opt.flag LD.PermissivePrecedence LD.RestrictivePrecedence
         $ Opt.long "restrictive-precedence"
         <> Opt.help "Restrict low-precedence unary operators to retain unambiguity in the presence of a total precedence list. This changes the recognized syntactic language, but not the semantic language."
+      debugSyncons <- Opt.switch
+        $ Opt.long "debug-syncons"
+        <> Opt.help "Show the parsed syncons."
       parseAction' <- parseAction
       files <- some $ Opt.argument Opt.str $
         Opt.metavar "FILES..."
@@ -341,7 +354,9 @@ devCommand = Opt.command "dev" (Opt.info devCmd $ Opt.progDesc "Compile and pars
 
       pure $ do
         let (defFiles, srcFiles) = partition ("syncon" `isExtensionOf`) files
-        (_, preParse, pl) <- compileAction precKind defFiles
+        (df, preParse, pl) <- compileAction precKind defFiles
+        when debugSyncons $
+          toList (LD.syncons df) & pPrint
         parseAction' (preParse, pl) srcFiles
 
 data Ambiguity = UnresolvableAmbiguity | Ambiguity deriving (Show)
