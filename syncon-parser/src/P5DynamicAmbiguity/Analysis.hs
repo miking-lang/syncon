@@ -34,7 +34,7 @@ import P4Parsing.Types (NodeF(..), allNodeFChildren)
 import P5DynamicAmbiguity.TreeLanguage (treeLanguage, PreLanguage)
 import P5DynamicAmbiguity.Types
 
-type AmbTree elidable tok = Either (HashMap (tok, tok) Text, Either (tok, tok) (NodeF tok (tok, tok))) (NodeOrElide elidable tok)
+type AmbTree elidable tok = Either (HashMap (tok, tok) (HashSet Text), Either (tok, tok) (NodeF tok (tok, tok))) (NodeOrElide elidable tok)
 
 data Error elidable tok = Ambiguity
   !Range
@@ -104,6 +104,12 @@ instance (Eq tok, Hashable tok) => FormatError (Error elidable tok) where
         | t1 == t2 = showTok t1
         | otherwise = "..."
       tokRangeRange (t1, t2) = tokRange t1 <> tokRange t2
+      orList :: HashSet Text -> Text
+      orList = toList >>> sort >>> Seq.fromList >>> \case
+        Seq.Empty -> ""
+        Seq.Empty Seq.:|> a -> a
+        Seq.Empty Seq.:|> a Seq.:|> b -> b <> " or " <> a
+        rest Seq.:|> b -> foldMap (<> ", ") rest <> "or " <> b
       twoLevel :: AmbTree elidable tok -> Text
       twoLevel (Right (Elide elided)) = "  " <> showElided elided <> "\n"
       twoLevel (Right (Node n@NodeF{n_nameF})) = "  " <> coerce n_nameF <> formatChildren (allNodeFChildren n) <> "\n"
@@ -118,14 +124,14 @@ instance (Eq tok, Hashable tok) => FormatError (Error elidable tok) where
           formatNode (Left t) =
             printf "\n   - %- 20s %s" (showTok t) (textualRange (tokRange t)) & Text.pack
       twoLevel (Left (m, Left tokPair))
-        | Just n <- M.lookup tokPair m = "  " <> n <> "\n"
+        | Just n <- M.lookup tokPair m = "  " <> orList n <> "\n"
         | otherwise = "  " <> showTokRange tokPair <> "\n"
       twoLevel (Left (m, Right n@NodeF{n_nameF})) = "  " <> coerce n_nameF <> formatChildren (allNodeFChildren n) <> "\n"
         where
           formatChildren :: [Either tok (tok, tok)] -> Text
           formatChildren = sortBy (comparing $ either tokRange tokRangeRange) >>> foldMap formatNode
           formatNode (Right tokPair) =
-            let name = fromMaybe (showTokRange tokPair) $ M.lookup tokPair m
+            let name = maybe (showTokRange tokPair) orList $ M.lookup tokPair m
             in printf "\n   - %- 20s %s" name (textualRange $ tokRangeRange tokPair) & Text.pack
           formatNode (Left t) =
             printf "\n   - %- 20s %s" (showTok t) (textualRange (tokRange t)) & Text.pack
@@ -175,19 +181,12 @@ analyze config@DynConfig{dPl, dGetElided, dMkToken, dKind, dCheckReparses, dShow
     languages = toList alts
       <&> (identity &&& mkLanguage)
 
-    groupedLanguages :: [((HashMap (tok, tok) Text, Either (tok, tok) (NodeF tok (tok, tok))), ResLang elidable)]
+    groupedLanguages :: [((HashMap (tok, tok) (HashSet Text), Either (tok, tok) (NodeF tok (tok, tok))), ResLang elidable)]
     groupedLanguages = first extractTop <$> languages
       <&> (\((names, top), lang) -> (top, (LiftingHashMap names, Seq.singleton lang)))
       & M.fromListWith (<>)
       & M.toList
-      <&> \(top, (LiftingHashMap m, langs)) -> ((M.mapMaybe getEqual m, top), unions langs)
-
-    -- groupedLanguages :: [(Either (tok, tok) (NodeF tok (tok, tok)), ResLang elidable)]
-    -- groupedLanguages = languages
-    --   <&> (extractTop *** Seq.singleton)
-    --   & M.fromListWith (<>)
-    --   <&> unions
-    --   & M.toList
+      <&> \(top, (LiftingHashMap m, langs)) -> ((m, top), unions langs)
 
     mkErrorEntry :: forall tree. (tree, Maybe (ResStr elidable)) -> Either (tree, (Text, Bool)) tree
     mkErrorEntry (t, Nothing) = Right t
@@ -203,18 +202,18 @@ analyze config@DynConfig{dPl, dGetElided, dMkToken, dKind, dCheckReparses, dShow
                         -> ([(tree, (Text, Bool))], [tree])
     prepareForAmbiguity = fmap mkErrorEntry >>> partitionEithers
 
-    extractTop :: NodeOrElide elidable tok -> (HashMap (tok, tok) (Equal Text), Either (tok, tok) (NodeF tok (tok, tok)))
+    extractTop :: NodeOrElide elidable tok -> (HashMap (tok, tok) (HashSet Text), Either (tok, tok) (NodeF tok (tok, tok)))
     extractTop (Elide e) =
       let tokRange = dGetElidedTokRange e
-      in (M.singleton tokRange $ equal $ dShowElided e, Left tokRange)
+      in (M.singleton tokRange $ S.singleton $ dShowElided e, Left tokRange)
     extractTop (Node n) = traverse mkTokRange n <&> Right
-    mkTokRange :: NodeOrElide elidable tok -> (HashMap (tok, tok) (Equal Text), (tok, tok))
+    mkTokRange :: NodeOrElide elidable tok -> (HashMap (tok, tok) (HashSet Text), (tok, tok))
     mkTokRange (Elide e) =
       let tokRange = dGetElidedTokRange e
-      in (M.singleton tokRange $ equal $ dShowElided e, tokRange)
+      in (M.singleton tokRange $ S.singleton $ dShowElided e, tokRange)
     mkTokRange (Node n) = n_beginEndF n
       & compFromJust "P5DynamicAmbiguity.Analysis.analyze.mkTokRange" "Missing beginEnd on NodeF"
-      & \tokRange -> (M.singleton tokRange $ equal $ coerce $ n_nameF n, tokRange)
+      & \tokRange -> (M.singleton tokRange $ S.singleton $ coerce $ n_nameF n, tokRange)
 
     analyze' :: forall tree. NFData tree => [(tree, ResLang elidable)] -> IO (TimeoutInfo, [(tree, Maybe (ResStr elidable))])
     analyze' = case dKind of
