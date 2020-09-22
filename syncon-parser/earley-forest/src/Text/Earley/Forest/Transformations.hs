@@ -33,7 +33,6 @@ import Data.STRef (STRef, newSTRef, readSTRef, modifySTRef')
 import Data.Sequence (Seq((:|>)))
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
-import qualified Data.List.NonEmpty as NE
 import qualified Data.Sequence as Seq
 
 import Text.Earley.Forest.Grammar (Grammar(..), runGrammar, Prod(..), NodeKind(..))

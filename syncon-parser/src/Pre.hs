@@ -23,6 +23,7 @@ module Pre
 , Equal
 , equal
 , isEqual
+, getEqual
 , equalBy
 
 , Compose(..)
@@ -30,6 +31,7 @@ module Pre
 , HashMap
 , mapFromFoldable
 , HashSet
+, LiftingHashMap(..)
 
 , foldMapM
 
@@ -55,14 +57,21 @@ compFromJust :: Text -> Text -> Maybe a -> a
 compFromJust _ _ (Just a) = a
 compFromJust section message _ = compErr section message
 
-data Equal a = Equal (Maybe a) | NotEqual deriving (Eq, Show)
+data Equal a = EqualAll | EqualOne a | NotEqual deriving (Eq, Show, Generic)
+instance NFData a => NFData (Equal a)
+instance Hashable a => Hashable (Equal a)
 
 equal :: a -> Equal a
-equal = Just >>> Equal
+equal = EqualOne
 
 isEqual :: Equal a -> Bool
-isEqual Equal{} = True
+isEqual EqualAll{} = True
+isEqual EqualOne{} = True
 isEqual _ = False
+
+getEqual :: Equal a -> Maybe a
+getEqual (EqualOne a) = Just a
+getEqual _ = Nothing
 
 equalBy :: (Foldable f, Eq b) => (a -> b) -> f a -> Bool
 equalBy f = foldMap (f >>> equal) >>> isEqual
@@ -95,13 +104,21 @@ foldMapM f = foldlM
     return $! mappend acc w)
   mempty
 
+newtype LiftingHashMap k a = LiftingHashMap { unliftHashMap :: HashMap k a }
+
+instance (Eq k, Hashable k, Semigroup a) => Semigroup (LiftingHashMap k a) where
+  LiftingHashMap l <> LiftingHashMap r = LiftingHashMap $ M.unionWith (<>) l r
+
+instance (Eq k, Hashable k, Semigroup a) => Monoid (LiftingHashMap k a) where
+  mempty = LiftingHashMap mempty
+
 instance Eq a => Semigroup (Equal a) where
   NotEqual <> _ = NotEqual
   _ <> NotEqual = NotEqual
-  Equal Nothing <> b = b
-  a <> Equal Nothing = a
-  e@(Equal (Just a)) <> Equal (Just b) = if a == b then e else NotEqual
+  EqualAll <> b = b
+  a <> EqualAll = a
+  e@(EqualOne a) <> EqualOne b = if a == b then e else NotEqual
 
 instance Eq a => Monoid (Equal a) where
-  mempty = Equal Nothing
+  mempty = EqualAll
   mappend = (<>)
