@@ -215,6 +215,8 @@ generateSyncon markings isSyTy nts Syncon{s_name = n, s_syntaxDescription, s_syn
         & (`M.lookup` nts)
         & maybe noparse (nodeLeaf sdname)
     alg (SDNamedF _ sdname (SDToken _ t, _)) = lit sdname t
+    alg (SDNamedF _ sdname (SDAlt _ sds, _))
+      | Just atoms <- traverse (getUnnamedAtom sdname) sds = alts $ toList atoms
     alg sdf = snd <$> sdf & \case
       SDTokenF _ t -> lit_ t
       SDSyTyF _ tyn -> if isSyTy tyn
@@ -227,6 +229,21 @@ generateSyncon markings isSyTy nts Syncon{s_name = n, s_syntaxDescription, s_syn
       SDRepF _ RepQuestion sd -> optional sd
       SDSeqF _ sds -> fold sds
       SDAltF _ sds -> alts $ toList sds
+
+    getUnnamedAtom sdname (SDSeq _ sds)
+      | [sd] <- toList sds = getUnnamedAtom sdname sd
+    getUnnamedAtom sdname (SDSyTy _ tyn)
+      | isSyTy tyn = M.lookupDefault (tyn, S.empty) (n, Right sdname) markings
+        & (`M.lookup` nts)
+        & maybe noparse (nodeLeaf sdname)
+        & Just
+      | otherwise = othertok sdname tyn & Just
+    getUnnamedAtom sdname SDRec{} = M.lookupDefault (syty, S.empty) (n, Right sdname) markings
+      & (`M.lookup` nts)
+      & maybe noparse (nodeLeaf sdname)
+      & Just
+    getUnnamedAtom sdname (SDToken _ t) = lit sdname t & Just
+    getUnnamedAtom _ _ = Nothing
 
 -- | Parse a literal.
 lit :: SDName -> Text -> Prod r TK 'Interior
