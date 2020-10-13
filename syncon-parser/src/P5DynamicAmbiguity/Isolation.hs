@@ -7,6 +7,7 @@ module P5DynamicAmbiguity.Isolation
 , getNodeOrElidableBoundsEx
 , Elidable
 , isAccepted
+, getNames
 , AmbiguitySize
 , ambiguitySize
 ) where
@@ -48,10 +49,10 @@ type Res tok = Result (HashMap (HashSet Node) (Seq (NodeOrElide tok)))
 
 isAccepted :: HashSet (HashSet Name) -> Seq (NodeOrElide tok) -> Bool
 isAccepted accepted = foldMap getNames >>> (`S.member` accepted)
-  where
-    getNames :: NodeOrElide tok -> HashSet Name
-    getNames (Node n) = S.insert (n_nameF n) $ foldMap getNames n
-    getNames Elide{} = S.empty
+
+getNames :: NodeOrElide tok -> HashSet Name
+getNames (Node n) = S.insert (n_nameF n) $ foldMap getNames n
+getNames Elide{} = S.empty
 
 -- TODO: Bail out if a single ambiguity gets too large
 -- | Produce a single parse tree, or a disjoint set of minimal ambiguities.

@@ -592,6 +592,7 @@ shortestUniqueWord timeoutDuration maxLength (Vec.fromList -> nvas) = do
       <&> initialConfigs
       & M.singleton []
 
+    -- OPT(vipa, 2020-10-05): the number of states appear to grow roughly exponentially. It thus seems reasonable to simulate from both edges at the same time then look for overlap between the two frontiers. I think this would have the effect of halving the exponent, which should be a sizable speedup in bad cases.
     recur :: Int  -- ^ max amount of further steps to take
           -> IORef (HashMap Int [TaggedTerminal i o c]) -- ^ already found shortest words
           -> HashMap [TaggedTerminal i o c] (Vector (HashSet (s, [sta]))) -- ^ current configurations, grouped by word so far
