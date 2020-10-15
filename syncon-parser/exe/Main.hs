@@ -227,6 +227,7 @@ parseAction = do
                 , dKind = dynAmbKind
                 , dGroupByTop = groupByTop
                 , dGetElidedTokRange = DynAmb.getElidableBoundsEx nodeMap
+                , dGetNames = DynAmb.getNames
                 }
           let checkReparse originalSize elidable replacement
                 | not reparse = True
@@ -520,6 +521,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                             , dKind = dynAmbKind
                             , dGroupByTop = groupByTop
                             , dGetElidedTokRange = DynAmb.getElidableBoundsEx nodeMap
+                            , dGetNames = DynAmb.getNames
                             }
                       let analyze' checkReparse amb = do
                             forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (addDynMeta originalSize getBounds program amb)

@@ -39,37 +39,39 @@ type AmbTree elidable tok = Either (HashMap (tok, tok) (HashSet Text), Either (t
 data Error elidable tok = Ambiguity
   !Range
   !TimeoutInfo
+  !(HashSet Name)
   ![(AmbTree elidable tok, (Text, Bool))]  -- ^ Resolvable alternatives
   ![AmbTree elidable tok]  -- ^ Unresolvable alternatives
 data AmbiguityStyle = Resolvable | Unresolvable | Mixed
 ambiguityStyle :: Error elidable tok -> AmbiguityStyle
-ambiguityStyle (Ambiguity _ _ (_:_) (_:_)) = Mixed
-ambiguityStyle (Ambiguity _ _ [] (_:_)) = Unresolvable
-ambiguityStyle (Ambiguity _ _ (_:_) []) = Resolvable
-ambiguityStyle (Ambiguity _ _ [] []) = panic $ "Unexpectedly empty ambiguity error"
+ambiguityStyle (Ambiguity _ _ _ (_:_) (_:_)) = Mixed
+ambiguityStyle (Ambiguity _ _ _ [] (_:_)) = Unresolvable
+ambiguityStyle (Ambiguity _ _ _ (_:_) []) = Resolvable
+ambiguityStyle (Ambiguity _ _ _ [] []) = panic $ "Unexpectedly empty ambiguity error"
 
 didTimeout :: Error elidable tok -> Bool
-didTimeout (Ambiguity _ DidTimeout _ _) = True
+didTimeout (Ambiguity _ DidTimeout _ _ _) = True
 didTimeout _ = False
 
 countReparseFailures :: Error elidable tok -> Int
-countReparseFailures (Ambiguity _ _ resolvable _) =
+countReparseFailures (Ambiguity _ _ _ resolvable _) =
   resolvable
   & filter (snd >>> snd >>> not)
   & length
 
 forceResolutions :: Error elidable tok -> Error elidable tok
-forceResolutions e@(Ambiguity _ _ resolvable _) = concatted `seq` e
+forceResolutions e@(Ambiguity _ _ _ resolvable _) = concatted `seq` e
   where
     concatted = foldMap (snd >>> fst) resolvable
 
 instance (Eq tok, Hashable tok) => FormatError (Error elidable tok) where
   type ErrorOpts (Error elidable tok) = ErrorOptions elidable tok
-  formatError EO{showTwoLevel, elidedRange, showElided, showTok, tokRange} (Ambiguity r timeoutInfo resolvable trees) = simpleErrorMessage r $
+  formatError EO{showTwoLevel, elidedRange, showElided, showTok, tokRange} (Ambiguity r timeoutInfo names resolvable trees) = simpleErrorMessage r $
     kind <> " with " <> show (length trees + length resolvable) <> " alternatives.\n" <>
     reparseInfo <>
     resolvableSection <>
-    unresolvableSection
+    unresolvableSection <>
+    ambiguityFixSection
     where
       hasResolvable = not $ null resolvable
       hasUnresolvable = not $ null trees
@@ -135,6 +137,10 @@ instance (Eq tok, Hashable tok) => FormatError (Error elidable tok) where
             in printf "\n   - %- 20s %s" name (textualRange $ tokRangeRange tokPair) & Text.pack
           formatNode (Left t) =
             printf "\n   - %- 20s %s" (showTok t) (textualRange (tokRange t)) & Text.pack
+      ambiguityFixSection
+        | showTwoLevel && not hasUnresolvable = " You can mark this ambiguity as acceptable with:\n"
+          <> "   ambiguity {\n     " <> Text.unwords (coerce <$> toList names) <> ";\n   }\n"
+        | otherwise = ""
 
 data ErrorOptions elidable tok = EO
   { showTwoLevel :: Bool
@@ -156,6 +162,7 @@ data DynConfig elidable tok = DynConfig
   , dCheckReparses :: [Token elidable] -> Bool
   , dKind :: DynAnalysisKind
   , dGroupByTop :: Bool
+  , dGetNames :: NodeOrElide elidable tok -> HashSet Name
   }
 
 type ResLang elidable = NVA Int Int (Token elidable) (Token elidable) (Token elidable)
@@ -165,11 +172,11 @@ analyze :: forall elidable tok. (Eq elidable, Hashable elidable, Show elidable, 
         => DynConfig elidable tok
         -> HashSet (NodeOrElide elidable tok)
         -> IO (Error elidable tok)
-analyze config@DynConfig{dPl, dGetElided, dMkToken, dKind, dCheckReparses, dShowElided, dGroupByTop, dGetElidedTokRange} alts =
+analyze config@DynConfig{dPl, dGetElided, dMkToken, dKind, dCheckReparses, dShowElided, dGroupByTop, dGetElidedTokRange, dGetNames} alts =
   (if dGroupByTop then (first Left <$> groupedLanguages) else (first Right <$> languages))
   & analyze'
   <&> second prepareForAmbiguity
-  <&> \(timeoutInfo, (res, unres)) -> Ambiguity range timeoutInfo res unres
+  <&> \(timeoutInfo, (res, unres)) -> Ambiguity range timeoutInfo (foldMap dGetNames alts) res unres
   where
     range = toList alts & \case
       Node NodeF{n_rangeF} : _ -> n_rangeF
