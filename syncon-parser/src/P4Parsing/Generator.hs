@@ -1,7 +1,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module P4Parsing.Generator (programGenerator) where
+module P4Parsing.Generator (programGenerator, PruneShrinkTree(..)) where
 
 import Pre
 import qualified Data.HashSet as S
@@ -30,9 +30,11 @@ data CSTNode = CSTNode
 type Tok = Token SingleLanguage TypeName
 makeBaseFunctor ''CSTNode
 
-programGenerator :: DefinitionFile -> Gen (Int, HashSet Name, HashSet TypeName, Seq Tok)
-programGenerator DefinitionFile{syncons, forbids, precedences, groupings, syntaxTypes, precedenceKind} =
-  genInSyTy getDisallowed getSyns isToken (TypeName "Top") S.empty
+data PruneShrinkTree = PruneShrinkTree | DoNotPruneShrinkTree
+
+programGenerator :: PruneShrinkTree -> DefinitionFile -> Gen (Int, HashSet Name, HashSet TypeName, Seq Tok)
+programGenerator prune DefinitionFile{syncons, forbids, precedences, groupings, syntaxTypes, precedenceKind} =
+  genInSyTy prune getDisallowed getSyns isToken (TypeName "Top") S.empty
   <&> (cata combinedAlg >>> coerce)
   where
     elaboration = elaborate syncons forbids precedences precedenceKind
@@ -55,13 +57,14 @@ programGenerator DefinitionFile{syncons, forbids, precedences, groupings, syntax
       , SDRec Nowhere Rec
       , either (SDToken Nowhere) (SDSyTy Nowhere) close ]
 
-genInSyTy :: ((Name, Either Rec SDName) -> HashSet Name)
+genInSyTy :: PruneShrinkTree
+          -> ((Name, Either Rec SDName) -> HashSet Name)
           -> (TypeName -> Seq (Maybe Name, SyntaxDescription))
           -> (TypeName -> Bool)
           -> TypeName
           -> HashSet Name
           -> Gen CSTNode
-genInSyTy getDisallowed getSyns isToken tyn disallowed = G.sized $ \n ->
+genInSyTy prune getDisallowed getSyns isToken tyn disallowed = G.sized $ \n ->
   let filtered = getSyns tyn
         & toList
         & filter (fst >>> maybe False (not . (`S.member` disallowed)))
@@ -74,13 +77,17 @@ genInSyTy getDisallowed getSyns isToken tyn disallowed = G.sized $ \n ->
     mkGen :: Size -> (Maybe Name, SyntaxDescription) -> (Maybe (Gen CSTNode))
     mkGen ((1<) -> allowRecursion) (mName, synconSd) = recur synconSd
       <&> fmap (CSTNode mName tyn disallowed)
-      <&> G.prune
+      <&> doPrune
       <&> G.shrink (shrinkCST >>> drop 1)
       where
         getDis :: Either Rec SDName -> HashSet Name
         getDis = case mName of
           Just name -> (name,) >>> getDisallowed
           Nothing -> const S.empty
+
+        doPrune = case prune of
+          PruneShrinkTree -> G.prune
+          DoNotPruneShrinkTree -> identity
 
         recGen :: Maybe SDName -> Maybe Rec -> TypeName -> Maybe (Gen (Seq (Either Tok CSTNode)))
         recGen msd mrec ctyn@(TypeName ctyn')
@@ -89,7 +96,7 @@ genInSyTy getDisallowed getSyns isToken tyn disallowed = G.sized $ \n ->
           | allowRecursion =
             foldMap (Right >>> getDis) msd
             <> foldMap (Left >>> getDis) mrec
-            & genInSyTy getDisallowed getSyns isToken ctyn
+            & genInSyTy prune getDisallowed getSyns isToken ctyn
             & G.small
             <&> Right
             <&> Seq.singleton

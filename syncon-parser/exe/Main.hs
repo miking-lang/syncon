@@ -411,11 +411,12 @@ formatDynEntry key (DynMetadata{numAlts, numNodesTot, numNodesPer, numToks}, com
       Nothing -> "timeout"
       Just (count, _) -> show count
 
-summarize :: Text -> Ambiguity -> Double -> Hedgehog.Report Hedgehog.Result -> Text
-summarize key target time report =
-  show key <> "," <> show (toInteger $ Hedgehog.reportTests report)
+summarize :: Text -> LD.DefinitionFile -> Ambiguity -> Double -> Hedgehog.Report Hedgehog.Result -> Text
+summarize key LD.DefinitionFile{syncons} target time report = show key
+  <> "," <> show (toInteger $ Hedgehog.reportTests report)
   <> "," <> show (toInteger $ Hedgehog.reportDiscards report)
   <> "," <> show target
+  <> "," <> show (M.size syncons)
   <> "," <> show (Hedgehog.wasSuccess report)
   <> "," <> show time
   <> "\n"
@@ -439,6 +440,9 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
         $ Opt.long "discards"
         <> Opt.value 10000
         <> Opt.help "The maximum number of tests to discard. A test is discarded if the analysis times out."
+      pruneShrinkTree <- Opt.flag Parser.PruneShrinkTree Parser.DoNotPruneShrinkTree
+        $ Opt.long "no-fast-shrink"
+        <> Opt.help "Turn off shrink tree pruning to possibly get smaller programs, at the cost of more time."
       showAmbDistr <- Opt.switch
         $ Opt.long "amb-distr"
         <> Opt.help "Show the percentage of tested programs that are ambiguous"
@@ -492,7 +496,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                       then DynAmb.dummyIsolate >>> first Seq.singleton
                       else DynAmb.isolate
         dynLog <- newIORef []
-        let gen = Parser.programGenerator df
+        let gen = Parser.programGenerator pruneShrinkTree df
             prop = Hedgehog.withDiscards (fromInteger numDiscards) $ Hedgehog.withTests (fromInteger numRuns) $ Hedgehog.property $ do
               (size, syncons, types, Lexer.makeFakeFile -> (sources, program)) <- Hedgehog.forAllWith ((\(_, _, _, x) -> x) >>> toList >>> fmap Forest.unlex >>> Text.intercalate " " >>> toS) gen
               when showSizeDistr $
@@ -579,7 +583,7 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
             >>= appendFile dynLogFilePath
           putStrLn @Text "Written dyn-log"
         forM_ summaryLogFile $ \summaryLogFilePath -> do
-          summarize key target time result
+          summarize key df target time result
             & appendFile summaryLogFilePath
           putStrLn @Text "Written sum-log"
         if Hedgehog.wasSuccess result
