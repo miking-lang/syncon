@@ -7,7 +7,7 @@ module RandomCompose
 ) where
 
 import Pre hiding (state, (<.>))
-import Result (Result(..))
+import Result (Result(..), errorIfNonEmpty)
 import ErrorMessage (FormatError(..), simpleErrorMessage)
 
 import System.FilePath (dropExtension, (</>), (<.>))
@@ -33,6 +33,7 @@ instance Hashable FileInfo
 data Error
   = UnknownID ID
   | NotEnoughFragments (HashMap ID FileInfo)  -- ^ The IDs picked so far, since it may be their requirements that limit the number of available fragments
+  | NotMutuallyExclusive ID ID  -- ^ The former forbids the latter, but the latter does not forbid the former
   deriving (Eq, Generic)
 instance Hashable Error
 
@@ -51,6 +52,8 @@ instance FormatError Error where
                if S.null forbidden then "" else
                  toList forbidden <&> idToText & Text.intercalate ", ")
         & Text.unlines
+  formatError () (NotMutuallyExclusive forbidder forbidden) = simpleErrorMessage mempty $
+    "Fragment " <> idToText forbidder <> " forbids " <> idToText forbidden <> ", but the latter does not forbid the former."
 
 mkID :: FilePath -> ID
 mkID = dropExtension >>> toS >>> ID
@@ -80,11 +83,23 @@ mkFileInfo path = do
       >>> Text.dropWhileEnd isSpace
       >>> (<> "\n")
 
-computeInfo :: Foldable f => f FilePath -> IO (HashMap ID FileInfo)
+checkReverseForbids :: HashMap ID FileInfo -> Result (HashSet Error) ()
+checkReverseForbids infos =
+  let fragmentForbidsFragment = forbidden <$> infos
+        & M.toList
+        >>= (\(a, bs) -> (a,) <$> toList bs)
+        & S.fromList
+      fragmentForbiddenByFragment = S.map swap fragmentForbidsFragment
+  in fragmentForbidsFragment `S.difference` fragmentForbiddenByFragment
+     & S.map (uncurry NotMutuallyExclusive)
+     & errorIfNonEmpty
+
+computeInfo :: Foldable f => f FilePath -> IO (Result (HashSet Error) (HashMap ID FileInfo))
 computeInfo fs = toList fs
   & mapM mkFileInfo
   <&> fmap (id &&& identity)
   <&> M.fromList
+  <&> (\x -> checkReverseForbids x *> pure x)
 
 data ComposeState = ComposeState
   { infos :: !(HashMap ID FileInfo)

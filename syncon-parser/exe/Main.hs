@@ -618,7 +618,7 @@ composeCommand = Opt.command "compose" (Opt.info composeCmd $ Opt.progDesc "Crea
 
       pure $ do
         let baseID = RC.mkID base
-        info <- RC.computeInfo (base : others)
+        info <- RC.computeInfo (base : others) >>= dataOrError mempty ()
         case dirPath of
           Nothing -> RC.generateComposition count baseID info
             >>= dataOrError mempty ()
