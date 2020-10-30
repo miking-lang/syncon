@@ -13,11 +13,11 @@ import Data.Functor.Foldable (cata)
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 
 import P1Lexing.Types (Token(..), Range(..))
-import P2LanguageDefinition.Types (DefinitionFile(..), TypeName(..), Name(..), SDName(..), Syncon(..), SyntaxDescription(..), Rec(..), Repetition(..))
+import P2LanguageDefinition.Types (DefinitionFile(..), TypeName(..), Name(..), SDName(..), Syncon(..), SyntaxDescription(..), Rec(..), Repetition(..), SyntaxDescriptionF(..))
 import P4Parsing.Types (SingleLanguage(..))
 import P2LanguageDefinition.Elaborator (elaborate)
 
-import Hedgehog (Gen, Size)
+import Hedgehog (Gen)
 import qualified Hedgehog.Gen as G
 import qualified Hedgehog.Range as R
 
@@ -31,10 +31,39 @@ type Tok = Token SingleLanguage TypeName
 makeBaseFunctor ''CSTNode
 
 data PruneShrinkTree = PruneShrinkTree | DoNotPruneShrinkTree
+data AllowRecursion = AllowRecursion | DisallowRecursion
+
+findNonRecSyncons :: (TypeName -> Bool) -> (TypeName -> Seq (Maybe Name, SyntaxDescription)) -> HashSet TypeName -> HashMap TypeName (Seq (Maybe Name, SyntaxDescription))
+findNonRecSyncons isToken getSyns types = recur mempty
+  where
+    getTargetTypesAlg :: TypeName -> SyntaxDescriptionF (HashSet TypeName) -> HashSet TypeName
+    getTargetTypesAlg _ (SDSyTyF _ tyn) = S.singleton tyn
+    getTargetTypesAlg tyn SDRecF{} = S.singleton tyn
+    getTargetTypesAlg _ sd = fold sd
+
+    getTargets :: TypeName -> SyntaxDescription -> HashSet TypeName
+    getTargets tyn synDesc =
+      cata (getTargetTypesAlg tyn) synDesc
+      & S.filter (not . isToken)
+
+    recur :: HashMap TypeName (Seq (Maybe Name, SyntaxDescription)) -> HashMap TypeName (Seq (Maybe Name, SyntaxDescription))
+    recur prev
+      | all (`M.member` prev) types = prev
+      | prev == next = compErr "Generator.findNonRecSyncons.recur" "Could not produce non-recursive syncons for all syntax types."
+      | otherwise = recur next
+      where
+        next = foldl' (\m tyn -> M.alter (updateTyn tyn) tyn m) prev types
+        updateTyn :: TypeName -> Maybe (Seq (Maybe Name, SyntaxDescription)) -> Maybe (Seq (Maybe Name, SyntaxDescription))
+        updateTyn _ x@Just{} = x
+        updateTyn tyn Nothing = getSyns tyn
+          & Seq.filter (snd >>> getTargets tyn >>> all (`M.member` prev))
+          & \case
+          Seq.Empty -> Nothing
+          x -> Just x
 
 programGenerator :: PruneShrinkTree -> DefinitionFile -> Gen (Int, HashSet Name, HashSet TypeName, Seq Tok)
 programGenerator prune DefinitionFile{syncons, forbids, precedences, groupings, syntaxTypes, precedenceKind} =
-  genInSyTy prune getDisallowed getSyns isToken (TypeName "Top") S.empty
+  genInSyTy prune getDisallowed getSyns' isToken (TypeName "Top") S.empty
   <&> (cata combinedAlg >>> coerce)
   where
     elaboration = elaborate syncons forbids precedences precedenceKind
@@ -43,6 +72,13 @@ programGenerator prune DefinitionFile{syncons, forbids, precedences, groupings, 
 
     isToken :: TypeName -> Bool
     isToken tyn = M.lookup tyn syntaxTypes <&> isRight & fromMaybe False
+
+    getSyns' :: AllowRecursion -> TypeName -> Seq (Maybe Name, SyntaxDescription)
+    getSyns' DisallowRecursion = \tyn -> M.lookup tyn nonRecBySyTy & compFromJust "Generator.programGenerator.getSyns'" ("Couldn't find a list for " <> show tyn)
+    getSyns' AllowRecursion = getSyns
+
+    nonRecBySyTy :: HashMap TypeName (Seq (Maybe Name, SyntaxDescription))
+    nonRecBySyTy = findNonRecSyncons isToken getSyns $ S.fromMap $ void $ M.mapMaybe leftToMaybe syntaxTypes
 
     getSyns :: TypeName -> Seq (Maybe Name, SyntaxDescription)
     getSyns tyn = M.lookupDefault mempty tyn allBySyTy
@@ -59,23 +95,20 @@ programGenerator prune DefinitionFile{syncons, forbids, precedences, groupings, 
 
 genInSyTy :: PruneShrinkTree
           -> ((Name, Either Rec SDName) -> HashSet Name)
-          -> (TypeName -> Seq (Maybe Name, SyntaxDescription))
+          -> (AllowRecursion -> TypeName -> Seq (Maybe Name, SyntaxDescription))
           -> (TypeName -> Bool)
           -> TypeName
           -> HashSet Name
           -> Gen CSTNode
 genInSyTy prune getDisallowed getSyns isToken tyn disallowed = G.sized $ \n ->
-  let filtered = getSyns tyn
+  let filtered = getSyns (if n > 1 then AllowRecursion else DisallowRecursion) tyn
         & toList
         & filter (fst >>> maybe False (not . (`S.member` disallowed)))
-      gens = catMaybes $ mkGen n <$> filtered
-      actual = case gens of
-        [] -> catMaybes $ mkGen 2 <$> filtered
-        _ -> gens
-  in G.choice actual
+      gens = catMaybes $ mkGen <$> filtered
+  in G.choice gens
   where
-    mkGen :: Size -> (Maybe Name, SyntaxDescription) -> (Maybe (Gen CSTNode))
-    mkGen ((1<) -> allowRecursion) (mName, synconSd) = recur synconSd
+    mkGen :: (Maybe Name, SyntaxDescription) -> Maybe (Gen CSTNode)
+    mkGen (mName, synconSd) = recur synconSd
       <&> fmap (CSTNode mName tyn disallowed)
       <&> doPrune
       <&> G.shrink (shrinkCST >>> drop 1)
@@ -93,7 +126,7 @@ genInSyTy prune getDisallowed getSyns isToken tyn disallowed = G.sized $ \n ->
         recGen msd mrec ctyn@(TypeName ctyn')
           | isToken ctyn = Just $ pure $ Seq.singleton $ Left $
             OtherTok Nowhere SingleLanguage ctyn ("<" <> ctyn' <> ">")
-          | allowRecursion =
+          | otherwise =
             foldMap (Right >>> getDis) msd
             <> foldMap (Left >>> getDis) mrec
             & genInSyTy prune getDisallowed getSyns isToken ctyn
@@ -101,7 +134,6 @@ genInSyTy prune getDisallowed getSyns isToken tyn disallowed = G.sized $ \n ->
             <&> Right
             <&> Seq.singleton
             & Just
-          | otherwise = Nothing
 
         recur :: SyntaxDescription -> Maybe (Gen (Seq (Either Tok CSTNode)))
         recur (SDSeq _ sds) = mapM recur sds <&> fold
