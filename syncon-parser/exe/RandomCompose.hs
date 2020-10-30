@@ -110,7 +110,6 @@ data ComposeState = ComposeState
 graphvizForbidGraph :: HashMap ID FileInfo -> Text
 graphvizForbidGraph infos =
   "graph {\n"
-  -- <> (M.keys infos <&> mkNode <&> (<> ";\n") & Text.concat)
   <> (toList edges <&> mkEdge <&> (<> ";\n") & Text.concat)
   <> "}\n"
   where
