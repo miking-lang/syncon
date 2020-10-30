@@ -49,7 +49,7 @@ findNonRecSyncons isToken getSyns types = recur mempty
     recur :: HashMap TypeName (Seq (Maybe Name, SyntaxDescription)) -> HashMap TypeName (Seq (Maybe Name, SyntaxDescription))
     recur prev
       | all (`M.member` prev) types = prev
-      | prev == next = compErr "Generator.findNonRecSyncons.recur" "Could not produce non-recursive syncons for all syntax types."
+      | prev == next = prev
       | otherwise = recur next
       where
         next = foldl' (\m tyn -> M.alter (updateTyn tyn) tyn m) prev types
