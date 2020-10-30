@@ -4,6 +4,7 @@ module RandomCompose
 , computeInfo
 , writeAllFragmentsToDir
 , generateComposition
+, graphvizForbidGraph
 ) where
 
 import Pre hiding (state, (<.>))
@@ -105,6 +106,22 @@ data ComposeState = ComposeState
   { infos :: !(HashMap ID FileInfo)
   , pickable :: !(HashSet ID)
   }
+
+graphvizForbidGraph :: HashMap ID FileInfo -> Text
+graphvizForbidGraph infos =
+  "graph {\n"
+  -- <> (M.keys infos <&> mkNode <&> (<> ";\n") & Text.concat)
+  <> (toList edges <&> mkEdge <&> (<> ";\n") & Text.concat)
+  <> "}\n"
+  where
+    mkNode (ID id) = show id
+    mkEdge (id1, id2) = mkNode id1 <> " -- " <> mkNode id2
+    edges = toList infos
+      >>= (\FileInfo{id, forbidden} -> toList forbidden <&> (id,) <&> sortTuple)
+      & S.fromList
+    sortTuple (a, b)
+      | a < b = (a, b)
+      | otherwise = (b, a)
 
 addID :: HashSet ID -> ID -> StateT ComposeState (Result (HashSet Error)) (HashSet ID)
 addID picked id
