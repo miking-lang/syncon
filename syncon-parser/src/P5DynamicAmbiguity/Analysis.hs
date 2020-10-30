@@ -139,7 +139,9 @@ instance (Eq tok, Hashable tok) => FormatError (Error elidable tok) where
             printf "\n   - %- 20s %s" (showTok t) (textualRange (tokRange t)) & Text.pack
       ambiguityFixSection
         | showTwoLevel && not hasUnresolvable = " You can mark this ambiguity as acceptable with:\n"
-          <> "   ambiguity {\n     " <> Text.unwords (coerce <$> toList names) <> ";\n   }\n"
+          <> "   ambiguity {\n     " <> Text.unwords (sort $ coerce <$> toList names) <> ";\n   }\n"
+        | showTwoLevel && hasUnresolvable = " These syncons are involved:\n"
+          <> "   " <> Text.unwords (sort $ coerce <$> toList names) <> "\n"
         | otherwise = ""
 
 data ErrorOptions elidable tok = EO
