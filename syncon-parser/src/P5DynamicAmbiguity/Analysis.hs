@@ -42,7 +42,7 @@ data Error elidable tok = Ambiguity
   !(HashSet Name)
   ![(AmbTree elidable tok, (Text, Bool))]  -- ^ Resolvable alternatives
   ![AmbTree elidable tok]  -- ^ Unresolvable alternatives
-data AmbiguityStyle = Resolvable | Unresolvable | Mixed
+data AmbiguityStyle = Resolvable | Unresolvable | Mixed deriving (Show)
 ambiguityStyle :: Error elidable tok -> AmbiguityStyle
 ambiguityStyle (Ambiguity _ _ _ (_:_) (_:_)) = Mixed
 ambiguityStyle (Ambiguity _ _ _ [] (_:_)) = Unresolvable
@@ -152,7 +152,7 @@ data ErrorOptions elidable tok = EO
   , tokRange :: tok -> Range
   }
 
-data DynAnalysisKind = FastDyn | CompleteDyn | RaceDyn
+data DynAnalysisKind = FastDyn | CompleteDyn | RaceDyn deriving (Show)
 
 data DynConfig elidable tok = DynConfig
   { dTimeout :: Int  -- ^ Timeout in microseconds. Negative to never timeout. Only honored by FastDyn.
@@ -173,12 +173,12 @@ type ResStr elidable = [TaggedTerminal (Token elidable) (Token elidable) (Token 
 analyze :: forall elidable tok. (Eq elidable, Hashable elidable, Show elidable, Show tok, Ranged tok, Eq tok, Hashable tok, NFData tok, NFData elidable)
         => DynConfig elidable tok
         -> HashSet (NodeOrElide elidable tok)
-        -> IO (Error elidable tok)
+        -> IO (DynAnalysisKind, Error elidable tok)
 analyze config@DynConfig{dPl, dGetElided, dMkToken, dKind, dCheckReparses, dShowElided, dGroupByTop, dGetElidedTokRange, dGetNames} alts =
   (if dGroupByTop then (first Left <$> groupedLanguages) else (first Right <$> languages))
   & analyze'
-  <&> second prepareForAmbiguity
-  <&> \(timeoutInfo, (res, unres)) -> Ambiguity range timeoutInfo (foldMap dGetNames alts) res unres
+  <&> second (second prepareForAmbiguity)
+  <&> \(kind, (timeoutInfo, (res, unres))) -> (kind, Ambiguity range timeoutInfo (foldMap dGetNames alts) res unres)
   where
     range = toList alts & \case
       Node NodeF{n_rangeF} : _ -> n_rangeF
@@ -224,12 +224,12 @@ analyze config@DynConfig{dPl, dGetElided, dMkToken, dKind, dCheckReparses, dShow
       & compFromJust "P5DynamicAmbiguity.Analysis.analyze.mkTokRange" "Missing beginEnd on NodeF"
       & \tokRange -> (M.singleton tokRange $ S.singleton $ coerce $ n_nameF n, tokRange)
 
-    analyze' :: forall tree. NFData tree => [(tree, ResLang elidable)] -> IO (TimeoutInfo, [(tree, Maybe (ResStr elidable))])
+    analyze' :: forall tree. NFData tree => [(tree, ResLang elidable)] -> IO (DynAnalysisKind, (TimeoutInfo, [(tree, Maybe (ResStr elidable))]))
     analyze' = case dKind of
-      FastDyn -> fastAnalyze config
-      CompleteDyn -> completeAnalyze config
+      FastDyn -> fastAnalyze config >>> fmap (FastDyn,)
+      CompleteDyn -> completeAnalyze config >>> fmap (CompleteDyn,)
       RaceDyn -> \tree -> race (fastAnalyze config tree) (completeAnalyze config tree)
-        <&> either identity identity
+        <&> either (FastDyn,) (CompleteDyn,)
 
 fastAnalyze :: forall tree elidable tok. (Eq elidable, Hashable elidable)
             => DynConfig elidable tok -> [(tree, ResLang elidable)]

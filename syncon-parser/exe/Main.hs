@@ -254,6 +254,7 @@ parseAction = do
                     }
               errs <- forM ambs $ foldMap S.singleton >>> \amb ->
                 DynAmb.analyze (dynConfig (checkReparse originalSize amb)) amb
+                <&> snd
                 <&> formatError opts
               errs
                 & formatErrors sources
@@ -378,6 +379,12 @@ data DynMetadata = DynMetadata
   , numToks :: !Int
   , ambSize :: !DynAmb.AmbiguitySize
   }
+data DynResult = DynResult
+  { dynAmbStyle :: !DynAmb.AmbiguityStyle
+  , time :: !Double
+  , numReparseFailures :: !Int
+  , kind :: !DynAmb.DynAnalysisKind
+  }
 
 addDynMeta :: (Eq l, t ~ Lexer.Token l LD.TypeName)
            => DynAmb.AmbiguitySize
@@ -394,22 +401,20 @@ addDynMeta ambSize getBounds program amb =
         [] -> compErr "Main.addDynMeta.numToks" "Empty ambiguity"
   in ((DynMetadata{..}, Nothing):) >>> (,())
 
-setDynCompletion :: (Int, Double) -> [(DynMetadata, Maybe (Int, Double))] -> ([(DynMetadata, Maybe (Int, Double))], ())
+setDynCompletion :: DynResult -> [(DynMetadata, Maybe DynResult)] -> ([(DynMetadata, Maybe DynResult)], ())
 setDynCompletion _ [] = compErr "Main.setDynTime" "Tried to set time when there were no entries"
 setDynCompletion _ ((_, Just _) : _) = compErr "Main.setDynTime" "Tried to set time twice"
 setDynCompletion t ((meta, Nothing) : rest) = ((meta, Just t) : rest, ())
 
-formatDynEntry :: Text -> (DynMetadata, Maybe (Int, Double)) -> Text
+formatDynEntry :: Text -> (DynMetadata, Maybe DynResult) -> Text
 formatDynEntry key (DynMetadata{numAlts, numNodesTot, numNodesPer, numToks}, completionData) =
   show key <> "," <> show numAlts <> "," <> show numNodesTot <> "," <> show @Text (show (toList numNodesPer))
-  <> "," <> show numToks <> "," <> reparseFailures <> "," <> timing
+  <> "," <> show numToks <> "," <> style <> "," <> dynAmbKind <> "," <> reparseFailures <> "," <> timing
   where
-    timing = case completionData of
-      Nothing -> "timeout"
-      Just (_, time) -> show time
-    reparseFailures = case completionData of
-      Nothing -> "timeout"
-      Just (count, _) -> show count
+    timing = maybe "timeout" (time >>> show) completionData
+    reparseFailures = maybe "timeout" (numReparseFailures >>> show) completionData
+    style = maybe "timeout" (dynAmbStyle >>> show) completionData
+    dynAmbKind = maybe "timeout" (kind >>> show) completionData
 
 summarize :: Text -> LD.DefinitionFile -> Ambiguity -> Double -> Hedgehog.Report Hedgehog.Result -> Text
 summarize key LD.DefinitionFile{syncons} target time report = show key
@@ -529,12 +534,17 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                             }
                       let analyze' checkReparse amb = do
                             forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (addDynMeta originalSize getBounds program amb)
-                            (time, err) <-
+                            (time, (kind, err)) <-
                               DynAmb.analyze (dynConf checkReparse) amb
                               >>= evaluate
                               & Timer.time
-                            let reparseFailureCount = DynAmb.countReparseFailures err
-                            forM_ dynLogFile $ \_ -> reparseFailureCount `seq` atomicModifyIORef' dynLog (setDynCompletion (reparseFailureCount, time))
+                            let !res = DynResult
+                                  { dynAmbStyle = DynAmb.ambiguityStyle err
+                                  , numReparseFailures = DynAmb.countReparseFailures err
+                                  , time
+                                  , kind
+                                  }
+                            forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (setDynCompletion res)
                             return err
                       let checkReparse elidable replacement
                             | not reparse = True
