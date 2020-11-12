@@ -381,7 +381,9 @@ data DynMetadata = DynMetadata
   }
 data DynResult = DynResult
   { dynAmbStyle :: !DynAmb.AmbiguityStyle
-  , time :: !Double
+  , parseTime :: !Double
+  , isolateTime :: !Double
+  , analyzeTime :: !Double
   , numReparseFailures :: !Int
   , kind :: !DynAmb.DynAnalysisKind
   }
@@ -410,8 +412,11 @@ formatDynEntry :: Text -> (DynMetadata, Maybe DynResult) -> Text
 formatDynEntry key (DynMetadata{numAlts, numNodesTot, numNodesPer, numToks}, completionData) =
   show key <> "," <> show numAlts <> "," <> show numNodesTot <> "," <> show @Text (show (toList numNodesPer))
   <> "," <> show numToks <> "," <> style <> "," <> dynAmbKind <> "," <> reparseFailures <> "," <> timing
+  <> "," <> parseTiming <> "," <> isolateTiming
   where
-    timing = maybe "timeout" (time >>> show) completionData
+    parseTiming = maybe "timeout" (parseTime >>> show) completionData
+    isolateTiming = maybe "timeout" (isolateTime >>> show) completionData
+    timing = maybe "timeout" (analyzeTime >>> show) completionData
     reparseFailures = maybe "timeout" (numReparseFailures >>> show) completionData
     style = maybe "timeout" (dynAmbStyle >>> show) completionData
     dynAmbKind = maybe "timeout" (kind >>> show) completionData
@@ -511,13 +516,13 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
               when showSyTyDistr $
                 mapM_ (classifySyTy types) allSyTys
               discardSlow dynAmbTimeout $ do
-                Hedgehog.evalM $ case Parser.parseTokens preParse program of
-                  Error _ -> do
+                Hedgehog.evalM $ liftIO (Timer.time (evaluate $ Parser.parseTokens preParse program)) >>= \case
+                  (_, Error _) -> do
                     Hedgehog.annotate $ "Got error when parsing generated program, this should not be possible"
                     Hedgehog.failure
-                  Data forest@(nodeMap, _) -> case isolate forest of
-                    Data _ -> when showAmbDistr (Hedgehog.label "unambiguous") >> Hedgehog.success
-                    Error ambs -> do
+                  (parseTime, Data forest@(nodeMap, _)) -> liftIO (Timer.time (evaluate $ isolate forest)) >>= \case
+                    (_, Data _) -> when showAmbDistr (Hedgehog.label "unambiguous") >> Hedgehog.success
+                    (isolateTime, Error ambs) -> do
                       let originalSize = DynAmb.ambiguitySize (Error ambs)
                       let getBounds = DynAmb.getElidableBoundsEx nodeMap
                       let dynConf checkReparse = DynAmb.DynConfig
@@ -534,14 +539,16 @@ pbtCommand = Opt.command "pbt" (Opt.info pbtCmd $ Opt.progDesc "Explore the ambi
                             }
                       let analyze' checkReparse amb = do
                             forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (addDynMeta originalSize getBounds program amb)
-                            (time, (kind, err)) <-
+                            (analyzeTime, (kind, err)) <-
                               DynAmb.analyze (dynConf checkReparse) amb
                               >>= evaluate
                               & Timer.time
                             let !res = DynResult
                                   { dynAmbStyle = DynAmb.ambiguityStyle err
                                   , numReparseFailures = DynAmb.countReparseFailures err
-                                  , time
+                                  , parseTime
+                                  , isolateTime
+                                  , analyzeTime
                                   , kind
                                   }
                             forM_ dynLogFile $ \_ -> atomicModifyIORef' dynLog (setDynCompletion res)

@@ -39,7 +39,8 @@ import P5DynamicAmbiguity.Types
 -- Note that the 'Node' doesn't have to be of syntax type Top, it can be any syntax type.
 treeLanguage :: (Eq elidable, Hashable elidable, Show elidable, Show tok, Ranged tok)
              => PreLanguage elidable -> (tok -> Token elidable)
-             -> (elidable -> (Range, TypeName)) -> NodeOrElide elidable tok
+             -> (elidable -> (Range, TypeName))
+             -> NodeOrElide elidable tok
              -> NVA Int Int (Token elidable) (Token elidable) (Token elidable)
 treeLanguage pl mkToken getElidable =
   mkLanguage pl mkToken getElidable
