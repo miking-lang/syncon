@@ -609,6 +609,9 @@ composeCommand = Opt.command "compose" (Opt.info composeCmd $ Opt.progDesc "Crea
         <> Opt.metavar "N"
         <> Opt.help "The minimum number of language fragments present in the composition, including the base fragment."
         <> Opt.value 10
+      forbidGraph <- Opt.switch
+        $ Opt.long "forbid-graph"
+        <> Opt.help "If supplied, output a graphviz dot graph where fragments are connected by an edge if they forbid each other."
       base <- Opt.argument Opt.str
         $ Opt.metavar "FILE"
         <> Opt.help "The '.syncon' file that defines the base fragment that is to always be present."
@@ -619,12 +622,19 @@ composeCommand = Opt.command "compose" (Opt.info composeCmd $ Opt.progDesc "Crea
       pure $ do
         let baseID = RC.mkID base
         info <- RC.computeInfo (base : others) >>= dataOrError mempty ()
-        case dirPath of
-          Nothing -> RC.generateComposition count baseID info
-            >>= dataOrError mempty ()
-            >>= putStrLn
-          Just path -> RC.writeAllFragmentsToDir path baseID info
-            >>= dataOrError mempty ()
+        let mkSingle = isNothing dirPath && not forbidGraph
+
+        forM_ dirPath $ \path ->
+          RC.writeAllFragmentsToDir path baseID info
+          >>= dataOrError mempty ()
+
+        when forbidGraph $
+          putStr $ RC.graphvizForbidGraph info
+
+        when mkSingle $
+          RC.generateComposition count baseID info
+          >>= dataOrError mempty ()
+          >>= putStrLn
 
 main :: IO ()
 main = join $ Opt.execParser $ Opt.info (Opt.hsubparser (compileCommand <> parseCommand <> devCommand <> pbtCommand <> composeCommand) <**> Opt.helper)
